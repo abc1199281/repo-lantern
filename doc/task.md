@@ -17,8 +17,10 @@
 | Phase | 狀態 | 完成時間 | Commit |
 | :--- | :--- | :--- | :--- |
 | Phase 0.1 | ✅ 完成 | 2026-02-09 | `2b7a764` |
-| Phase 0.2 | ✅ 完成 | 2026-02-09 | (pending) |
-| Phase 1 | 🔄 進行中 | - | - |
+| Phase 0.2 | ✅ 完成 | 2026-02-09 | `1473063` |
+| Phase 1 | ✅ 完成 | 2026-02-09 | (pending) |
+| Phase 2 | 🔄 進行中 | - | - |
+
 
 ---
 
@@ -68,21 +70,25 @@
 
 > **Spec 參考**: Section 4.4 配置檔優先順序
 
-- [ ] **1.1 配置模型 (Pydantic)**
-  - [ ] 定義 `LanternConfig` dataclass/Pydantic model
-  - [ ] 測試：驗證配置的預設值
-  - [ ] 測試：驗證配置的型別檢查
+- [x] **1.1 配置模型 (Pydantic)** ✅ 2026-02-09
+  - [x] 定義 `LanternConfig` dataclass/Pydantic model
+  - [x] 測試：驗證配置的預設值
+  - [x] 測試：驗證配置的型別檢查
+  - **狀態**: ✅ 成功 - 實作 FilterConfig, BackendConfig, LanternConfig，12 個測試全部通過，100% 覆蓋率
 
-- [ ] **1.2 配置載入**
-  - [ ] 實作 `lantern.toml` 解析 (使用 `tomllib`)
-  - [ ] 測試：載入專案設定檔
-  - [ ] 測試：載入使用者設定檔
-  - [ ] 測試：配置合併優先順序
+- [x] **1.2 配置載入** ✅ 2026-02-09
+  - [x] 實作 `lantern.toml` 解析 (使用 `tomllib`)
+  - [x] 測試：載入專案設定檔
+  - [x] 測試：載入使用者設定檔
+  - [x] 測試：配置合併優先順序
+  - **狀態**: ✅ 成功 - 實作 ConfigLoader，支援優先順序 (CLI > Project > User > Default)，6 個測試全部通過，100% 覆蓋率
 
-- [ ] **1.3 檔案過濾配置**
-  - [ ] 實作 `[filter]` 區塊解析
-  - [ ] 測試：exclude 規則解析
-  - [ ] 測試：include 覆蓋 exclude
+- [x] **1.3 檔案過濾配置** ✅ 2026-02-09
+  - [x] 實作 `[filter]` 區塊解析
+  - [x] 測試：exclude 規則解析
+  - [x] 測試：include 覆蓋 exclude
+  - **狀態**: ✅ 成功 - FilterConfig 已整合在 1.1 中，支援 exclude/include 規則
+  - **Commit**: (pending)
 
 ---
 
