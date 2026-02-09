@@ -18,7 +18,9 @@ Understand codebases faster with AI-guided architecture scans, planned learning 
 | :--- | :--- |
 | 🧠 **Cognitive Load Reduction** | Psychology-based chunking (Miller's Law) breaks analysis into digestible batches |
 | 🌐 **Native Language Output** | Technical docs in your mother tongue—Chinese, Japanese, Spanish, and more |
-| 📊 **Visual Scaffolding** | Automatic architecture diagrams using Mermaid.js |
+| 📈 **Flow Reconstruction** | Sequence diagrams showing `request → service → db → response` |
+| 💡 **Concept Extraction** | Key mental models: authentication flow, caching strategy, retry mechanisms |
+| 📊 **Visual Scaffolding** | Mermaid architecture diagrams + sequence diagrams |
 | 🔒 **Local & Private** | CLI-native, no cloud uploads—safe for enterprise codebases |
 
 ---
@@ -33,12 +35,19 @@ You usually face:
 * Hidden architectural dependencies.
 * Needing to read dozens of files to understand one concept.
 
+**The AI Code Problem**
+
+In 2024+, codebases are increasingly filled with AI-generated code that:
+* Works, but nobody fully understands *why*
+* Lacks meaningful comments or documentation
+* Makes legacy code comprehension even harder
+
 Most AI tools help you:
 * Write code.
 * Refactor code.
 
 **Lantern's goal is different:**
-> Lantern helps you **understand** code.
+> Lantern helps you **understand** code—whether written by humans or AI.
 
 ---
 
@@ -75,8 +84,9 @@ https://github.com/your-org/your-repo
 │   ├── top_down/                    # 📖 High-level guides
 │   │   ├── OVERVIEW.md             # Project vision & scope
 │   │   ├── ARCHITECTURE.md         # System design & module relationships
-│   │   ├── GETTING_STARTED.md      # Onboarding guide
-│   │   └── CONCEPTS.md             # Key patterns & conventions
+│   │   ├── CONCEPTS.md             # Key concepts (auth flow, caching, retry)
+│   │   ├── FLOWS.md                # Critical data flows (Sequence Diagrams)
+│   │   └── GETTING_STARTED.md      # Onboarding guide
 │   │
 │   └── bottom_up/                   # 📝 File-by-file analysis
 │       └── src/                     # Mirrors your repo structure
@@ -117,6 +127,18 @@ Final outputs are designed for human reading, not machine consumption, focusing 
 ---
 
 # Quick Start
+
+## Prerequisites
+
+Lantern requires one of the following AI CLI tools installed:
+
+| CLI Tool | Installation |
+| :--- | :--- |
+| **Codex CLI** | `npm install -g @openai/codex` |
+| **Gemini CLI** | `npm install -g @anthropic/gemini-cli` |
+| **Claude Code** | `npm install -g @anthropic/claude-code` |
+
+Lantern auto-detects available CLI backends.
 
 ## Installation
 
@@ -198,7 +220,7 @@ Lantern drives your favorite CLI agents:
 
 # Roadmap
 
-- [ ] **Visual Scaffolding**: Automatic architecture diagrams using Mermaid.js.
+- [ ] **Execution Trace Mode**: Collect call graphs via unit tests for dynamic analysis.
 - [ ] **Memory Cross-talk**: Enhanced reasoning across batch boundaries.
 - [ ] **Multi-language Static Analysis**: Go, Rust, and Java support.
 - [ ] **VSCode Extension**: Integrated progress tracking.

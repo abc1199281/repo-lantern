@@ -12,13 +12,15 @@
 
 **說你的語言**：邏輯已經夠複雜了。Lantern 使用你的母語（中文、日文、西班牙文等）解釋程式碼，同時保持技術術語的精確性。
 
-### ✨ 四大亮點
+### ✨ 亮點
 
 | | |
 | :--- | :--- |
 | 🧠 **認知負擔減輕** | 基於心理學的區塊化設計（米勒定律），將分析拆解為可消化的小批次 |
 | 🌐 **母語輸出** | 技術文檔以你的母語呈現——中文、日文、西班牙文等 |
-| 📊 **視覺化鷹架** | 使用 Mermaid.js 自動生成架構圖 |
+| � **流程重建** | Sequence Diagram 展示 `request → service → db → response` |
+| 💡 **概念萃取** | 核心認知模型：認證流程、快取策略、重試機制 |
+| �📊 **視覺化鷹架** | Mermaid 架構圖 + Sequence Diagram |
 | 🔒 **本地優先、隱私可控** | CLI 原生運行，無需上傳雲端——適合企業與工作環境 |
 
 ---
@@ -33,12 +35,19 @@
 * 隱藏的系統架構依賴關係。
 * 需要閱讀數十個檔案才能理解一個核心概念。
 
+**AI 產生的程式碼問題**
+
+在 2024 年以後，程式碼庫中越來越多 AI 生成的程式碼：
+* 能運作，但沒有人完全理解*為什麼*
+* 缺乏有意義的註解或文檔
+* 讓 Legacy Code 更難理解
+
 大多數 AI 工具幫助你：
 * 寫程式碼 (Write code)。
 * 重構程式碼 (Refactor code)。
 
 **Lantern 的目標截然不同：**
-> Lantern 幫助你「理解」(Understand) 程式碼。
+> Lantern 幫助你「理解」(Understand) 程式碼——無論是人寫的還是 AI 生成的。
 
 ---
 
@@ -75,8 +84,9 @@ https://github.com/your-org/your-repo
 │   ├── top_down/                    # 📖 高層次指南
 │   │   ├── OVERVIEW.md             # 專案願景與範圍
 │   │   ├── ARCHITECTURE.md         # 系統設計與模組關係
-│   │   ├── GETTING_STARTED.md      # 新手上手指南
-│   │   └── CONCEPTS.md             # 核心模式與慣例
+│   │   ├── CONCEPTS.md             # 核心概念（認證流程、快取、重試）
+│   │   ├── FLOWS.md                # 關鍵資料流 (Sequence Diagrams)
+│   │   └── GETTING_STARTED.md      # 新手上手指南
 │   │
 │   └── bottom_up/                   # 📝 逐檔分析
 │       └── src/                     # 鏡像你的 repo 結構
@@ -117,6 +127,18 @@ Lantern 的設計基於心理學原則：
 ---
 
 # 快速上手
+
+## 前置需求
+
+Lantern 需要安裝以下其中一個 AI CLI 工具：
+
+| CLI 工具 | 安裝指令 |
+| :--- | :--- |
+| **Codex CLI** | `npm install -g @openai/codex` |
+| **Gemini CLI** | `npm install -g @anthropic/gemini-cli` |
+| **Claude Code** | `npm install -g @anthropic/claude-code` |
+
+Lantern 會自動偵測可用的 CLI 後端。
 
 ## 安裝
 
@@ -198,7 +220,7 @@ Lantern 驅動你喜愛的 CLI Agents：
 
 # 發展藍圖 (Roadmap)
 
-- [ ] **視覺化鷹架**：使用 Mermaid.js 自動生成架構圖。
+- [ ] **Execution Trace Mode**：透過 unit test 收集 call graph，實現動態分析。
 - [ ] **跨批次推論**：加強跨批次邊界的邏輯關聯分析。
 - [ ] **多語言靜態分析支援**：擴展至 Go, Rust, 與 Java。
 - [ ] **VSCode 延伸插件**：整合進度追蹤與可視化。
