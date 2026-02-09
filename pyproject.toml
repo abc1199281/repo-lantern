@@ -1,18 +1,59 @@
 [project]
 name = "lantern-cli"
 version = "0.1.0"
-description = ""
+description = "Your repository mentor - AI-guided codebase analysis with psychology-driven design"
 authors = [
-    {name = "Po-wei Huang",email = "abc1199281@gmail.com"}
+    {name = "Po-wei Huang", email = "abc1199281@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "typer>=0.12.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "rich>=13.0.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
+]
+
+[project.scripts]
+lantern = "lantern_cli.cli:app"
 
 [tool.poetry]
 packages = [{include = "lantern_cli", from = "src"}]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=lantern_cli --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
