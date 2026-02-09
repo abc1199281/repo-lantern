@@ -80,6 +80,9 @@ def plan(
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
     
+    # 0. Load Configuration (for filters)
+    config = load_config(repo_path)
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -87,7 +90,7 @@ def plan(
     ) as progress:
         # 1. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
-        graph = DependencyGraph(repo_path)
+        graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
         graph.build()
         progress.update(task_static, completed=True)
 
@@ -157,8 +160,7 @@ def run(
         
         # 3. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
-        graph = DependencyGraph(repo_path)
-        # TODO: Filter using config.filter
+        graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
         graph.build()
         progress.update(task_static, completed=True)
 

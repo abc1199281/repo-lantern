@@ -6,36 +6,47 @@ from pathlib import Path
 class DependencyGraph:
     """Graph structure to represent module dependencies."""
 
-    def __init__(self, root_path: Path) -> None:
+    def __init__(self, root_path: Path, excludes: list[str] = None) -> None:
         """Initialize DependencyGraph.
 
         Args:
             root_path: Root directory of the project.
+            excludes: List of glob patterns to exclude.
         """
         self.root_path = root_path
+        self.excludes = excludes or []
+        
         # Map: Source -> Set of Targets
         self.dependencies: dict[str, set[str]] = defaultdict(set)
         # Map: Target -> Set of Sources (Reverse graph for some algos)
         self.reverse_dependencies: dict[str, set[str]] = defaultdict(set)
         
-        # Lazy import to avoid circular dependency if any
+        # Lazy import to avoid circular dependency
         from lantern_cli.static_analysis.python import PythonAnalyzer
+        from pathspec import PathSpec
+        from pathspec.patterns import GitWildMatchPattern
+        
         self.analyzer = PythonAnalyzer()
+        self.spec = PathSpec.from_lines(GitWildMatchPattern, self.excludes)
 
     def build(self) -> None:
         """Build the dependency graph by analyzing files in root_path."""
         # 1. Index all Python files
-        # Map: module_name -> file_path (relative to root)
-        # e.g., "lantern_cli.core.runner" -> "src/lantern_cli/core/runner.py"
         module_map: dict[str, str] = {}
         all_files: list[Path] = []
         
-        # Walk excluding hidden/venv etc. (Basic filter for MVP)
+        # Walk excluding hidden/venv etc. AND user defined excludes
         for path in self.root_path.rglob("*.py"):
+            rel_path = path.relative_to(self.root_path)
+            
+            # 1. Basic hardcoded Clean check
             if any(part.startswith(".") or part == "__pycache__" or part == "venv" or part == "node_modules" for part in path.parts):
                 continue
             
-            rel_path = path.relative_to(self.root_path)
+            # 2. Config based Check
+            if self.spec.match_file(str(rel_path)):
+                continue
+            
             all_files.append(rel_path)
             
             # Simple module name heuristic
