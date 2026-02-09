@@ -12,6 +12,15 @@ Understand codebases faster with AI-guided architecture scans, planned learning 
 
 **Speaks Your Language**: Complex logic is hard enough. Lantern explains code in your native language (Chinese, Japanese, Spanish, etc.) while keeping technical terms precise.
 
+### ✨ Highlights
+
+| | |
+| :--- | :--- |
+| 🧠 **Cognitive Load Reduction** | Psychology-based chunking (Miller's Law) breaks analysis into digestible batches |
+| 🌐 **Native Language Output** | Technical docs in your mother tongue—Chinese, Japanese, Spanish, and more |
+| 📊 **Visual Scaffolding** | Automatic architecture diagrams using Mermaid.js |
+| 🔒 **Local & Private** | CLI-native, no cloud uploads—safe for enterprise codebases |
+
 ---
 
 # Why Lantern exists
@@ -33,34 +42,62 @@ Most AI tools help you:
 
 ---
 
-# What Lantern does
+## Why Not Just Use NotebookLM?
 
-Lantern follows a structured "cognition-first" workflow:
-
-1. **Scan**: Maps out the repository structure and dependencies.
-2. **Chunk**: Breaks analysis into small, manageable batches (1-3 files).
-3. **Step-by-step**: Guides you through core modules one by one.
-4. **Synthesize**: Produces human-readable documentation with both bottom-up (file-level) and top-down (architectural) views.
+| Feature | NotebookLM | Lantern |
+| :--- | :--- | :--- |
+| **Output** | Chat-style Q&A | Structured documentation repository |
+| **Environment** | Browser upload (workspace may prohibit) | Native CLI in your terminal |
+| **Path** | Global summary | Step-by-step narrative |
+| **Privacy** | Cloud upload required | Local-first, controlled data flow |
 
 ---
 
-# How Lantern works
+# What Lantern Does
 
-![How Lantern works](assets/latern-2.jpg)
-
-Lantern uses a phased pedagogical approach:
+**One command. Full documentation.**
 
 ```bash
-Init (Input repo)
-   ↓
-Static Scan (Analyze dependencies)
-   ↓
-Orchestration (Generate Lantern Plan)
-   ↓
-Execution (Iterative Batch Analysis)
-   ↓
-Synthesis (High-level guides)
+lantern run
 ```
+
+Lantern analyzes your repository and generates a **complete documentation repository**:
+
+### Input
+```
+https://github.com/your-org/your-repo
+```
+
+### Output
+```
+.lantern/output/
+├── en/
+│   ├── top_down/                    # 📖 High-level guides
+│   │   ├── OVERVIEW.md             # Project vision & scope
+│   │   ├── ARCHITECTURE.md         # System design & module relationships
+│   │   ├── GETTING_STARTED.md      # Onboarding guide
+│   │   └── CONCEPTS.md             # Key patterns & conventions
+│   │
+│   └── bottom_up/                   # 📝 File-by-file analysis
+│       └── src/                     # Mirrors your repo structure
+│           ├── kernel/
+│           │   ├── scheduler.py.md  # Detailed breakdown
+│           │   └── events.py.md
+│           └── api/
+│               └── routes.py.md
+│
+└── zh-TW/                           # 🌐 Native language version
+    └── (same structure)
+```
+
+### How It Maintains Quality
+
+Internally, Lantern uses **batch-based analysis** for quality control:
+- Files are analyzed in small batches (1-3 related files)
+- Each batch builds on context from previous batches
+- This ensures **traceability** and **consistent reasoning**
+
+You don't need to manage this—just run `lantern run` and let it work.
 
 ---
 
@@ -87,38 +124,53 @@ Final outputs are designed for human reading, not machine consumption, focusing 
 pip install lantern-cli
 ```
 
-## Basic Usage
+## Simple Mode (Recommended)
 
-1. **Initialize**: Point Lantern to a repository.
-   ```bash
-   lantern init <repo_url_or_path>
-   ```
+```bash
+# Run in current directory (outputs to .lantern/)
+lantern run
 
-2. **Plan**: Generate the analysis orchestration.
-   ```bash
-   lantern plan
-   ```
+# Specify input and output
+lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
+```
 
-3. **Run**: Execute the step-by-step analysis.
-   ```bash
-   lantern run
-   ```
+Lantern auto-detects available CLI backends: `codex` → `gemini` → `claude`
+
+## Advanced Mode
+
+For reviewing the analysis plan before execution:
+
+```bash
+# Step 1: Initialize
+lantern init --repo /path/to/repo
+
+# Step 2: Generate plan (review lantern_plan.md)
+lantern plan
+
+# Step 3: Execute analysis
+lantern run
+```
+
+## Specify Backend
+
+```bash
+lantern run --backend claude
+lantern run --backend gemini
+```
 
 ---
 
-# Example Output
+# Real Example
 
-```markdown
-# Phase 2: API Layer
+Analyzing [accellera-official/systemc](https://github.com/accellera-official/systemc):
 
-The API layer is built with FastAPI.
+**Top-down output** (`ARCHITECTURE.md`):
+> SystemC is effectively a **co-operative multitasking OS** specialized for hardware simulation.
+> At its core lies the `sc_simcontext`, which acts as the kernel, scheduler, and event manager.
 
-Authentication flow:
-client → middleware → JWT verification → route handler
-
-Key insight:
-Business logic is separated from HTTP transport.
-```
+**Bottom-up output** (`sc_simcontext.md`):
+> `sc_simcontext` is the **central nervous system** of the SystemC simulation kernel.
+> It manages: Global Simulation State, Object Registry, Scheduler, Process Management.
 
 ---
 
@@ -131,12 +183,6 @@ You can set your preferred output language (e.g., Traditional Chinese, Japanese)
 **Option A: Command line**
 ```bash
 lantern run --lang zh-TW
-```
-
-**Option B: Config file (`lantern.toml`)**
-```toml
-[lantern]
-language = "zh-TW"
 ```
 
 ---
@@ -152,7 +198,6 @@ Lantern drives your favorite CLI agents:
 
 # Roadmap
 
-- [ ] **Interactive Quiz Mode**: Test your understanding after each phase.
 - [ ] **Visual Scaffolding**: Automatic architecture diagrams using Mermaid.js.
 - [ ] **Memory Cross-talk**: Enhanced reasoning across batch boundaries.
 - [ ] **Multi-language Static Analysis**: Go, Rust, and Java support.

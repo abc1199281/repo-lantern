@@ -12,6 +12,15 @@
 
 **說你的語言**：邏輯已經夠複雜了。Lantern 使用你的母語（中文、日文、西班牙文等）解釋程式碼，同時保持技術術語的精確性。
 
+### ✨ 四大亮點
+
+| | |
+| :--- | :--- |
+| 🧠 **認知負擔減輕** | 基於心理學的區塊化設計（米勒定律），將分析拆解為可消化的小批次 |
+| 🌐 **母語輸出** | 技術文檔以你的母語呈現——中文、日文、西班牙文等 |
+| 📊 **視覺化鷹架** | 使用 Mermaid.js 自動生成架構圖 |
+| 🔒 **本地優先、隱私可控** | CLI 原生運行，無需上傳雲端——適合企業與工作環境 |
+
 ---
 
 # 為什麼需要 Lantern
@@ -35,32 +44,60 @@
 
 # Lantern 的功能
 
-Lantern 遵循一套結構化的「認知優先」工作流：
+## 為什麼不直接用 NotebookLM？
 
-1. **掃描 (Scan)**：繪製專案結構與依賴關係圖。
-2. **區塊化 (Chunk)**：將分析拆解為易於管理的「小批次」(1-3 個檔案)。
-3. **循序漸進 (Step-by-step)**：帶領你一個接一個地理解核心模組。
-4. **合成 (Synthesize)**：產生具備 Bottom-up（檔案級別）與 Top-down（架構級別）視角的人類可讀文檔。
+| 特性 | NotebookLM | Lantern |
+| :--- | :--- | :--- |
+| **輸出** | 聊天式問答 | 結構化文檔庫 |
+| **環境** | 瀏覽器上傳(workspace不允許) | 終端機原生 CLI |
+| **路徑** | 全域摘要 | 循序漸進敘事 |
+| **隱私** | 必須上傳雲端 | 本地優先，數據流可控 |
 
 ---
 
-# Lantern 運作流程
-
-![How Lantern works](assets/latern-2.jpg)
-
-Lantern 採用分階段的教學法：
+**一次指令。完整文檔。**
 
 ```bash
-Init (輸入 Repo 連結)
-   ↓
-Static Scan (分析檔案依賴)
-   ↓
-Orchestration (生成分析計畫 lantern_plan.md)
-   ↓
-Execution (循環執行批次分析)
-   ↓
-Synthesis (產出高品質高層次指南)
+lantern run
 ```
+
+Lantern 分析你的 Repository 並產生一個 **完整的文檔庫**：
+
+### 輸入
+```
+https://github.com/your-org/your-repo
+```
+
+### 輸出
+```
+.lantern/output/
+├── en/
+│   ├── top_down/                    # 📖 高層次指南
+│   │   ├── OVERVIEW.md             # 專案願景與範圍
+│   │   ├── ARCHITECTURE.md         # 系統設計與模組關係
+│   │   ├── GETTING_STARTED.md      # 新手上手指南
+│   │   └── CONCEPTS.md             # 核心模式與慣例
+│   │
+│   └── bottom_up/                   # 📝 逐檔分析
+│       └── src/                     # 鏡像你的 repo 結構
+│           ├── kernel/
+│           │   ├── scheduler.py.md  # 詳細拆解
+│           │   └── events.py.md
+│           └── api/
+│               └── routes.py.md
+│
+└── zh-TW/                           # 🌐 母語版本
+    └── (同上結構)
+```
+
+### 如何確保品質
+
+Lantern 內部使用 **批次分析** 來控制品質：
+- 檔案以小批次分析（1-3 個相關檔案）
+- 每個批次建立在前一批次的脈絡之上
+- 確保 **可追溯性** 與 **一致的推理**
+
+你不需要管理這些——只要執行 `lantern run` 讓它運作。
 
 ---
 
@@ -87,38 +124,53 @@ Lantern 的設計基於心理學原則：
 pip install lantern-cli
 ```
 
-## 基本用法
+## 簡易模式（推薦）
 
-1. **初始化**：將 Lantern 指向一個 Repository。
-   ```bash
-   lantern init <repo_url_or_path>
-   ```
+```bash
+# 在當前目錄執行（輸出至 .lantern/）
+lantern run
 
-2. **規劃**：生成分析編排計畫。
-   ```bash
-   lantern plan
-   ```
+# 指定輸入與輸出
+lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
+```
 
-3. **執行**：開始循序漸進的分析。
-   ```bash
-   lantern run
-   ```
+Lantern 自動偵測可用的 CLI 後端：`codex` → `gemini` → `claude`
+
+## 進階模式
+
+若需要審查分析計畫：
+
+```bash
+# Step 1: 初始化
+lantern init --repo /path/to/repo
+
+# Step 2: 生成計畫（審查 lantern_plan.md）
+lantern plan
+
+# Step 3: 執行分析
+lantern run
+```
+
+## 指定後端
+
+```bash
+lantern run --backend claude
+lantern run --backend gemini
+```
 
 ---
 
-# 範例輸出
+# 實際範例
 
-```markdown
-# Phase 2: API Layer
+分析 [accellera-official/systemc](https://github.com/accellera-official/systemc)：
 
-API 層是使用 FastAPI 構建的。
+**Top-down 輸出** (`ARCHITECTURE.md`)：
+> SystemC 實際上是一個 **專為硬體模擬設計的協作式多任務作業系統**。
+> 其核心是 `sc_simcontext`，充當核心、排程器和事件管理器。
 
-認證流程：
-用戶端 → 中間件 → JWT 驗證 → 路由處理程式
-
-關鍵洞察：
-業務邏輯已與 HTTP 傳輸層分離。
-```
+**Bottom-up 輸出** (`sc_simcontext.md`)：
+> `sc_simcontext` 是 SystemC 模擬核心的 **中樞神經系統**。
+> 它管理：全域模擬狀態、物件註冊表、排程器、處理程序管理。
 
 ---
 
@@ -131,12 +183,6 @@ API 層是使用 FastAPI 構建的。
 **方法 A：命令列參數**
 ```bash
 lantern run --lang zh-TW
-```
-
-**方法 B：設定檔 (`lantern.toml`)**
-```toml
-[lantern]
-language = "zh-TW"
 ```
 
 ---
@@ -152,7 +198,6 @@ Lantern 驅動你喜愛的 CLI Agents：
 
 # 發展藍圖 (Roadmap)
 
-- [ ] **互動式測驗模式**：在每個階段結束後測驗你的理解程度。
 - [ ] **視覺化鷹架**：使用 Mermaid.js 自動生成架構圖。
 - [ ] **跨批次推論**：加強跨批次邊界的邏輯關聯分析。
 - [ ] **多語言靜態分析支援**：擴展至 Go, Rust, 與 Java。

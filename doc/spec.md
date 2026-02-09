@@ -215,23 +215,195 @@ graph LR
 
 ---
 
+### D. 後端抽象層 (Backend Abstraction Layer)
+
+> [!IMPORTANT]
+> CLI 工具（如 `antigravity`, `gemini-cli`）的輸出格式非穩定 API，可能隨版本改變。
+> 為確保長期穩定性，Lantern 必須透過 **Adapter Pattern** 隔離這些不穩定依賴。
+
+#### Adapter 介面設計
+
+所有 LLM 後端必須實作以下介面：
+
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class AnalysisResult:
+    summary: str
+    key_insights: list[str]
+    questions: list[str]
+    raw_output: str  # 原始 CLI/API 輸出，用於除錯
+
+class BackendAdapter(ABC):
+    """LLM 後端的抽象介面"""
+    
+    @abstractmethod
+    def analyze_batch(
+        self,
+        files: list[str],
+        context: str,
+        prompt: str
+    ) -> AnalysisResult:
+        """分析一個 Batch 的檔案"""
+        pass
+    
+    @abstractmethod
+    def synthesize(
+        self,
+        sense_files: list[str],
+        target_language: str
+    ) -> str:
+        """合成最終文檔"""
+        pass
+    
+    @abstractmethod
+    def health_check(self) -> bool:
+        """檢查後端是否可用"""
+        pass
+```
+
+#### 後端選項
+
+| 後端類型 | 穩定性 | 成本 | 適用場景 |
+| :--- | :--- | :--- | :--- |
+| **API (推薦)** | ⭐⭐⭐ 高 | 較高 | 生產環境、需要穩定輸出 |
+| **CLI Wrapper** | ⭐⭐ 中 | 較低 | 開發測試、利用最新 Agent 功能 |
+
+#### 配置範例 (`lantern.toml`)
+
+```toml
+[backend]
+# 可選: "api" | "cli"
+type = "api"
+
+# API 後端設定
+[backend.api]
+provider = "anthropic"  # "anthropic" | "openai" | "google"
+model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+
+# CLI 後端設定（備用）
+[backend.cli]
+command = "antigravity"
+timeout_seconds = 300
+fallback_to_api = true  # CLI 失敗時自動切換到 API
+```
+
+#### 錯誤處理策略
+
+CLI Wrapper 必須處理以下情況：
+1. **超時 (Timeout)**：超過設定時間無輸出，視為失敗
+2. **格式變更**：輸出無法解析時，記錄原始輸出並標記錯誤
+3. **降級策略**：若 `fallback_to_api = true`，自動切換到 API 後端
+
+---
+
 ## 3. 文件規格 (Document Specifications)
 
 ### `lantern_plan.md`
 
+> [!TIP]
+> 增強版 `lantern_plan.md` 設計目標：讓使用者即使不完全理解程式碼，也能有效審查計畫。
+
 ```markdown
 # Lantern Plan: [Project Name]
 
-## Phase 1: Authentication Layer
-- [ ] Batch 001: [auth.py, models.py, decorators.py]
-  - Rationale: 理解用戶權限與資料庫模型的綁定關係。
-  - Status: Pending
-- [ ] Batch 002: [session_manager.py]
-  - Status: Pending
+## 📋 Output Structure Preview
+
+> 審查提示：以下是 Lantern 預計生成的文檔結構，請確認是否符合您的需求。
+
+\`\`\`
+.lantern/output/
+├── en/
+│   ├── top_down/
+│   │   ├── OVERVIEW.md          # ✅ 專案願景
+│   │   ├── ARCHITECTURE.md      # ✅ 系統架構
+│   │   ├── GETTING_STARTED.md   # ✅ 新手指南
+│   │   └── CONCEPTS.md          # ✅ 設計模式
+│   └── bottom_up/
+│       ├── src/
+│       │   ├── auth.py.md       # 對應 src/auth.py
+│       │   ├── models.py.md     # 對應 src/models.py
+│       │   └── api/
+│       │       └── routes.py.md
+│       └── tests/
+│           └── test_auth.py.md
+└── zh-TW/                        # 若選擇繁體中文
+    └── (同 en 結構)
+\`\`\`
 
 ---
-## Phase 2: API Endpoints
-...
+
+## 🎯 Analysis Tasks
+
+> 以下是 Architect 規劃的分析任務。請勾選您需要的項目，或取消勾選不需要的項目。
+
+### Phase 1: Authentication Layer
+
+- [x] **Batch 001**: `auth.py`, `models.py`, `decorators.py`
+  - 📊 **信心指數**: ⭐⭐⭐ (高)
+  - 💡 **分組理由**: 三者共同組成認證邏輯，必須一起理解
+  - 🔗 **依賴關係**: `decorators.py` → `auth.py` → `models.py`
+  
+- [x] **Batch 002**: `session_manager.py`
+  - 📊 **信心指數**: ⭐⭐⭐ (高)
+  - 💡 **分組理由**: Session 管理獨立於 JWT，單獨分析
+
+---
+
+### Phase 2: API Endpoints
+
+- [x] **Batch 003**: `routes.py`, `validators.py`
+  - 📊 **信心指數**: ⭐⭐ (中)
+  - 💡 **分組理由**: 路由與驗證緊密相關
+  - ⚠️ **低信心提示**: 不確定 `middleware.py` 是否應納入此 Batch
+
+---
+
+## 🗺️ Dependency Graph
+
+> 以下是 Architect 推斷的模組依賴關係。請檢查是否有遺漏或錯誤。
+
+\`\`\`mermaid
+graph TD
+    subgraph Phase1["Phase 1: Authentication"]
+        auth[auth.py]
+        models[models.py]
+        decorators[decorators.py]
+        session[session_manager.py]
+        
+        decorators --> auth
+        auth --> models
+        session --> models
+    end
+    
+    subgraph Phase2["Phase 2: API"]
+        routes[routes.py]
+        validators[validators.py]
+        
+        routes --> validators
+        routes --> auth
+    end
+    
+    style middleware fill:#ffcccc,stroke:#ff0000
+    middleware[middleware.py<br/>⚠️ 未分類]
+\`\`\`
+
+---
+
+## ⚠️ Low Confidence Decisions
+
+> Architect 對以下決策信心較低，請特別審查：
+
+1. **`middleware.py` 未分類**
+   - 原因：無法從 import 語句判斷其歸屬
+   - 建議：請告知此檔案應歸入哪個 Phase
+   
+2. **`utils.py` 暫時歸入 Phase 3**
+   - 原因：此檔案被多個模組引用，作為 utility 單獨處理
 ```
 
 ### `.lantern/state.json` (跨批次記憶)
@@ -269,7 +441,78 @@ graph LR
 
 ---
 
-## 4. 工作流程 (Workflow)
+## 4. CLI 命令規格 (CLI Commands)
+
+### 使用模式
+
+Lantern 支援兩種使用模式：
+
+| 模式 | 命令 | 適用場景 |
+| :--- | :--- | :--- |
+| **簡易模式** | `lantern run` | 快速分析，使用預設設定 |
+| **進階模式** | `lantern init` → `lantern plan` → `lantern run` | 需要審查/編輯計畫 |
+
+### 簡易模式
+
+```bash
+# 最簡使用：當前目錄作為 repo，輸出至 .lantern/
+lantern run
+
+# 指定輸入 repo
+lantern run --repo /path/to/repo
+
+# 指定輸出位置
+lantern run --output /path/to/output
+
+# 完整範例
+lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
+```
+
+### 進階模式
+
+```bash
+# Step 1: 初始化（生成 .lantern/ 目錄）
+lantern init --repo /path/to/repo
+
+# Step 2: 生成計畫（產出 lantern_plan.md 供審查）
+lantern plan
+
+# Step 3: 審查並編輯 lantern_plan.md 後執行
+lantern run
+```
+
+### CLI 後端自動偵測
+
+> [!NOTE]
+> 執行時 Lantern 會自動偵測可用的 CLI 工具。
+
+**偵測順序**（優先使用第一個找到的）：
+1. `codex` (OpenAI Codex CLI)
+2. `gemini` (Google Gemini CLI)
+3. `claude` (Anthropic Claude CLI)
+4. `antigravity` (Gemini Antigravity)
+
+**手動指定**：
+```bash
+lantern run --backend claude
+lantern run --backend gemini
+```
+
+**錯誤處理**：
+- 若無任何 CLI 可用，顯示安裝指引並退出
+- 若指定的 CLI 不存在，報錯並建議可用選項
+
+### 配置檔優先順序
+
+設定值的優先順序（高 → 低）：
+1. **命令列參數**：`--backend`, `--output`, `--lang`
+2. **專案設定檔**：`.lantern/lantern.toml`
+3. **使用者設定檔**：`~/.config/lantern/lantern.toml`
+4. **預設值**
+
+---
+
+## 5. 工作流程 (Workflow)
 
 > [!IMPORTANT]
 > **Human-in-the-loop 已納入 MVP**。在執行分析前,必須由使用者審查計畫。
@@ -281,8 +524,15 @@ graph LR
 3.  **規劃 (Orchestration)**: Architect 基於靜態分析結果產出 `lantern_plan.md`。
 4.  **人工審查 (Human Review)** ⭐:
     - 使用者檢視 `lantern_plan.md`
-    - 選項：✅ 批准 / ❌ 拒絕 / ✏️ 編輯
-    - 若拒絕或編輯，Architect 重新生成計畫
+    - **審查重點**：
+      - ✅ **輸出結構預覽**：確認產出的文檔結構符合預期
+      - ✅ **分組合理性**：檢查各 Batch 的檔案分組是否合理
+      - ✅ **低信心決策**：特別關注 `⚠️ Low Confidence Decisions` 區塊
+      - ✅ **依賴圖正確性**：確認 Mermaid 圖中的模組關係無遺漏
+    - **操作選項**：
+      - ✅ **批准**: 開始執行分析
+      - ❌ **拒絕**: Architect 重新生成計畫
+      - ✏️ **編輯**: 直接修改 `lantern_plan.md`（勾選/取消 Batch）
 5.  **執行 (Iterative Execution)**:
     - Runner 呼叫 CLI 工具（使用便宜模型，如 Gemini Flash）處理 Batch。
     - 將分析結果存入 `.lantern/sense/batch_{N}.sense`。
@@ -300,7 +550,7 @@ graph LR
 
 ---
 
-## 5. 成本控制策略 (Cost Control)
+## 6. 成本控制策略 (Cost Control)
 
 > [!NOTE]
 > Lantern 可能會對大型 Repo 產生高額 API 成本。透過分層模型選擇來優化成本。
@@ -322,19 +572,19 @@ graph LR
 
 ---
 
-## 6. 競品與差異分析 (Competitive Analysis)
+## 7. 競品與差異分析 (Competitive Analysis)
 
 | 工具 | 目標 | 與 Lantern 的差異 |
 | :--- | :--- | :--- |
+| **NotebookLM** | AI 文件問答 | 聊天式問答，無結構化輸出；需上傳雲端，企業環境可能禁止。 |
 | **Aider / Cursor** | 協助編碼 | 側重於「改代碼」，而非「教你理解」。 |
 | **Autodoc / Sphinx** | 文檔生成 | 依賴代碼註解，缺乏邏輯推理與架構導覽。 |
 | **RepoMap** | 關係視覺化 | 只有地圖，沒有導遊。Lantern 提供「導遊式」的步進理解。 |
 
 ---
 
-## 7. 未來擴充 (Roadmap)
+## 8. 未來擴充 (Roadmap)
 
 - **Memory Cross-talk**: 實作更強大的跨 Batch 邏輯關聯檢查。
-- **Interactive Quiz**: 在 Phase 結束後，AI 會考考使用者，確認是否真的理解。
-- **Visual Scaffold**: 配合 Mermaid.js 在最終文件自動產出架構圖。
 - **Multi-language Support**: 擴展靜態分析支援更多語言（Go, Rust, Java）。
+- **VSCode Extension**: 整合進度追蹤與可視化。
