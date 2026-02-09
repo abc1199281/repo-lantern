@@ -21,9 +21,9 @@ class TestArchitect:
         # Layer 1: core -> utils
         # Layer 2: api -> core
         graph.calculate_layers.return_value = {
-            0: ["utils.py"],
-            1: ["core.py"],
-            2: ["api.py"]
+            "utils.py": 0,
+            "core.py": 1,
+            "api.py": 2
         }
         graph.dependencies = {}
         return graph
@@ -90,8 +90,8 @@ class TestArchitect:
     def test_batch_size_limit(self, mock_dependency_graph: MagicMock) -> None:
         """Test that batches respect the size limit (e.g., 3 files)."""
         # Mock a layer with many files
-        files = [f"file{i}.py" for i in range(10)]
-        mock_dependency_graph.calculate_layers.return_value = {0: files}
+        files = {f"file{i}.py": 0 for i in range(10)}
+        mock_dependency_graph.calculate_layers.return_value = files
         
         architect = Architect(Path("/tmp"), mock_dependency_graph)
         plan = architect.generate_plan()
