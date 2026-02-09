@@ -78,7 +78,7 @@ class GeminiAdapter(BackendAdapter):
         questions = []
         current_section = None
         
-        # More robust parsing for Markdown output
+        # More robust parsing for Markdown output and legacy Key: Value format
         lines = raw_output.splitlines()
         for line in lines:
             line = line.strip()
@@ -86,26 +86,34 @@ class GeminiAdapter(BackendAdapter):
                 continue
             
             # Check for headers
-            if line.startswith("#") or line.endswith(":"):
-                lower_line = line.lower()
+            lower_line = line.lower()
+            is_header = False
+            
+            if line.startswith("#") or line.endswith(":") or (":" in line and len(line.split(":")[0]) < 20):
                 if "summary" in lower_line:
                     current_section = "summary"
-                    continue
+                    is_header = True
+                    # If format is "Summary: Value", extract value immediately
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        if len(parts) > 1 and parts[1].strip():
+                            summary += parts[1].strip() + "\n"
+                            # Don't mark as header if it has content, so we don't skip it?
+                            # Actually, we extracted content, so we are good.
                 elif "insight" in lower_line:
                     current_section = "insights"
-                    continue
+                    is_header = True
                 elif "question" in lower_line:
                     current_section = "questions"
-                    continue
+                    is_header = True
+            
+            if is_header:
+                 continue
                 
             if current_section == "summary":
-                # Skip header lines if they were not caught above
-                if "summary" in line.lower() and len(line) < 20: 
-                    continue
                 summary += line + "\n"
             elif current_section == "insights":
                 if line.startswith("- ") or line.startswith("* ") or line[0].isdigit():
-                    # clean up list markers
                     content = line.lstrip("-*1234567890. ")
                     insights.append(content)
             elif current_section == "questions":

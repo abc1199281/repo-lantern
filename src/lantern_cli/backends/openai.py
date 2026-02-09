@@ -83,21 +83,28 @@ class OpenAIAdapter(BackendAdapter):
                 continue
             
             # Use same robust parsing logic as other adapters
-            if line.startswith("#") or line.endswith(":"):
-                lower_line = line.lower()
+            lower_line = line.lower()
+            is_header = False
+
+            if line.startswith("#") or line.endswith(":") or (":" in line and len(line.split(":")[0]) < 20):
                 if "summary" in lower_line:
                     current_section = "summary"
-                    continue
+                    is_header = True
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        if len(parts) > 1 and parts[1].strip():
+                            summary += parts[1].strip() + "\n"
                 elif "insight" in lower_line:
                     current_section = "insights"
-                    continue
+                    is_header = True
                 elif "question" in lower_line:
                     current_section = "questions"
-                    continue
+                    is_header = True
+                
+            if is_header:
+                 continue
                 
             if current_section == "summary":
-                if "summary" in line.lower() and len(line) < 20: 
-                    continue
                 summary += line + "\n"
             elif current_section == "insights":
                 if line.startswith("- ") or line.startswith("* ") or line[0].isdigit():

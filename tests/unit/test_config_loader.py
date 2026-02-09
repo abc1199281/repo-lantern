@@ -13,7 +13,8 @@ class TestConfigLoader:
 
     def test_load_default_config(self) -> None:
         """Test loading default configuration."""
-        loader = ConfigLoader()
+        # Ensure we don't read existing .lantern/lantern.toml
+        loader = ConfigLoader(user_config_path=Path("/no/user"), project_config_path=Path("/no/proj"))
         config = loader.load()
         assert isinstance(config, LanternConfig)
         assert config.language == "en"

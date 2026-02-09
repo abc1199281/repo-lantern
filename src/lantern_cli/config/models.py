@@ -41,9 +41,9 @@ class BackendConfig(BaseModel):
     )
 
     # API backend options
-    api_provider: Literal["anthropic", "openai", "google", "gemini"] | None = Field(
+    api_provider: str | None = Field(
         default=None,
-        description="API provider",
+        description="API provider (e.g., 'openai', 'anthropic', 'gemini')",
     )
     api_model: str | None = Field(
         default=None,

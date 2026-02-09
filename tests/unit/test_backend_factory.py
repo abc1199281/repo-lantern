@@ -110,7 +110,7 @@ class TestBackendFactory:
         config = LanternConfig(
             backend=BackendConfig(
                 type="api",
-                api_provider="openai"
+                api_provider="unknown-provider"
             )
         )
         with pytest.raises(NotImplementedError):
