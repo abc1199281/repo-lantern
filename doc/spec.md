@@ -220,7 +220,7 @@ Handles user authentication and JWT token generation.
 ### `authenticate(username, password)`
 Validates user credentials against the database.
 
-**Dependencies**: 
+**Dependencies**:
 - `models.User`
 - `utils.hash_password`
 
@@ -249,11 +249,11 @@ Lantern follows a layered architecture:
 1. **API Layer** (`src/api/`)
    - RESTful endpoints
    - Request validation
-   
+
 2. **Business Logic** (`src/auth.py`, `src/models.py`)
    - Authentication
    - Data models
-   
+
 3. **Data Layer** (`src/db/`)
    - Database connections
    - Migrations
@@ -295,7 +295,7 @@ class AnalysisResult:
 
 class BackendAdapter(ABC):
     """LLM 後端的抽象介面"""
-    
+
     @abstractmethod
     def analyze_batch(
         self,
@@ -305,7 +305,7 @@ class BackendAdapter(ABC):
     ) -> AnalysisResult:
         """分析一個 Batch 的檔案"""
         pass
-    
+
     @abstractmethod
     def synthesize(
         self,
@@ -314,7 +314,7 @@ class BackendAdapter(ABC):
     ) -> str:
         """合成最終文檔"""
         pass
-    
+
     @abstractmethod
     def health_check(self) -> bool:
         """檢查後端是否可用"""
@@ -406,7 +406,7 @@ CLI Wrapper 必須處理以下情況：
 - [x] **Batch 001**: `auth.py`, `models.py`, `decorators.py`
   - 📊 **信心指數**: ⭐⭐⭐ (高)
   - 🔗 **依賴關係**: `decorators.py` → `auth.py` → `models.py`
-  
+
 - [x] **Batch 002**: `session_manager.py`
   - 📊 **信心指數**: ⭐⭐⭐ (高)
 
@@ -443,20 +443,20 @@ graph TD
         models[models.py]
         decorators[decorators.py]
         session[session_manager.py]
-        
+
         decorators --> auth
         auth --> models
         session --> models
     end
-    
+
     subgraph Phase2["Phase 2: API"]
         routes[routes.py]
         validators[validators.py]
-        
+
         routes --> validators
         routes --> auth
     end
-    
+
     style middleware fill:#ffcccc,stroke:#ff0000
     middleware[middleware.py<br/>⚠️ 未分類]
 \`\`\`
@@ -470,7 +470,7 @@ graph TD
 1. **`middleware.py` 未分類**
    - 原因：無法從 import 語句判斷其歸屬
    - 建議：請告知此檔案應歸入哪個 Phase
-   
+
 2. **`utils.py` 暫時歸入 Phase 3**
    - 原因：此檔案被多個模組引用，作為 utility 單獨處理
 ```
@@ -585,7 +585,7 @@ lantern run --backend gemini
 
 > [!IMPORTANT]
 > **Human-in-the-loop 已納入 MVP**。在執行分析前,必須由使用者審查計畫。
-> 
+>
 > 原因：AI 規劃的路徑約有 20% 錯誤率。若初期路徑錯誤，後續執行將浪費成本。
 
 1.  **初始化 (Init)**: 使用者輸入 Repo 連結與客製化 Prompt（排除不需學習的檔案）。

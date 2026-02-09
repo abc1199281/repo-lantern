@@ -1,7 +1,7 @@
 # Lantern CLI 開發任務清單 (TDD/Spec-Driven)
 
 > **開發策略**: Test-Driven Development + Spec-Driven
-> 
+>
 > 每個模組按照以下順序開發：
 > 1. 閱讀 Spec 中的對應章節
 > 2. 撰寫測試 (pytest)

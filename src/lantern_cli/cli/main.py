@@ -1,4 +1,5 @@
 """Lantern CLI - Main entry point."""
+
 import typer
 from rich.console import Console
 
@@ -47,6 +48,7 @@ def run(
 def version() -> None:
     """Show version information."""
     from lantern_cli import __version__
+
     console.print(f"Lantern CLI version: [bold]{__version__}[/bold]")
 
 
