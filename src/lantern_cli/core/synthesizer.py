@@ -9,15 +9,17 @@ logger = logging.getLogger(__name__)
 class Synthesizer:
     """Synthesizes analysis results into top-down documentation."""
 
-    def __init__(self, root_path: Path) -> None:
+    def __init__(self, root_path: Path, language: str = "en") -> None:
         """Initialize Synthesizer.
 
         Args:
             root_path: Project root path.
+            language: Output language code (default: en).
         """
         self.root_path = root_path
+        self.language = language
         self.sense_dir = root_path / ".lantern" / "sense"
-        self.output_dir = root_path / ".lantern" / "output" / "en" / "top_down"
+        self.output_dir = root_path / ".lantern" / "output" / language / "top_down"
 
     def load_sense_files(self) -> List[str]:
         """Load all .sense files from the sense directory.

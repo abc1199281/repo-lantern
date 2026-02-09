@@ -209,7 +209,7 @@ def run(
 
         # 6. Synthesize Docs
         task_synth = progress.add_task("Synthesizing documentation...", total=None)
-        synthesizer = Synthesizer(repo_path)
+        synthesizer = Synthesizer(repo_path, language=config.language)
         synthesizer.generate_top_down_docs()
         progress.update(task_synth, completed=True)
 

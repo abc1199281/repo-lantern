@@ -215,7 +215,7 @@ lantern run --backend gemini
 
 # 實例展示：Lantern 自我分析
 
-[點擊查看 Lantern 分析自身程式碼庫 (`lantern-cli`) 後生成的架構報告摘要](doc/example_self_analysis_zh-TW.md)
+[點擊查看 Lantern 分析自身程式碼庫 (`lantern-cli`) 後生成的架構報告摘要](.lantern/output/zh-TW)
 
 ---
 
