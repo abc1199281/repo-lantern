@@ -22,8 +22,7 @@ class TestConfigLoader:
     def test_load_from_toml_file(self, tmp_path: Path) -> None:
         """Test loading configuration from TOML file."""
         config_file = tmp_path / "lantern.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [lantern]
 language = "zh-TW"
 output_dir = "/custom/output"
@@ -36,8 +35,7 @@ include = ["tests/integration/"]
 type = "api"
 api_provider = "anthropic"
 api_model = "claude-sonnet-4"
-"""
-        )
+""")
 
         loader = ConfigLoader(project_config_path=config_file)
         config = loader.load()
@@ -52,13 +50,11 @@ api_model = "claude-sonnet-4"
     def test_config_priority_cli_overrides_file(self, tmp_path: Path) -> None:
         """Test CLI arguments override file configuration."""
         config_file = tmp_path / "lantern.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [lantern]
 language = "zh-TW"
 output_dir = "/file/output"
-"""
-        )
+""")
 
         loader = ConfigLoader(project_config_path=config_file)
         config = loader.load(
@@ -81,27 +77,23 @@ output_dir = "/file/output"
     def test_merge_user_and_project_config(self, tmp_path: Path) -> None:
         """Test merging user and project configurations."""
         user_config = tmp_path / "user_lantern.toml"
-        user_config.write_text(
-            """
+        user_config.write_text("""
 [lantern]
 language = "zh-TW"
 
 [backend]
 type = "api"
 api_provider = "openai"
-"""
-        )
+""")
 
         project_config = tmp_path / "project_lantern.toml"
-        project_config.write_text(
-            """
+        project_config.write_text("""
 [lantern]
 output_dir = "/project/output"
 
 [filter]
 exclude = ["tests/"]
-"""
-        )
+""")
 
         loader = ConfigLoader(
             user_config_path=user_config,
