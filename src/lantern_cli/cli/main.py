@@ -119,7 +119,8 @@ def plan(
 def run(
     repo: str = typer.Option(".", help="Repository path"),
     output: str = typer.Option(".lantern", help="Output directory"),
-    backend: str = typer.Option(None, help="LLM backend (codex/gemini/claude)"),
+    backend: str = typer.Option(None, help="LLM backend (codex/gemini/claude/openai)"),
+    api: bool = typer.Option(False, help="Force API mode (api_provider)"),
     lang: str = typer.Option("en", help="Output language (en/zh-TW)"),
 ) -> None:
     """Run analysis on repository."""
@@ -133,29 +134,31 @@ def run(
         config.output_dir = output
     if lang:
         config.language = lang
-    if backend:
-        # CLI arg overrides backend type/provider
-        # Heuristic: if backend matches known API providers AND is not meant to be CLI
-        # But for 'gemini', it can be both. 
-        # If user explicitly said --backend gemini, check if they mean CLI or API.
-        # For now, let's assume if it is in the list AND it's not installed as CLI, use API.
-        # Or simpler: remove 'gemini' from forced API list if we want to prioritize CLI.
+    
+    if api:
+        config.backend.type = "api"
         
-        # New logic: Only force API if it's strictly API-only or user specified API config
-        if backend in ("claude", "anthropic", "openai"): # gemini removed
+    if backend:
+        # If --api matching flag is set, treat backend as api_provider
+        if config.backend.type == "api" or api:
              config.backend.type = "api"
              config.backend.api_provider = backend
-        elif backend == "gemini":
-             # Special handling for Gemini which has both
-             if shutil.which("gemini"):
-                 config.backend.type = "cli"
-                 config.backend.cli_command = "gemini"
-             else:
-                 config.backend.type = "api"
-                 config.backend.api_provider = "gemini"
         else:
-            config.backend.type = "cli"
-            config.backend.cli_command = backend
+             # Heuristic: if backend matches known API providers AND is not meant to be CLI
+             if backend in ("claude", "anthropic", "openai", "gpt"):
+                 config.backend.type = "api"
+                 config.backend.api_provider = backend
+             elif backend == "gemini":
+                 # Special handling for Gemini which has both
+                 if shutil.which("gemini") and not api:
+                     config.backend.type = "cli"
+                     config.backend.cli_command = "gemini"
+                 else:
+                     config.backend.type = "api"
+                     config.backend.api_provider = "gemini"
+             else:
+                config.backend.type = "cli"
+                config.backend.cli_command = backend
 
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")

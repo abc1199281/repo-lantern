@@ -5,6 +5,7 @@ from lantern_cli.backends.base import BackendAdapter
 from lantern_cli.backends.claude import ClaudeAdapter
 from lantern_cli.backends.codex import CodexAdapter
 from lantern_cli.backends.gemini import GeminiAdapter
+from lantern_cli.backends.openai import OpenAIAdapter
 
 
 def detect_cli() -> str:
@@ -71,6 +72,11 @@ class BackendFactory:
                 return ClaudeAdapter(
                     model=model or "claude-3-opus-20240229",
                     api_key_env=api_key or "ANTHROPIC_API_KEY"
+                )
+            elif provider in ("openai", "gpt"):
+                return OpenAIAdapter(
+                    model=model or "gpt-4o",
+                    api_key_env=api_key or "OPENAI_API_KEY"
                 )
             # Add other providers here
             

@@ -22,6 +22,7 @@ wheels/
 *.lock
 
 # This
+.lantern/output*
 .lantern/sense*
 .lantern/state.json
 
@@ -44,9 +45,6 @@ env/
 htmlcov/
 .tox/
 .hypothesis/
-
-# Lantern specific
-.lantern/
 
 # OS
 .DS_Store

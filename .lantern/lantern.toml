@@ -1,0 +1,24 @@
+# Lantern Configuration
+
+[lantern]
+language = "zh-TW"
+output_dir = ".lantern"
+
+[filter]
+exclude = [
+    "**/__pycache__/*", 
+    "**/.git/*", 
+    "**/node_modules/*", 
+    "**/.venv/*", 
+    "**/.idea/*", 
+    "**/.vscode/*",
+    "**/.lantern/*",
+    "**/.mypy_cache/*",
+    "**/tests/*",
+    "**/.*/*",
+    "**__init__.py"
+]
+
+[backend]
+type = "cli"
+cli_timeout = 300

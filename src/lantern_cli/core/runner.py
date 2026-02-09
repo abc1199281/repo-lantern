@@ -18,7 +18,8 @@ class Runner:
         self, 
         root_path: Path, 
         backend: BackendAdapter, 
-        state_manager: StateManager
+        state_manager: StateManager,
+        language: str = "en"
     ) -> None:
         """Initialize Runner.
 
@@ -26,10 +27,12 @@ class Runner:
             root_path: Project root path.
             backend: Configured backend adapter.
             state_manager: State manager instance.
+            language: Output language (default: en).
         """
         self.root_path = root_path
         self.backend = backend
         self.state_manager = state_manager
+        self.language = language
         self.output_dir = root_path / ".lantern" / "sense"
 
     def run_batch(self, batch: Batch, prompt: str) -> bool:
@@ -85,9 +88,8 @@ class Runner:
 
     def _generate_bottom_up_doc(self, batch: Batch, result: AnalysisResult) -> None:
         """Generate formatted bottom-up documentation for the batch."""
-        # Output dir: .lantern/output/en/bottom_up/...
-        # For MVP, we presume 'en' and structure mirrors source
-        base_output_dir = self.root_path / ".lantern" / "output" / "en" / "bottom_up"
+        # Output dir: .lantern/output/{lang}/bottom_up/...
+        base_output_dir = self.root_path / ".lantern" / "output" / self.language / "bottom_up"
         
         for file_path in batch.files:
             # 1. Determine output path
