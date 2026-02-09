@@ -40,46 +40,75 @@ class ClaudeAdapter(BackendAdapter):
         return "Synthesis via Claude API not implemented in placeholder."
 
     def _call_api(self, files: list[str], context: str, prompt: str) -> str:
-        """Mockable API call method."""
-        # return client.messages.create(...)
-        return "Mock Claude Response\nSummary: Placeholder"
+        """Call Claude API using the SDK."""
+        import anthropic
+        
+        client = anthropic.Anthropic(api_key=os.environ[self.api_key_env])
+        
+        # Prepare valid message content
+        user_content = f"Prompt: {prompt}\n\n"
+        
+        if context:
+            user_content += f"Context:\n{context}\n\n"
+            
+        for file_path in files:
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    user_content += f"File: {file_path}\n```\n{content}\n```\n\n"
+            except Exception as e:
+                user_content += f"Error reading {file_path}: {str(e)}\n"
+
+        try:
+            message = client.messages.create(
+                model=self.model,
+                max_tokens=4096,
+                messages=[
+                    {"role": "user", "content": user_content}
+                ]
+            )
+            return message.content[0].text
+        except Exception as e:
+            raise RuntimeError(f"Claude API call failed: {str(e)}")
 
     def _parse_output(self, raw_output: str) -> AnalysisResult:
         """Parse LLM response."""
-        # Reuse logic similar to Gemini or extracting common base parser later
         summary = ""
         insights = []
         questions = []
         current_section = None
         
-        for line in raw_output.splitlines():
+        lines = raw_output.splitlines()
+        for line in lines:
             line = line.strip()
             if not line:
                 continue
             
-            lower_line = line.lower()
-            if "summary:" in lower_line:
-                current_section = "summary"
-                if ":" in line:
-                    parts = line.split(":", 1)
-                    if len(parts) > 1 and parts[1].strip():
-                        summary += parts[1].strip() + "\n"
-                continue
-            elif "insight" in lower_line and ":" in lower_line:
-                current_section = "insights"
-                continue
-            elif "question" in lower_line and ":" in lower_line:
-                current_section = "questions"
-                continue
+            # Use same robust parsing logic as GeminiAdapter
+            if line.startswith("#") or line.endswith(":"):
+                lower_line = line.lower()
+                if "summary" in lower_line:
+                    current_section = "summary"
+                    continue
+                elif "insight" in lower_line:
+                    current_section = "insights"
+                    continue
+                elif "question" in lower_line:
+                    current_section = "questions"
+                    continue
                 
             if current_section == "summary":
+                if "summary" in line.lower() and len(line) < 20: 
+                    continue
                 summary += line + "\n"
             elif current_section == "insights":
-                if line.startswith("- ") or line.startswith("* "):
-                    insights.append(line[2:])
+                if line.startswith("- ") or line.startswith("* ") or line[0].isdigit():
+                    content = line.lstrip("-*1234567890. ")
+                    insights.append(content)
             elif current_section == "questions":
-                if line.startswith("- ") or line.startswith("* "):
-                    questions.append(line[2:])
+                 if line.startswith("- ") or line.startswith("* ") or line[0].isdigit():
+                    content = line.lstrip("-*1234567890. ")
+                    questions.append(content)
                     
         return AnalysisResult(
             summary=summary.strip(),

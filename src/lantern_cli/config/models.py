@@ -53,6 +53,10 @@ class BackendConfig(BaseModel):
         default=None,
         description="Environment variable name for API key",
     )
+    api_rate_limit: int = Field(
+        default=60,
+        description="Maximum requests per minute for API",
+    )
 
 
 class LanternConfig(BaseModel):
