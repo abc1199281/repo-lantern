@@ -1,0 +1,19 @@
+[project]
+name = "lantern-cli"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Po-wei Huang",email = "abc1199281@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [{include = "lantern_cli", from = "src"}]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
