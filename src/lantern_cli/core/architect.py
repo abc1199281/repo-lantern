@@ -77,13 +77,21 @@ class Architect:
         layers = self.dep_graph.calculate_layers()
         phases = []
         
-        # Sort layers by index (0 is boutom/independent)
-        sorted_layer_idxs = sorted(layers.keys())
+        # Group modules by layer index
+        # layer_idx -> [module_names]
+        layer_groups = {}
+        for module, layer_idx in layers.items():
+            if layer_idx not in layer_groups:
+                layer_groups[layer_idx] = []
+            layer_groups[layer_idx].append(module)
+        
+        # Sort layers by index (0 is bottom/independent)
+        sorted_layer_idxs = sorted(layer_groups.keys())
         
         global_batch_id = 1
         
         for layer_idx in sorted_layer_idxs:
-            files = layers[layer_idx]
+            files = sorted(layer_groups[layer_idx])
             batches = []
             
             # Chunk files into batches
@@ -93,7 +101,7 @@ class Architect:
                 global_batch_id += 1
                 
             phase = Phase(
-                id=layer_idx + 1,
+                id=layer_idx + 1 if layer_idx >= 0 else 0, # Handle -1 for cycles
                 batches=batches,
                 learning_objectives=self._generate_learning_objectives(layer_idx, files),
                 key_questions=self._generate_key_questions(layer_idx)

@@ -17,6 +17,60 @@ class DependencyGraph:
         self.dependencies: dict[str, set[str]] = defaultdict(set)
         # Map: Target -> Set of Sources (Reverse graph for some algos)
         self.reverse_dependencies: dict[str, set[str]] = defaultdict(set)
+        
+        # Lazy import to avoid circular dependency if any
+        from lantern_cli.static_analysis.python import PythonAnalyzer
+        self.analyzer = PythonAnalyzer()
+
+    def build(self) -> None:
+        """Build the dependency graph by analyzing files in root_path."""
+        # 1. Index all Python files
+        # Map: module_name -> file_path (relative to root)
+        # e.g., "lantern_cli.core.runner" -> "src/lantern_cli/core/runner.py"
+        module_map: dict[str, str] = {}
+        all_files: list[Path] = []
+        
+        # Walk excluding hidden/venv etc. (Basic filter for MVP)
+        for path in self.root_path.rglob("*.py"):
+            if any(part.startswith(".") or part == "__pycache__" or part == "venv" or part == "node_modules" for part in path.parts):
+                continue
+            
+            rel_path = path.relative_to(self.root_path)
+            all_files.append(rel_path)
+            
+            # Simple module name heuristic
+            # src/lantern_cli/main.py -> src.lantern_cli.main
+            # lantern_cli/main.py -> lantern_cli.main
+            module_parts = list(rel_path.parent.parts) + [rel_path.stem]
+            module_name = ".".join(module_parts)
+            module_map[module_name] = str(rel_path)
+            
+            # Also support implicit src root if common pattern
+            if module_parts[0] == "src":
+                short_name = ".".join(module_parts[1:])
+                module_map[short_name] = str(rel_path)
+
+        # 2. Analyze imports and build graph
+        for rel_path in all_files:
+            file_path = self.root_path / rel_path
+            imports = self.analyzer.analyze_imports(file_path)
+            
+            source_node = str(rel_path)
+            # Ensure node exists in graph even if no deps
+            if source_node not in self.dependencies:
+                self.dependencies[source_node] = set()
+
+            for imp in imports:
+                # Try to resolve import to a file in our project
+                # Exact match
+                target_file = module_map.get(imp)
+                
+                # Try sub-modules (e.g. import lantern_cli.core -> lantern_cli/core/__init__.py)
+                if not target_file:
+                    target_file = module_map.get(f"{imp}.__init__")
+
+                if target_file and target_file != source_node:
+                    self.add_dependency(source_node, target_file)
 
     def add_dependency(self, source: str, target: str) -> None:
         """Add a dependency: source depends on target.
