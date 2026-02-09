@@ -147,7 +147,7 @@ def run(
 
     # 2. Initialize Backend
     try:
-        backend_adapter = BackendFactory.create(config.backend)
+        backend_adapter = BackendFactory.create(config)
     except Exception as e:
         console.print(f"[bold red]Error initializing backend:[/bold red] {e}")
         raise typer.Exit(code=1)
