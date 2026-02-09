@@ -1,6 +1,6 @@
 # Lantern
 
-> **Illuminating Your Codebase, One Insight at a Time.**
+> **Lighting your way through the code forest.**
 
 [English] | [繁體中文](README_zh-TW.md)
 
@@ -87,6 +87,8 @@ lantern run
 ```
 
 Lantern analyzes your repository and generates a **complete documentation repository**:
+
+![Lantern Input & Output](assets/input_output.png)
 
 ### Input
 ```

@@ -1,6 +1,6 @@
 # Lantern
 
-> **照亮你的程式碼庫**
+> **在黑暗的程式碼森林中，照亮你的方向。**
 
 [English](README.md) | [繁體中文]
 
@@ -18,9 +18,9 @@
 | :--- | :--- |
 | 🧠 **認知負擔減輕** | 基於心理學的區塊化設計（米勒定律），將分析拆解為可消化的小批次 |
 | 🌐 **母語輸出** | 技術文檔以你的母語呈現——中文、日文、西班牙文等 |
-| � **流程重建** | Sequence Diagram 展示 `request → service → db → response` |
+| 📈 **流程重建** | Sequence Diagram 展示 `request → service → db → response` |
 | 💡 **概念萃取** | 核心認知模型：認證流程、快取策略、重試機制 |
-| �📊 **視覺化鷹架** | Mermaid 架構圖 + Sequence Diagram |
+| 📊 **視覺化鷹架** | Mermaid 架構圖 + Sequence Diagram |
 | 🔒 **本地優先、隱私可控** | CLI 原生運行，無需上傳雲端——適合企業與工作環境 |
 
 ---
@@ -86,6 +86,8 @@ lantern run
 ```
 
 Lantern 分析你的 Repository 並產生一個 **完整的文檔庫**：
+
+![Lantern 輸入與輸出](assets/input_output.png)
 
 ### 輸入
 ```
