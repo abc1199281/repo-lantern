@@ -22,7 +22,7 @@ wheels/
 *.lock
 
 # This
-.lantern/output*
+.lantern*
 .lantern/sense*
 .lantern/state.json
 

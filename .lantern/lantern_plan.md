@@ -6,25 +6,27 @@ Confidence Score: 1.00
 
 ```mermaid
 graph TD
+    src_lantern_cli_backends_openai_py[src/lantern_cli/backends/openai.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
     src_lantern_cli_backends_claude_py[src/lantern_cli/backends/claude.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
-    src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_claude_py[src/lantern_cli/backends/claude.py]
-    src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
     src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_gemini_py[src/lantern_cli/backends/gemini.py]
+    src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_claude_py[src/lantern_cli/backends/claude.py]
+    src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_openai_py[src/lantern_cli/backends/openai.py]
+    src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
     src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py] --> src_lantern_cli_backends_codex_py[src/lantern_cli/backends/codex.py]
     src_lantern_cli_backends_codex_py[src/lantern_cli/backends/codex.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
     src_lantern_cli_backends_gemini_py[src/lantern_cli/backends/gemini.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
+    src_lantern_cli_core_runner_py[src/lantern_cli/core/runner.py] --> src_lantern_cli_core_architect_py[src/lantern_cli/core/architect.py]
     src_lantern_cli_core_runner_py[src/lantern_cli/core/runner.py] --> src_lantern_cli_core_state_manager_py[src/lantern_cli/core/state_manager.py]
     src_lantern_cli_core_runner_py[src/lantern_cli/core/runner.py] --> src_lantern_cli_backends_base_py[src/lantern_cli/backends/base.py]
-    src_lantern_cli_core_runner_py[src/lantern_cli/core/runner.py] --> src_lantern_cli_core_architect_py[src/lantern_cli/core/architect.py]
     src_lantern_cli_core_state_manager_py[src/lantern_cli/core/state_manager.py] --> src_lantern_cli_core_architect_py[src/lantern_cli/core/architect.py]
     src_lantern_cli_core_architect_py[src/lantern_cli/core/architect.py] --> src_lantern_cli_static_analysis_dependency_graph_py[src/lantern_cli/static_analysis/dependency_graph.py]
+    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_synthesizer_py[src/lantern_cli/core/synthesizer.py]
+    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_runner_py[src/lantern_cli/core/runner.py]
+    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_config_loader_py[src/lantern_cli/config/loader.py]
+    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_architect_py[src/lantern_cli/core/architect.py]
+    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_state_manager_py[src/lantern_cli/core/state_manager.py]
     src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_backends_factory_py[src/lantern_cli/backends/factory.py]
     src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_static_analysis_dependency_graph_py[src/lantern_cli/static_analysis/dependency_graph.py]
-    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_synthesizer_py[src/lantern_cli/core/synthesizer.py]
-    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_state_manager_py[src/lantern_cli/core/state_manager.py]
-    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_config_loader_py[src/lantern_cli/config/loader.py]
-    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_runner_py[src/lantern_cli/core/runner.py]
-    src_lantern_cli_cli_main_py[src/lantern_cli/cli/main.py] --> src_lantern_cli_core_architect_py[src/lantern_cli/core/architect.py]
     src_lantern_cli_config_loader_py[src/lantern_cli/config/loader.py] --> src_lantern_cli_config_models_py[src/lantern_cli/config/models.py]
     src_lantern_cli_static_analysis_file_filter_py[src/lantern_cli/static_analysis/file_filter.py] --> src_lantern_cli_config_models_py[src/lantern_cli/config/models.py]
     src_lantern_cli_static_analysis_dependency_graph_py[src/lantern_cli/static_analysis/dependency_graph.py] --> src_lantern_cli_static_analysis_python_py[src/lantern_cli/static_analysis/python.py]
@@ -43,12 +45,13 @@ graph TD
 ## Phase 2
 
 ### Learning Objectives
-- Understand the role of 6 module(s) in Layer 1
+- Understand the role of 7 module(s) in Layer 1
 - Identify key data structures and interfaces
 
 ### Execution Batches
 - [ ] Batch 3: `src/lantern_cli/backends/claude.py, src/lantern_cli/backends/codex.py, src/lantern_cli/backends/gemini.py`
-- [ ] Batch 4: `src/lantern_cli/config/loader.py, src/lantern_cli/static_analysis/dependency_graph.py, src/lantern_cli/static_analysis/file_filter.py`
+- [ ] Batch 4: `src/lantern_cli/backends/openai.py, src/lantern_cli/config/loader.py, src/lantern_cli/static_analysis/dependency_graph.py`
+- [ ] Batch 5: `src/lantern_cli/static_analysis/file_filter.py`
 
 ## Phase 3
 
@@ -57,7 +60,7 @@ graph TD
 - Identify key data structures and interfaces
 
 ### Execution Batches
-- [ ] Batch 5: `src/lantern_cli/backends/factory.py, src/lantern_cli/core/architect.py`
+- [ ] Batch 6: `src/lantern_cli/backends/factory.py, src/lantern_cli/core/architect.py`
 
 ## Phase 4
 
@@ -66,7 +69,7 @@ graph TD
 - Identify key data structures and interfaces
 
 ### Execution Batches
-- [ ] Batch 6: `src/lantern_cli/core/state_manager.py`
+- [ ] Batch 7: `src/lantern_cli/core/state_manager.py`
 
 ## Phase 5
 
@@ -75,7 +78,7 @@ graph TD
 - Identify key data structures and interfaces
 
 ### Execution Batches
-- [ ] Batch 7: `src/lantern_cli/core/runner.py`
+- [ ] Batch 8: `src/lantern_cli/core/runner.py`
 
 ## Phase 6
 
@@ -84,4 +87,4 @@ graph TD
 - Identify key data structures and interfaces
 
 ### Execution Batches
-- [ ] Batch 8: `src/lantern_cli/cli/main.py`
+- [ ] Batch 9: `src/lantern_cli/cli/main.py`
