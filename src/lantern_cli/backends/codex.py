@@ -34,9 +34,8 @@ class CodexAdapter(BackendAdapter):
             raise RuntimeError(f"CLI tool '{self.command}' not found.")
 
         # Construct CLI prompt/input
-        # In a real scenario, we might pass prompt via stdin or arguments
-        # Here we simulate passing file list and prompt
-        cmd = [self.command, "run", "--prompt", prompt] + files
+        # Use 'exec' for non-interactive mode
+        cmd = [self.command, "exec", prompt]
         
         try:
             # We assume the CLI takes prompt and files and prints output to stdout

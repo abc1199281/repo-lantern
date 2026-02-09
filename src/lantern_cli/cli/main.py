@@ -195,7 +195,8 @@ def run(
                 progress.update(task_batch, description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...")
                 
                 # Construct prompt (MVP: simple prompt)
-                prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights."
+                language_instruction = f" Please respond in {config.language}." if config.language != "en" else ""
+                prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights.{language_instruction}"
                 
                 success = runner.run_batch(batch, prompt)
                 if not success:
