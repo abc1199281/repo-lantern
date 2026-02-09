@@ -43,6 +43,35 @@ Lantern 是一個基於 CLI Agent 的儲存庫（Repository）分析工具。其
 
 這避免了 LLM 的「幻覺」問題，確保依賴圖的準確性。
 
+#### 檔案過濾與排除機制 (File Filtering)
+
+> [!TIP]
+> 排除不必要的檔案可大幅節省 API 成本。
+
+**預設排除規則**：
+- 自動尊重 `.gitignore` 中的檔案
+- 預設排除目錄：`node_modules/`, `vendor/`, `build/`, `dist/`, `.git/`
+- 預設排除檔案：`*.min.js`, `*.map`, `*.lock`
+
+**配置範例** (`lantern.toml`)：
+```toml
+[filter]
+# 額外排除規則
+exclude = [
+    "tests/",
+    "docs/",
+    "*.generated.*",
+    "migrations/"
+]
+
+# 強制包含（覆蓋排除）
+include = [
+    "tests/integration/"  # 即使 tests/ 被排除，仍分析 integration tests
+]
+```
+
+**目的**：避免分析不必要的程式碼（如第三方庫、生成檔案），節省 Token 與成本。
+
 **Architect Prompt 範本**:
 
 ```markdown
@@ -99,6 +128,32 @@ Now analyze:
 ```
 
 這確保了邏輯的連貫性，避免重複推理。
+
+#### 狀態恢復與斷點續傳 (Checkpoint Resume)
+
+> [!IMPORTANT]
+> 長時間運行的分析可能因 CLI 失敗、網路中斷等原因中斷。Lantern 支援完整的斷點續傳。
+
+**恢復機制**：
+1. 重新執行 `lantern run` 時，自動檢測 `.lantern/state.json`
+2. 跳過已完成的 Batch（檢查 `.lantern/sense/batch_{N}.sense` 是否存在）
+3. 從上次失敗的 Batch 繼續執行
+
+**狀態檔範例** (`.lantern/state.json`)：
+```json
+{
+  "status": "in_progress",
+  "last_completed_batch": 49,
+  "total_batches": 120,
+  "failed_batch": 50,
+  "failure_reason": "CLI timeout after 300s",
+  "resume_from": 50
+}
+```
+
+**使用效果**：
+- `lantern run` 在 Batch 50 失敗後重新執行，自動從 Batch 50 繼續
+- 已生成的 `.sense` 碧片與 bottom-up 文檔保留不重建
 
 ### C. 合成器 (The Synthesizer)
 
@@ -600,6 +655,8 @@ lantern run --backend gemini
 ## 8. 未來擴充 (Roadmap)
 
 - **Execution Trace Mode**: 透過 unit test 收集 call graph，實現動態分析。
+- **Incremental Update**: 支援增量更新，當 Repository 變更時僅重新分析修改的檔案。
+- **API Mode**: 除了 CLI 後端，提供直接調用 LLM API 的模式。
 - **Memory Cross-talk**: 實作更強大的跨 Batch 邏輯關聯檢查。
 - **Multi-language Support**: 擴展靜態分析支援更多語言（Go, Rust, Java）。
 - **VSCode Extension**: 整合進度追蹤與可視化。

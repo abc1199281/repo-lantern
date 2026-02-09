@@ -1,6 +1,6 @@
 # Lantern
 
-> **Illuminating unfamiliar codebases.**
+> **Illuminating Your Codebase, One Insight at a Time.**
 
 [English] | [繁體中文](README_zh-TW.md)
 
@@ -51,16 +51,32 @@ Most AI tools help you:
 
 ---
 
-## Why Not Just Use NotebookLM?
+# Use Cases
 
-| Feature | NotebookLM | Lantern |
-| :--- | :--- | :--- |
-| **Output** | Chat-style Q&A | Structured documentation repository |
-| **Environment** | Browser upload (workspace may prohibit) | Native CLI in your terminal |
-| **Path** | Global summary | Step-by-step narrative |
-| **Privacy** | Cloud upload required | Local-first, controlled data flow |
+| Scenario | How Lantern Helps |
+| :--- | :--- |
+| 👤 **New Hire Onboarding** | Rapidly understand complex legacy systems without tribal knowledge |
+| 🔧 **Pre-Refactoring Analysis** | Assess impact scope before making changes |
+| ⚠️ **Technical Debt Assessment** | Identify high-risk modules and hidden dependencies |
+| 🏗️ **Architecture Decision Support** | Make better design choices with clear system visibility |
+| 🔍 **Code Review Preparation** | Understand unfamiliar code before reviewing PRs |
 
 ---
+
+# Key Features
+
+### 🧠 Psychology-Driven Design
+Not just documentation—**designed for human comprehension**. Chunking, scaffolding, and native language output reduce cognitive load.
+
+### 🔄 Dual-Perspective Analysis
+**Bottom-up** (file-by-file details) + **Top-down** (architecture overview) = complete understanding from any angle.
+
+### 🔌 Adaptable Backends
+Works with your preferred AI CLI: Codex, Gemini, Claude. Swap backends without changing your workflow.
+
+### ✏️ Human-in-the-Loop
+Review and edit `lantern_plan.md` before execution. You control what gets analyzed and how.
+
 
 # What Lantern Does
 
