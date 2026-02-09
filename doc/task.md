@@ -20,7 +20,8 @@
 | Phase 0.2 | ✅ 完成 | 2026-02-09 | `1473063` |
 | Phase 1 | ✅ 完成 | 2026-02-09 | `aba5102` |
 | Phase 2 | ✅ 完成 | 2026-02-09 | `5bc2e10` |
-| Phase 3 | 🔄 進行中 | - | - |
+| Phase 3 | ✅ 完成 | 2026-02-09 | `454f474` |
+| Phase 4 | 🔄 進行中 | - | - |
 
 
 ---
@@ -138,31 +139,37 @@
 
 > **Spec 參考**: Section 2.D 後端抽象層
 
-- [ ] **3.1 Adapter 介面**
-  - [ ] 定義 `BackendAdapter` ABC
-  - [ ] 定義 `AnalysisResult` dataclass
-  - [ ] 測試：介面合約驗證
+- [x] **3.1 Adapter 介面**
+  - [x] 定義 `BackendAdapter` ABC
+  - [x] 定義 `AnalysisResult` dataclass
+  - [x] 測試：介面合約驗證
+  - **狀態**: ✅ 成功 - 定義並驗證抽象基類與資料結構 (100% coverage)
 
-- [ ] **3.2 CLI 後端自動偵測**
-  - [ ] 實作 `detect_cli()` 函數
-  - [ ] 測試：偵測順序 (codex → gemini → claude)
-  - [ ] 測試：全部不存在時拋出錯誤
+- [x] **3.2 CLI 後端自動偵測**
+  - [x] 實作 `detect_cli()` 函數
+  - [x] 測試：偵測順序 (antigravity → codex → gemini → claude)
+  - [x] 測試：全部不存在時拋出錯誤
+  - **狀態**: ✅ 成功 - 支援自動偵測與優先順序邏輯 (100% coverage)
 
-- [ ] **3.3 Codex Adapter**
-  - [ ] 實作 `CodexAdapter`
-  - [ ] 測試：`health_check()`
-  - [ ] 測試：`analyze_batch()` 基本呼叫
-  - [ ] 測試：超時處理
+- [x] **3.3 Codex Adapter**
+  - [x] 實作 `CodexAdapter`
+  - [x] 測試：`health_check()`
+  - [x] 測試：`analyze_batch()` 基本呼叫
+  - [x] 測試：超時處理
+  - **狀態**: ✅ 成功 - 實作 CLI wrapper、超時控制及結果解析 (96% coverage)
 
-- [ ] **3.4 Gemini Adapter**
-  - [ ] 實作 `GeminiAdapter`
-  - [ ] 測試：`health_check()`
-  - [ ] 測試：`analyze_batch()` 基本呼叫
+- [x] **3.4 Gemini Adapter**
+  - [x] 實作 `GeminiAdapter`
+  - [x] 測試：`health_check()`
+  - [x] 測試：`analyze_batch()` 基本呼叫
+  - **狀態**: ✅ 成功 - 支援 API 介面及 BackendConfig 驗證 (94% coverage)
 
-- [ ] **3.5 Claude Adapter**
-  - [ ] 實作 `ClaudeAdapter`
-  - [ ] 測試：`health_check()`
-  - [ ] 測試：`analyze_batch()` 基本呼叫
+- [x] **3.5 Claude Adapter**
+  - [x] 實作 `ClaudeAdapter`
+  - [x] 測試：`health_check()`
+  - [x] 測試：`analyze_batch()` 基本呼叫
+  - **狀態**: ✅ 成功 - 支援 API 介面及輸出解析 (80% coverage)
+  - **Commit**: `454f474`
 
 - [ ] **3.6 API 後端 (未來)**
   - [ ] 預留 `APIAdapter` 介面
