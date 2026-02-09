@@ -92,7 +92,7 @@ Lantern analyzes your repository and generates a **complete documentation reposi
 
 ### Input
 ```
-https://github.com/your-org/your-repo
+path to repo
 ```
 
 ### Output

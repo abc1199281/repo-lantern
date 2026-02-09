@@ -91,7 +91,7 @@ Lantern 分析你的 Repository 並產生一個 **完整的文檔庫**：
 
 ### 輸入
 ```
-https://github.com/your-org/your-repo
+path to repo
 ```
 
 ### 輸出
