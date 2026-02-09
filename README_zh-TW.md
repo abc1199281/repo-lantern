@@ -91,7 +91,7 @@ Lantern 分析你的 Repository 並產生一個 **完整的文檔庫**：
 
 ### 輸入
 ```
-https://github.com/your-org/your-repo
+path to repo
 ```
 
 ### 輸出
@@ -147,15 +147,26 @@ Lantern 的設計基於心理學原則：
 
 ## 前置需求
 
-Lantern 需要安裝以下其中一個 AI CLI 工具：
+### 選項 A：API Key（推薦）
+
+設定 API 金鑰以獲得穩定的非互動式分析：
+
+| 提供者 | API Key 設定 |
+| :--- | :--- |
+| **Gemini** | `export GEMINI_API_KEY="your-key"` ([取得金鑰](https://aistudio.google.com/app/apikey)) |
+| **Claude** | `export ANTHROPIC_API_KEY="your-key"` ([取得金鑰](https://console.anthropic.com/)) |
+
+### 選項 B：CLI 工具（實驗性）
+
+或者安裝以下其中一個 AI CLI 工具：
 
 | CLI 工具 | 安裝指令 |
 | :--- | :--- |
 | **Codex CLI** | `npm install -g @openai/codex` |
-| **Gemini CLI** | `npm install -g @anthropic/gemini-cli` |
+| **Gemini CLI** | `npm install -g @google/gemini-cli` |
 | **Claude Code** | `npm install -g @anthropic/claude-code` |
 
-Lantern 會自動偵測可用的 CLI 後端。
+> ⚠️ CLI 模式可能遇到認證問題或互動式提示。建議自動化場景使用 API 模式。
 
 ## 安裝
 
@@ -210,6 +221,12 @@ lantern run --backend gemini
 **Bottom-up 輸出** (`sc_simcontext.md`)：
 > `sc_simcontext` 是 SystemC 模擬核心的 **中樞神經系統**。
 > 它管理：全域模擬狀態、物件註冊表、排程器、處理程序管理。
+
+---
+
+# 實例展示：Lantern 自我分析
+
+[點擊查看 Lantern 分析自身程式碼庫 (`lantern-cli`) 後生成的架構報告摘要](.lantern/output/zh-TW)
 
 ---
 

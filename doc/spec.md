@@ -6,14 +6,37 @@
 
 Lantern 是一個基於 CLI Agent 的儲存庫（Repository）分析工具。其核心目的不是單純的「生成文檔」，而是透過心理學引導與結構化拆解，幫助開發者在最低認知負擔的情況下，快速且深度地理解一個陌生的程式碼庫。
 
-### 1.1 為什麼選擇 CLI？ (Why CLI?)
+### 1.1 LLM 後端策略 (LLM Backend Strategy)
 
-本工具選擇驅動現有的 CLI Agents (如 `antigravity`, `gemini-cli`, `claude-code`) 而非直接調用 API，基於以下考量：
+本工具支援**雙模式後端**，API 為預設，CLI 為備選：
 
-- **代理效能優勢 (Agentic Synergy)**: 官方提供的 CLI 工具通常內建了成熟的檔案讀取、環境感知與錯誤回報機制（如 Antigravity 的 Task 系統），直接封裝這些 CLI 能繼承其對大型任務的處理邏輯。
-- **開發者體驗 (Developer Experience)**: CLI 存在於開發者的原生環境（終端機）中，無需切換到瀏覽器或複雜的 GUI，符合「零摩擦」的工具設計原則。
-- **強大的過程控制 (Process Control)**: 透過 CLI，我們可以輕易地利用 Python 的 `subprocess` 進行日誌重導向（Log Redirection）、超時控制與進度暫停，這在長達數小時的分析任務中至關重要。
-- **繞過 API 限制**: 某些實驗性的 Agent 功能僅優先在 CLI 工具中釋出，且 CLI 工具通常具備更好的上下文壓縮與檔案 Token 管理策略。
+#### 1.1.1 API 模式（推薦）
+
+> [!TIP]
+> 對於生產環境與自動化場景，API 模式提供最佳穩定性。
+
+- **直接 SDK 調用**：使用 `google-generativeai`（Gemini）或 `anthropic`（Claude）SDK
+- **穩定認證**：透過 API Key 進行驗證，無需處理 OAuth 或 browser-based 流程
+- **可預測輸出**：API 返回結構化 JSON，易於解析
+- **更好的錯誤處理**：SDK 提供明確的錯誤碼與重試機制
+
+**配置範例**：
+```toml
+[backend]
+type = "api"
+api_provider = "gemini"  # or "claude"
+api_model = "gemini-2.5-pro"
+api_key_env = "GEMINI_API_KEY"  # 從環境變數讀取
+```
+
+#### 1.1.2 CLI 模式（實驗性）
+
+> [!WARNING]
+> CLI 模式依賴第三方工具的穩定性，可能遇到認證問題或互動式 UI 干擾。
+
+- **封裝現有工具**：驅動 `antigravity`, `gemini`, `codex` 等 CLI
+- **繼承工具能力**：利用 CLI 工具的內建任務管理與檔案讀取功能
+- **限制**：CLI 工具通常設計為互動使用，非互動模式支援不一致
 
 ### 1.2 心理學設計準則 (Psychological Design Principles)
 
@@ -220,7 +243,7 @@ Handles user authentication and JWT token generation.
 ### `authenticate(username, password)`
 Validates user credentials against the database.
 
-**Dependencies**: 
+**Dependencies**:
 - `models.User`
 - `utils.hash_password`
 
@@ -249,11 +272,11 @@ Lantern follows a layered architecture:
 1. **API Layer** (`src/api/`)
    - RESTful endpoints
    - Request validation
-   
+
 2. **Business Logic** (`src/auth.py`, `src/models.py`)
    - Authentication
    - Data models
-   
+
 3. **Data Layer** (`src/db/`)
    - Database connections
    - Migrations
@@ -295,7 +318,7 @@ class AnalysisResult:
 
 class BackendAdapter(ABC):
     """LLM 後端的抽象介面"""
-    
+
     @abstractmethod
     def analyze_batch(
         self,
@@ -305,7 +328,7 @@ class BackendAdapter(ABC):
     ) -> AnalysisResult:
         """分析一個 Batch 的檔案"""
         pass
-    
+
     @abstractmethod
     def synthesize(
         self,
@@ -314,7 +337,7 @@ class BackendAdapter(ABC):
     ) -> str:
         """合成最終文檔"""
         pass
-    
+
     @abstractmethod
     def health_check(self) -> bool:
         """檢查後端是否可用"""
@@ -406,7 +429,7 @@ CLI Wrapper 必須處理以下情況：
 - [x] **Batch 001**: `auth.py`, `models.py`, `decorators.py`
   - 📊 **信心指數**: ⭐⭐⭐ (高)
   - 🔗 **依賴關係**: `decorators.py` → `auth.py` → `models.py`
-  
+
 - [x] **Batch 002**: `session_manager.py`
   - 📊 **信心指數**: ⭐⭐⭐ (高)
 
@@ -443,20 +466,20 @@ graph TD
         models[models.py]
         decorators[decorators.py]
         session[session_manager.py]
-        
+
         decorators --> auth
         auth --> models
         session --> models
     end
-    
+
     subgraph Phase2["Phase 2: API"]
         routes[routes.py]
         validators[validators.py]
-        
+
         routes --> validators
         routes --> auth
     end
-    
+
     style middleware fill:#ffcccc,stroke:#ff0000
     middleware[middleware.py<br/>⚠️ 未分類]
 \`\`\`
@@ -470,7 +493,7 @@ graph TD
 1. **`middleware.py` 未分類**
    - 原因：無法從 import 語句判斷其歸屬
    - 建議：請告知此檔案應歸入哪個 Phase
-   
+
 2. **`utils.py` 暫時歸入 Phase 3**
    - 原因：此檔案被多個模組引用，作為 utility 單獨處理
 ```
@@ -585,7 +608,7 @@ lantern run --backend gemini
 
 > [!IMPORTANT]
 > **Human-in-the-loop 已納入 MVP**。在執行分析前,必須由使用者審查計畫。
-> 
+>
 > 原因：AI 規劃的路徑約有 20% 錯誤率。若初期路徑錯誤，後續執行將浪費成本。
 
 1.  **初始化 (Init)**: 使用者輸入 Repo 連結與客製化 Prompt（排除不需學習的檔案）。
