@@ -19,7 +19,11 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-.lantern/
+*.lock
+
+# This
+.lantern/sense*
+.lantern/state.json
 
 # Virtual Environment
 .venv/
