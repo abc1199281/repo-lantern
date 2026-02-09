@@ -97,3 +97,16 @@ class ConfigLoader:
             else:
                 result[key] = value
         return result
+
+
+def load_config(repo_path: Path) -> LanternConfig:
+    """Helper to load configuration for a given repository path.
+
+    Args:
+        repo_path: Repository root path.
+
+    Returns:
+        Loaded LanternConfig.
+    """
+    loader = ConfigLoader(project_config_path=repo_path / ".lantern" / "lantern.toml")
+    return loader.load()
