@@ -1,12 +1,13 @@
 """Tests for configuration models."""
 
 import pytest
+from pydantic import ValidationError
+
 from lantern_cli.config.models import (
     BackendConfig,
     FilterConfig,
     LanternConfig,
 )
-from pydantic import ValidationError
 
 
 class TestFilterConfig:

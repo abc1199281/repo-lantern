@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+
 from lantern_cli.config.loader import ConfigLoader
 from lantern_cli.config.models import LanternConfig
 
