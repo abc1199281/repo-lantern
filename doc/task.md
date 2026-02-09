@@ -19,7 +19,8 @@
 | Phase 0.1 | ✅ 完成 | 2026-02-09 | `2b7a764` |
 | Phase 0.2 | ✅ 完成 | 2026-02-09 | `1473063` |
 | Phase 1 | ✅ 完成 | 2026-02-09 | `aba5102` |
-| Phase 2 | 🔄 進行中 | - | - |
+| Phase 2 | ✅ 完成 | 2026-02-09 | `5bc2e10` |
+| Phase 3 | 🔄 進行中 | - | - |
 
 
 ---
@@ -97,33 +98,39 @@
 
 > **Spec 參考**: Section 2.A 靜態分析輔助
 
-- [ ] **2.1 通用靜態分析 (ripgrep wrapper)**
-  - [ ] 實作 `grep_imports()` 函數
-  - [ ] 測試：提取 Python import 語句
-  - [ ] 測試：提取 JS/TS import/require 語句
+- [x] **2.1 通用靜態分析 (ripgrep wrapper)**
+  - [x] 實作 `grep_imports()` 函數
+  - [x] 測試：提取 Python import 語句
+  - [x] 測試：提取 JS/TS import/require 語句
+  - **狀態**: ✅ 成功 - 支援 Regex 提取及 ripgrep fallback，測試與覆蓋率 (88%) 完成
 
-- [ ] **2.2 Python 分析器**
-  - [ ] 使用 `ast` 模組解析 import
-  - [ ] 測試：解析標準 import
-  - [ ] 測試：解析 from...import
-  - [ ] 測試：解析相對 import
+- [x] **2.2 Python 分析器**
+  - [x] 使用 `ast` 模組解析 import
+  - [x] 測試：解析標準 import
+  - [x] 測試：解析 from...import
+  - [x] 測試：解析相對 import
+  - **狀態**: ✅ 成功 - 支援完整 AST 解析及相對路徑處理，測試與覆蓋率 (100%) 完成
 
 - [ ] **2.3 JavaScript/TypeScript 分析器**
   - [ ] 整合 `tree-sitter` (可選)
   - [ ] 測試：解析 ES6 import
   - [ ] 測試：解析 CommonJS require
+  - **狀態**: ⏭️ 跳過 - 暫時使用通用 Regex 處理，優先投入核心功能
 
-- [ ] **2.4 依賴圖建構**
-  - [ ] 實作 `DependencyGraph` 類別
-  - [ ] 測試：建立依賴樹
-  - [ ] 測試：偵測循環依賴
-  - [ ] 測試：計算模組層級
+- [x] **2.4 依賴圖建構**
+  - [x] 實作 `DependencyGraph` 類別
+  - [x] 測試：建立依賴樹
+  - [x] 測試：偵測循環依賴
+  - [x] 測試：計算模組層級
+  - **狀態**: ✅ 成功 - 支援依賴圖建構、拓撲排序層級計算及循環偵測，測試與覆蓋率 (95%) 完成
 
-- [ ] **2.5 檔案過濾器**
-  - [ ] 實作 `.gitignore` 解析
-  - [ ] 實作預設排除規則
-  - [ ] 測試：過濾 node_modules
-  - [ ] 測試：include 覆蓋 exclude
+- [x] **2.5 檔案過濾器**
+  - [x] 實作 `.gitignore` 解析
+  - [x] 實作預設排除規則
+  - [x] 測試：過濾 node_modules
+  - [x] 測試：include 覆蓋 exclude
+  - **狀態**: ✅ 成功 - 使用 code:`pathspec` 支援完整 .gitignore 語法及優先順序，測試與覆蓋率 (91%) 完成
+  - **Commit**: `5bc2e10`
 
 ---
 
