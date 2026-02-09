@@ -148,15 +148,26 @@ Final outputs are designed for human reading, not machine consumption, focusing 
 
 ## Prerequisites
 
-Lantern requires one of the following AI CLI tools installed:
+### Option A: API Key (Recommended)
+
+Set up an API key for stable, non-interactive analysis:
+
+| Provider | API Key Setup |
+| :--- | :--- |
+| **Gemini** | `export GEMINI_API_KEY="your-key"` ([Get key](https://aistudio.google.com/app/apikey)) |
+| **Claude** | `export ANTHROPIC_API_KEY="your-key"` ([Get key](https://console.anthropic.com/)) |
+
+### Option B: CLI Tools (Experimental)
+
+Alternatively, install one of these AI CLI tools:
 
 | CLI Tool | Installation |
 | :--- | :--- |
 | **Codex CLI** | `npm install -g @openai/codex` |
-| **Gemini CLI** | `npm install -g @anthropic/gemini-cli` |
+| **Gemini CLI** | `npm install -g @google/gemini-cli` |
 | **Claude Code** | `npm install -g @anthropic/claude-code` |
 
-Lantern auto-detects available CLI backends.
+> ⚠️ CLI mode may encounter authentication issues or interactive prompts. API mode is recommended for automation.
 
 ## Installation
 

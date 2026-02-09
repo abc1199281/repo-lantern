@@ -147,15 +147,26 @@ Lantern 的設計基於心理學原則：
 
 ## 前置需求
 
-Lantern 需要安裝以下其中一個 AI CLI 工具：
+### 選項 A：API Key（推薦）
+
+設定 API 金鑰以獲得穩定的非互動式分析：
+
+| 提供者 | API Key 設定 |
+| :--- | :--- |
+| **Gemini** | `export GEMINI_API_KEY="your-key"` ([取得金鑰](https://aistudio.google.com/app/apikey)) |
+| **Claude** | `export ANTHROPIC_API_KEY="your-key"` ([取得金鑰](https://console.anthropic.com/)) |
+
+### 選項 B：CLI 工具（實驗性）
+
+或者安裝以下其中一個 AI CLI 工具：
 
 | CLI 工具 | 安裝指令 |
 | :--- | :--- |
 | **Codex CLI** | `npm install -g @openai/codex` |
-| **Gemini CLI** | `npm install -g @anthropic/gemini-cli` |
+| **Gemini CLI** | `npm install -g @google/gemini-cli` |
 | **Claude Code** | `npm install -g @anthropic/claude-code` |
 
-Lantern 會自動偵測可用的 CLI 後端。
+> ⚠️ CLI 模式可能遇到認證問題或互動式提示。建議自動化場景使用 API 模式。
 
 ## 安裝
 
