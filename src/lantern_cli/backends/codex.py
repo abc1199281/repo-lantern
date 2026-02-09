@@ -9,15 +9,17 @@ from lantern_cli.backends.base import AnalysisResult, BackendAdapter
 class CodexAdapter(BackendAdapter):
     """Adapter for Codex/Antigravity CLI tools."""
 
-    def __init__(self, command: str = "codex", timeout: int = 300) -> None:
+    def __init__(self, command: str = "codex", timeout: int = 300, use_exec: bool = True) -> None:
         """Initialize CodexAdapter.
 
         Args:
             command: CLI command to use (default: codex).
             timeout: Timeout in seconds (default: 300).
+            use_exec: Whether to use 'exec' subcommand (default: True).
         """
         self.command = command
         self.timeout = timeout
+        self.use_exec = use_exec
 
     def health_check(self) -> bool:
         """Check if CLI tool is available."""
@@ -34,8 +36,10 @@ class CodexAdapter(BackendAdapter):
             raise RuntimeError(f"CLI tool '{self.command}' not found.")
 
         # Construct CLI prompt/input
-        # Use 'exec' for non-interactive mode
-        cmd = [self.command, "exec", prompt]
+        if self.use_exec:
+            cmd = [self.command, "exec", prompt]
+        else:
+            cmd = [self.command, prompt]
         
         try:
             # We assume the CLI takes prompt and files and prints output to stdout

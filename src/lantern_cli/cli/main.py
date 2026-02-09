@@ -1,6 +1,7 @@
 """Lantern CLI - Main entry point."""
 
 import typer
+import shutil
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from pathlib import Path
@@ -134,9 +135,24 @@ def run(
         config.language = lang
     if backend:
         # CLI arg overrides backend type/provider
-        if backend in ("gemini", "claude", "anthropic", "openai"):
-            config.backend.type = "api"
-            config.backend.api_provider = backend
+        # Heuristic: if backend matches known API providers AND is not meant to be CLI
+        # But for 'gemini', it can be both. 
+        # If user explicitly said --backend gemini, check if they mean CLI or API.
+        # For now, let's assume if it is in the list AND it's not installed as CLI, use API.
+        # Or simpler: remove 'gemini' from forced API list if we want to prioritize CLI.
+        
+        # New logic: Only force API if it's strictly API-only or user specified API config
+        if backend in ("claude", "anthropic", "openai"): # gemini removed
+             config.backend.type = "api"
+             config.backend.api_provider = backend
+        elif backend == "gemini":
+             # Special handling for Gemini which has both
+             if shutil.which("gemini"):
+                 config.backend.type = "cli"
+                 config.backend.cli_command = "gemini"
+             else:
+                 config.backend.type = "api"
+                 config.backend.api_provider = "gemini"
         else:
             config.backend.type = "cli"
             config.backend.cli_command = backend
@@ -182,7 +198,7 @@ def run(
         task_runner = progress.add_task("Running analysis batches...", total=len(plan.phases)) # Rough progress
         
         state_manager = StateManager(repo_path)
-        runner = Runner(repo_path, backend_adapter, state_manager)
+        runner = Runner(repo_path, backend_adapter, state_manager, language=config.language)
         
         pending_batches = state_manager.get_pending_batches(plan)
         

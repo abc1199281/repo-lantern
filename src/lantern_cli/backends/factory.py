@@ -48,9 +48,14 @@ class BackendFactory:
         
         if backend_config.type == "cli":
             command = backend_config.cli_command or detect_cli()
+            
+            # wrapper logic: gemini and claude usually take prompt directly
+            use_exec = command not in ("gemini", "claude", "claude-code")
+            
             return CodexAdapter(
                 command=command,
-                timeout=backend_config.cli_timeout
+                timeout=backend_config.cli_timeout,
+                use_exec=use_exec
             )
         else:
             provider = backend_config.api_provider
