@@ -13,6 +13,7 @@ from lantern_cli.core.architect import Architect
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.runner import Runner
 from lantern_cli.core.synthesizer import Synthesizer
+from lantern_cli.utils.cost_tracker import CostTracker
 
 app = typer.Typer(
     name="lantern",
@@ -54,12 +55,14 @@ exclude = [
     "**/node_modules/*", 
     "**/.venv/*", 
     "**/.idea/*", 
-    "**/.vscode/*"
+    "**/.vscode/*",
+    "**/build*/*"
 ]
 
 [backend]
-type = "cli"
-cli_timeout = 300
+type = "ollama"
+ollama_model = "llama3"
+ollama_url = "http://localhost:11434"
 """
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
@@ -123,6 +126,7 @@ def run(
     api: bool = typer.Option(False, help="Force API mode (api_provider)"),
     lang: str = typer.Option("en", help="Output language (en/zh-TW)"),
     model: str = typer.Option(None, help="Model name (e.g., 'llama3' for ollama, 'gpt-4o' for openai)"),
+    assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
@@ -210,13 +214,60 @@ def run(
         progress.update(task_plan, completed=True)
         console.print(f"Plan generated: {plan_path}")
 
-        # 5. Runner Execution
+        # 5. Cost Estimation
+        # Determine model name for cost tracking
+        model_name = "gemini-1.5-flash"  # default
+        if config.backend.type == "api":
+            model_name = config.backend.api_model or model_name
+        elif config.backend.type == "ollama":
+            model_name = config.backend.ollama_model or "llama3"
+        
+        # Initialize state manager (needed for pending batches)
+        state_manager = StateManager(repo_path)
+        
+        cost_tracker = CostTracker(model_name)
+        pending_batches = state_manager.get_pending_batches(plan)
+        
+        # Estimate total cost
+        total_estimated_tokens = 0
+        total_estimated_cost = 0.0
+        
+        for batch in pending_batches:
+            est_tokens, est_cost = cost_tracker.estimate_batch_cost(
+                files=batch.files,
+                context="",  # Simplified for estimation
+                prompt="Analyze these files and provide insights."
+            )
+            total_estimated_tokens += est_tokens
+            total_estimated_cost += est_cost
+        
+        # Display cost estimate
+        console.print("\n[bold cyan]📊 Analysis Plan Summary[/bold cyan]")
+        console.print(f"   Total Phases: {len(plan.phases)}")
+        console.print(f"   Total Batches: {len([b for p in plan.phases for b in p.batches])}")
+        console.print(f"   Pending Batches: {len(pending_batches)}")
+        console.print(f"   Model: {model_name}")
+        console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,}")
+        console.print(f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]")
+        
+        # Confirmation prompt (skip if --yes flag or no pending batches)
+        if pending_batches and not assume_yes:
+            console.print("")
+            proceed = typer.confirm("⚠️  Continue with analysis?")
+            if not proceed:
+                console.print("[yellow]Analysis cancelled by user.[/yellow]")
+                raise typer.Exit(0)
+
+        # 6. Runner Execution
         task_runner = progress.add_task("Running analysis batches...", total=len(plan.phases)) # Rough progress
         
-        state_manager = StateManager(repo_path)
-        runner = Runner(repo_path, backend_adapter, state_manager, language=config.language)
-        
-        pending_batches = state_manager.get_pending_batches(plan)
+        runner = Runner(
+            repo_path, 
+            backend_adapter, 
+            state_manager, 
+            language=config.language,
+            model_name=model_name
+        )
         
         if not pending_batches:
              console.print("[yellow]All batches completed. Skipping execution.[/yellow]")
@@ -247,6 +298,11 @@ def run(
 
     console.print(f"[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
+    
+    # Show final cost report if batches were processed
+    if pending_batches:
+        console.print("")
+        console.print(runner.get_cost_report())
 
 
 @app.command()

@@ -1,10 +1,12 @@
 """Runner module for executing analysis batches."""
 import logging
 from pathlib import Path
+from typing import Optional
 
 from lantern_cli.backends.base import BackendAdapter, AnalysisResult
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.state_manager import StateManager
+from lantern_cli.utils.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,8 @@ class Runner:
         root_path: Path, 
         backend: BackendAdapter, 
         state_manager: StateManager,
-        language: str = "en"
+        language: str = "en",
+        model_name: str = "gemini-1.5-flash"
     ) -> None:
         """Initialize Runner.
 
@@ -28,12 +31,14 @@ class Runner:
             backend: Configured backend adapter.
             state_manager: State manager instance.
             language: Output language (default: en).
+            model_name: LLM model name for cost tracking.
         """
         self.root_path = root_path
         self.backend = backend
         self.state_manager = state_manager
         self.language = language
         self.output_dir = root_path / ".lantern" / "sense"
+        self.cost_tracker = CostTracker(model_name)
 
     def run_batch(self, batch: Batch, prompt: str) -> bool:
         """Execute a single batch analysis.
@@ -49,11 +54,34 @@ class Runner:
             # 1. Prepare context (Temporal RAG)
             context = self._prepare_context()
             
+            # 1b. Estimate cost for this batch
+            estimated_tokens, estimated_cost = self.cost_tracker.estimate_batch_cost(
+                files=batch.files,
+                context=context,
+                prompt=prompt
+            )
+            logger.debug(
+                f"Batch {batch.id}: Estimated {estimated_tokens} tokens, ${estimated_cost:.4f}"
+            )
+            
             # 2. Call backend
             result = self.backend.analyze_batch(
                 files=batch.files,
                 context=context,
                 prompt=prompt
+            )
+            
+            # 2b. Record actual usage
+            # For now, use estimated tokens as we don't have actual token counts from backends
+            # In future, backends should return actual token counts
+            input_tokens = self.cost_tracker.estimate_tokens(context + prompt)
+            for file_path in batch.files:
+                input_tokens += self.cost_tracker.estimate_file_tokens(file_path)
+            output_tokens = self.cost_tracker.estimate_tokens(result.raw_output)
+            
+            self.cost_tracker.record_usage(input_tokens, output_tokens)
+            logger.info(
+                f"Batch {batch.id} completed: {input_tokens + output_tokens} tokens used"
             )
             
             # 3. Save .sense file
@@ -149,3 +177,11 @@ class Runner:
         
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    def get_cost_report(self) -> str:
+        """Get cost report from cost tracker.
+
+        Returns:
+            Formatted cost report string.
+        """
+        return self.cost_tracker.get_report()
