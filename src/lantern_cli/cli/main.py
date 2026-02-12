@@ -3,7 +3,14 @@
 import typer
 import shutil
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 from pathlib import Path
 
 from lantern_cli.config.loader import load_config
@@ -90,6 +97,9 @@ def plan(
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
         console=console,
     ) as progress:
         # 1. Static Analysis
@@ -191,6 +201,9 @@ def run(
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
         console=console,
     ) as progress:
         
