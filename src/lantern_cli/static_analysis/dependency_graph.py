@@ -23,20 +23,46 @@ class DependencyGraph:
         
         # Lazy import to avoid circular dependency
         from lantern_cli.static_analysis.python import PythonAnalyzer
+        from lantern_cli.static_analysis.cpp import CppAnalyzer
         from pathspec import PathSpec
         from pathspec.patterns import GitWildMatchPattern
         
-        self.analyzer = PythonAnalyzer()
+        self.analyzers = {
+            "python": PythonAnalyzer(),
+            "cpp": CppAnalyzer(),
+        }
         self.spec = PathSpec.from_lines(GitWildMatchPattern, self.excludes)
 
     def build(self) -> None:
         """Build the dependency graph by analyzing files in root_path."""
-        # 1. Index all Python files
+        # 1. Index all files
         module_map: dict[str, str] = {}
-        all_files: list[Path] = []
+        all_files: list[tuple[Path, str]] = []  # (rel_path, type)
         
+        # Extensions mapping
+        extensions = {
+            ".py": "python",
+            ".c": "cpp",
+            ".cpp": "cpp",
+            ".h": "cpp",
+            ".hpp": "cpp",
+            ".cc": "cpp",
+            ".hh": "cpp",
+            ".cxx": "cpp",
+            ".hxx": "cpp",
+        }
+
         # Walk excluding hidden/venv etc. AND user defined excludes
-        for path in self.root_path.rglob("*.py"):
+        # We need to walk all files now, not just .py
+        for path in self.root_path.rglob("*"):
+            if not path.is_file():
+                continue
+
+            # Check extension
+            ext = path.suffix.lower()
+            if ext not in extensions:
+                continue
+
             rel_path = path.relative_to(self.root_path)
             
             # 1. Basic hardcoded Clean check
@@ -47,24 +73,36 @@ class DependencyGraph:
             if self.spec.match_file(str(rel_path)):
                 continue
             
-            all_files.append(rel_path)
+            file_type = extensions[ext]
+            all_files.append((rel_path, file_type))
             
-            # Simple module name heuristic
-            # src/lantern_cli/main.py -> src.lantern_cli.main
-            # lantern_cli/main.py -> lantern_cli.main
-            module_parts = list(rel_path.parent.parts) + [rel_path.stem]
-            module_name = ".".join(module_parts)
-            module_map[module_name] = str(rel_path)
-            
-            # Also support implicit src root if common pattern
-            if module_parts[0] == "src":
-                short_name = ".".join(module_parts[1:])
-                module_map[short_name] = str(rel_path)
+            if file_type == "python":
+                # Simple module name heuristic
+                # src/lantern_cli/main.py -> src.lantern_cli.main
+                module_parts = list(rel_path.parent.parts) + [rel_path.stem]
+                module_name = ".".join(module_parts)
+                module_map[module_name] = str(rel_path)
+                
+                # Also support implicit src root if common pattern
+                if module_parts[0] == "src":
+                    short_name = ".".join(module_parts[1:])
+                    module_map[short_name] = str(rel_path)
+            elif file_type == "cpp":
+                # For C++, we map filename (e.g. "utils.h") to path
+                # And also relative paths if possible
+                module_map[path.name] = str(rel_path)
+                # Map full relative path for precise includes
+                module_map[str(rel_path)] = str(rel_path)
 
         # 2. Analyze imports and build graph
-        for rel_path in all_files:
+        for rel_path, file_type in all_files:
             file_path = self.root_path / rel_path
-            imports = self.analyzer.analyze_imports(file_path)
+            
+            analyzer = self.analyzers.get(file_type)
+            if not analyzer:
+                continue
+
+            imports = analyzer.analyze_imports(file_path)
             
             source_node = str(rel_path)
             # Ensure node exists in graph even if no deps
@@ -72,13 +110,25 @@ class DependencyGraph:
                 self.dependencies[source_node] = set()
 
             for imp in imports:
-                # Try to resolve import to a file in our project
-                # Exact match
-                target_file = module_map.get(imp)
+                target_file = None
                 
-                # Try sub-modules (e.g. import lantern_cli.core -> lantern_cli/core/__init__.py)
-                if not target_file:
-                    target_file = module_map.get(f"{imp}.__init__")
+                if file_type == "python":
+                    # Try to resolve import to a file in our project
+                    target_file = module_map.get(imp)
+                    
+                    # Try sub-modules (e.g. import lantern_cli.core -> lantern_cli/core/__init__.py)
+                    if not target_file:
+                        target_file = module_map.get(f"{imp}.__init__")
+                
+                elif file_type == "cpp":
+                    # Direct lookup by filename or path
+                    target_file = module_map.get(imp)
+                    
+                    # If not found, try to resolve relative paths
+                    if not target_file:
+                        # Handle "../utils.h" style includes if needed, 
+                        # but simple name matching covers many cases in flat/simple C++ projects
+                        pass
 
                 if target_file and target_file != source_node:
                     self.add_dependency(source_node, target_file)
