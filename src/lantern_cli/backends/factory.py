@@ -6,6 +6,7 @@ from lantern_cli.backends.claude import ClaudeAdapter
 from lantern_cli.backends.codex import CodexAdapter
 from lantern_cli.backends.gemini import GeminiAdapter
 from lantern_cli.backends.openai import OpenAIAdapter
+from lantern_cli.backends.ollama import OllamaBackend
 
 
 def detect_cli() -> str:
@@ -57,6 +58,11 @@ class BackendFactory:
                 command=command,
                 timeout=backend_config.cli_timeout,
                 use_exec=use_exec
+            )
+        elif backend_config.type == "ollama":
+            return OllamaBackend(
+                model=backend_config.ollama_model or "llama3",
+                base_url=backend_config.ollama_url or "http://localhost:11434"
             )
         else:
             provider = backend_config.api_provider

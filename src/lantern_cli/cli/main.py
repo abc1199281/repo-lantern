@@ -122,6 +122,7 @@ def run(
     backend: str = typer.Option(None, help="LLM backend (codex/gemini/claude/openai)"),
     api: bool = typer.Option(False, help="Force API mode (api_provider)"),
     lang: str = typer.Option("en", help="Output language (en/zh-TW)"),
+    model: str = typer.Option(None, help="Model name (e.g., 'llama3' for ollama, 'gpt-4o' for openai)"),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
@@ -137,12 +138,17 @@ def run(
     
     if api:
         config.backend.type = "api"
+
+    if backend == "ollama":
+        config.backend.type = "ollama"
         
     if backend:
         # If --api matching flag is set, treat backend as api_provider
         if config.backend.type == "api" or api:
              config.backend.type = "api"
              config.backend.api_provider = backend
+        elif config.backend.type == "ollama":
+             pass
         else:
              # Heuristic: if backend matches known API providers AND is not meant to be CLI
              if backend in ("claude", "anthropic", "openai", "gpt"):
@@ -157,8 +163,15 @@ def run(
                      config.backend.type = "api"
                      config.backend.api_provider = "gemini"
              else:
-                config.backend.type = "cli"
-                config.backend.cli_command = backend
+                 config.backend.type = "cli"
+                 config.backend.cli_command = backend
+
+    # Handle model overrides
+    if model:
+        if config.backend.type == "ollama":
+            config.backend.ollama_model = model
+        elif config.backend.type == "api":
+            config.backend.api_model = model
 
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")

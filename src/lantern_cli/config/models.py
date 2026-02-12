@@ -21,9 +21,9 @@ class FilterConfig(BaseModel):
 class BackendConfig(BaseModel):
     """Backend configuration for LLM."""
 
-    type: Literal["cli", "api"] = Field(
+    type: Literal["cli", "api", "ollama"] = Field(
         default="cli",
-        description="Backend type: cli or api",
+        description="Backend type: cli, api, or ollama",
     )
 
     # CLI backend options
@@ -56,6 +56,16 @@ class BackendConfig(BaseModel):
     api_rate_limit: int = Field(
         default=60,
         description="Maximum requests per minute for API",
+    )
+
+    # Ollama backend options
+    ollama_model: str | None = Field(
+        default="llama3",
+        description="Ollama model name",
+    )
+    ollama_url: str | None = Field(
+        default="http://localhost:11434",
+        description="Ollama base URL",
     )
 
 
