@@ -19,15 +19,13 @@ class TestRunner:
         backend = MagicMock(spec=BackendAdapter)
         backend.analyze_batch.return_value = AnalysisResult(
             summary="Test Summary",
-            key_insights=["Insight 1"],
-            questions=[],
+            key_insights=["Insight 1"]
             raw_output="Raw"
         )
         # Per-file analysis returns unique results
         backend.analyze_file.return_value = AnalysisResult(
             summary="File-specific summary",
-            key_insights=["File insight"],
-            questions=["File question"],
+            key_insights=["File insight"]
             raw_output="Raw file"
         )
         return backend
@@ -88,11 +86,11 @@ class TestRunner:
         
         # Return different results for each file
         results = iter([
-            AnalysisResult(summary="Module A handles authentication.", key_insights=["Uses JWT"], questions=[], raw_output=""),
-            AnalysisResult(summary="Module B handles database access.", key_insights=["Uses SQLAlchemy"], questions=[], raw_output=""),
+            AnalysisResult(summary="Module A handles authentication.", key_insights=["Uses JWT"], raw_output=""),
+            AnalysisResult(summary="Module B handles database access.", key_insights=["Uses SQLAlchemy"], raw_output=""),
         ])
         mock_backend.analyze_file.side_effect = lambda **kwargs: next(results)
-        mock_backend.analyze_batch.return_value = AnalysisResult(summary="Batch summary", key_insights=[], questions=[], raw_output="Raw")
+        mock_backend.analyze_batch.return_value = AnalysisResult(summary="Batch summary", key_insights=[], raw_output="Raw")
         
         runner.run_batch(batch, "Prompt")
         

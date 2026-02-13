@@ -54,7 +54,7 @@ class TestErrorRecovery:
             if "a.py" in files[0] or "main.py" in files[0]: # Batch 1 likely contains main or a
                  # We want this to fail
                  raise Exception("Simulated Backend Failure")
-            return MagicMock(summary="Success", raw_output="raw", key_insights=[], questions=[])
+            return MagicMock(summary="Success", raw_output="raw", key_insights=[])
 
         mock_backend.analyze_batch.side_effect = side_effect
         mock_backend_create.return_value = mock_backend
@@ -75,7 +75,7 @@ class TestErrorRecovery:
         # Reset mock to always succeed
         mock_backend.analyze_batch.side_effect = None
         mock_backend.analyze_batch.return_value = MagicMock(
-            summary="Recovered", raw_output="recovered", key_insights=[], questions=[]
+            summary="Recovered", raw_output="recovered", key_insights=[]
         )
         
         result = runner.invoke(app, ["run", "--repo", str(repo_path), "--yes"])

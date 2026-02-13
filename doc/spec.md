@@ -313,7 +313,6 @@ from typing import Optional
 class AnalysisResult:
     summary: str
     key_insights: list[str]
-    questions: list[str]
     raw_output: str  # 原始 CLI/API 輸出，用於除錯
 
 class BackendAdapter(ABC):
@@ -433,11 +432,6 @@ CLI Wrapper 必須處理以下情況：
 - [x] **Batch 002**: `session_manager.py`
   - 📊 **信心指數**: ⭐⭐⭐ (高)
 
-#### ❓ Key Questions (學完後應能回答)
-- 用戶 token 如何生成與驗證？
-- 認證失敗時返回什麼錯誤碼？
-- 哪些 endpoint 需要認證？
-
 ---
 
 ### Phase 2: Understand API Request Lifecycle
@@ -449,11 +443,6 @@ CLI Wrapper 必須處理以下情況：
 - [x] **Batch 003**: `routes.py`, `validators.py`
   - 📊 **信心指數**: ⭐⭐ (中)
   - ⚠️ **低信心提示**: 不確定 `middleware.py` 是否應納入此 Batch
-
-#### ❓ Key Questions (學完後應能回答)
-- 請求的路由如何被匹配？
-- 參數驗證失敗時如何處理？
-- 中間件如何修改請求/響應？
 
 ## 🗺️ Dependency Graph
 
@@ -504,7 +493,6 @@ graph TD
 {
   "last_completed_batch": "001",
   "global_logic_summary": "已定義 User 實體，使用 JWT 進行權限校驗...",
-  "unresolved_questions": ["為什麼在 decorators.py 中有硬編碼的 ID？"],
   "language_preference": "zh-TW"
 }
 ```
@@ -527,7 +515,6 @@ graph TD
     "使用 decorator @require_auth 進行權限檢查",
     "JWT token 儲存在 HTTP header"
   ],
-  "questions": ["為什麼 user_id 硬編碼為 42？"]
 }
 ```
 

@@ -25,8 +25,7 @@ def test_mixed_language_support(mock_backend_create, mixed_repo):
     mock_backend = MagicMock()
     mock_backend.analyze_batch.return_value = MagicMock(
         summary="Mixed Lang Analysis", 
-        key_insights=[], 
-        questions=[],
+        key_insights=[]
         raw_output="Raw output"
     )
     mock_backend_create.return_value = mock_backend

@@ -20,7 +20,6 @@ class Phase:
     id: int
     batches: List[Batch]
     learning_objectives: List[str] = field(default_factory=list)
-    key_questions: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -104,7 +103,6 @@ class Architect:
                 id=layer_idx + 1 if layer_idx >= 0 else 0, # Handle -1 for cycles
                 batches=batches,
                 learning_objectives=self._generate_learning_objectives(layer_idx, files),
-                key_questions=self._generate_key_questions(layer_idx)
             )
             phases.append(phase)
             
@@ -157,11 +155,4 @@ class Architect:
         return [
             f"Understand the role of {len(files)} module(s) in Layer {layer_idx}",
             "Identify key data structures and interfaces"
-        ]
-
-    def _generate_key_questions(self, layer_idx: int) -> List[str]:
-        """Generate key questions for a phase."""
-        return [
-            "How does this layer interact with dependencies?",
-            "What are the public APIs exposed?"
         ]

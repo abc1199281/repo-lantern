@@ -1,1 +1,1 @@
-"""Backend adapters - CLI and API adapters for LLM backends."""
+"""Backend adapters - LLM backends."""

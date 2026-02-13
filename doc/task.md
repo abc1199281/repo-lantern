@@ -197,7 +197,6 @@
 - [x] **4.2 Learning Objectives 生成**
   - [x] 實作學習目標提取
   - [x] 測試：每個 Phase 有 Learning Objective
-  - [x] 測試：Key Questions 生成
   - **狀態**: ✅ 成功 - 實作 Placeholder 邏輯與架構
 
 - [x] **4.3 信心指數評估**

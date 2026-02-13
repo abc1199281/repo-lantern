@@ -19,8 +19,7 @@ class TestMemoryManager:
         long_summary = "Compressed summary " * 6  # 19 chars * 6 = 114 chars
         result = AnalysisResult(
             summary=long_summary,
-            key_insights=[],
-            questions=[],
+            key_insights=[]
             raw_output=long_summary
         )
         backend.analyze_batch.return_value = result

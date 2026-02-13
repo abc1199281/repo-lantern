@@ -56,7 +56,6 @@ class TestArchitect:
         
         for phase in plan.phases:
             assert len(phase.learning_objectives) > 0
-            assert len(phase.key_questions) > 0
             
     def test_confidence_score(self, architect: Architect) -> None:
         """Test confidence score calculation."""

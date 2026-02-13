@@ -59,7 +59,6 @@ def helper():
         mock_result.summary = "Analysis Summary"
         mock_result.key_insights = ["Insight 1", "Insight 2"]
         mock_result.raw_output = "Raw output"
-        mock_result.questions = []
         mock_backend.analyze_batch.return_value = mock_result
         mock_backend_create.return_value = mock_backend
 

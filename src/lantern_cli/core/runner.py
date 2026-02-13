@@ -6,6 +6,7 @@ from typing import Optional
 from lantern_cli.backends.base import BackendAdapter, AnalysisResult
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.state_manager import StateManager
+from lantern_cli.llm.structured import StructuredAnalysisOutput, StructuredAnalyzer
 from lantern_cli.utils.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
@@ -118,68 +119,140 @@ class Runner:
 
     def _generate_bottom_up_doc(self, batch: Batch, result: AnalysisResult) -> None:
         """Generate formatted bottom-up documentation for the batch.
-        
-        Each file gets its own LLM analysis via backend.analyze_file() for
-        unique per-file documentation.
+
+        Primary path uses structured batch analysis (`chain.batch`) to generate
+        per-file output in one request set. If batch call fails, it falls back
+        to per-file invoke. If a file still fails, fallback to batch-level result.
         """
         # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
         base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
-        
-        context = self._prepare_context()
-        
-        for idx, file_path in enumerate(batch.files):
-            # 1. Determine output path
-            # src/foo.py -> .lantern/output/en/bottom_up/src/foo.py.md
-            rel_path = Path(file_path)
-            if rel_path.is_absolute():
-                 try:
-                     rel_path = rel_path.relative_to(self.root_path)
-                 except ValueError:
-                     rel_path = Path(rel_path.name)
-            
+
+        llm = self.backend.get_llm()
+        analyzer = StructuredAnalyzer(llm)
+
+        rel_paths: list[Path] = []
+        batch_data: list[dict[str, str]] = []
+        for file_path in batch.files:
+            rel_path, src_path = self._resolve_paths(file_path)
+            rel_paths.append(rel_path)
+            try:
+                file_content = src_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                logger.error(f"Failed to read source file {src_path}: {exc}")
+                file_content = ""
+            batch_data.append({"file_content": file_content, "language": self.language})
+
+        structured_results: list[Optional[StructuredAnalysisOutput]] = [None] * len(batch.files)
+        try:
+            parsed_batch = analyzer.analyze_batch(batch_data)
+            for idx, parsed in enumerate(parsed_batch):
+                if idx < len(structured_results):
+                    structured_results[idx] = parsed
+        except Exception as exc:
+            logger.error(f"Structured batch analysis failed: {exc}")
+
+        if any(item is None for item in structured_results):
+            for idx, item in enumerate(structured_results):
+                if item is not None:
+                    continue
+                try:
+                    single = analyzer.analyze(
+                        file_content=batch_data[idx]["file_content"],
+                        language=self.language,
+                    )
+                    structured_results[idx] = single
+                except Exception as exc:
+                    logger.error(f"Structured fallback invoke failed for {batch.files[idx]}: {exc}")
+
+        num_files = len(batch.files)
+        for idx, rel_path in enumerate(rel_paths):
             out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
-            
             try:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                logger.warning(f"Could not create directory {out_path.parent}: {e}")
-            
-            # 2. Per-file LLM analysis
-            language_instruction = f" Please respond in {self.language}." if self.language != "en" else ""
-            file_prompt = f"Analyze this file: {file_path}. Provide a summary, key insights, and questions.{language_instruction}"
-            
-            try:
-                file_result = self.backend.analyze_file(
-                    file=file_path,
-                    context=context,
-                    prompt=file_prompt,
+            except OSError as exc:
+                logger.warning(f"Could not create directory {out_path.parent}: {exc}")
+
+            parsed = structured_results[idx]
+            if parsed is None:
+                md_content = self._render_fallback_markdown(
+                    rel_path=rel_path, batch_id=batch.id, index=idx + 1, num_files=num_files, result=result
                 )
-            except Exception as e:
-                logger.error(f"Per-file analysis failed for {file_path}: {e}")
-                # Fallback to batch-level result
-                file_result = result
-            
-            # 3. Generate Content from per-file result
-            num_files = len(batch.files)
-            md_content = f"# {rel_path.name}\n\n"
-            md_content += f"> **Original File**: `{rel_path}`\n"
-            md_content += f"> **Batch**: {batch.id} ({idx + 1}/{num_files})\n\n"
-            
-            md_content += "## Summary\n"
-            md_content += f"{file_result.summary}\n"
-            
-            if file_result.key_insights:
-                md_content += "\n## Key Insights\n"
-                for insight in file_result.key_insights:
-                    md_content += f"- {insight}\n"
-            
-            if file_result.questions:
-                md_content += "\n## Questions & TODOs\n"
-                for q in file_result.questions:
-                    md_content += f"- {q}\n"
+            else:
+                md_content = self._render_structured_markdown(
+                    rel_path=rel_path, batch_id=batch.id, index=idx + 1, num_files=num_files, parsed=parsed
+                )
 
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
+
+    def _resolve_paths(self, file_path: str) -> tuple[Path, Path]:
+        path = Path(file_path)
+        if path.is_absolute():
+            src_path = path
+            try:
+                rel_path = path.relative_to(self.root_path)
+            except ValueError:
+                rel_path = Path(path.name)
+            return rel_path, src_path
+        return path, self.root_path / path
+
+    def _render_structured_markdown(
+        self,
+        rel_path: Path,
+        batch_id: int,
+        index: int,
+        num_files: int,
+        parsed: StructuredAnalysisOutput,
+    ) -> str:
+        lines = [
+            f"# {rel_path.name}",
+            "",
+            f"> **Original File**: `{rel_path}`",
+            f"> **Batch**: {batch_id} ({index}/{num_files})",
+            "",
+            "## Summary",
+            parsed.summary or "",
+        ]
+        if parsed.key_insights:
+            lines.extend(["", "## Key Insights"])
+            lines.extend([f"- {item}" for item in parsed.key_insights])
+        if parsed.functions:
+            lines.extend(["", "## Functions"])
+            lines.extend([f"- {item}" for item in parsed.functions])
+        if parsed.classes:
+            lines.extend(["", "## Classes"])
+            lines.extend([f"- {item}" for item in parsed.classes])
+        if parsed.flow:
+            lines.extend(["", "## Flow", parsed.flow])
+        if parsed.risks:
+            lines.extend(["", "## Risks"])
+            lines.extend([f"- {item}" for item in parsed.risks])
+        if parsed.references:
+            lines.extend(["", "## References"])
+            lines.extend([f"- {item}" for item in parsed.references])
+        return "\n".join(lines).rstrip() + "\n"
+
+    def _render_fallback_markdown(
+        self,
+        rel_path: Path,
+        batch_id: int,
+        index: int,
+        num_files: int,
+        result: AnalysisResult,
+    ) -> str:
+        lines = [
+            f"# {rel_path.name}",
+            "",
+            f"> **Original File**: `{rel_path}`",
+            f"> **Batch**: {batch_id} ({index}/{num_files})",
+            "",
+            "## Summary",
+            result.summary,
+        ]
+        if result.key_insights:
+            lines.extend(["", "## Key Insights"])
+            lines.extend([f"- {insight}" for insight in result.key_insights])
+        return "\n".join(lines).rstrip() + "\n"
 
 
 
