@@ -59,7 +59,7 @@ class TestErrorRecovery:
         mock_backend.analyze_batch.side_effect = side_effect
         mock_backend_create.return_value = mock_backend
 
-        result = runner.invoke(app, ["run", "--repo", str(repo_path)])
+        result = runner.invoke(app, ["run", "--repo", str(repo_path), "--yes"])
         
         # It should exit 0 because run() catches errors? 
         # No, run() prints "Batch X failed" but continues.
@@ -78,7 +78,7 @@ class TestErrorRecovery:
             summary="Recovered", raw_output="recovered", key_insights=[], questions=[]
         )
         
-        result = runner.invoke(app, ["run", "--repo", str(repo_path)])
+        result = runner.invoke(app, ["run", "--repo", str(repo_path), "--yes"])
         
         # Verify "Processing X batches..." message indicates only pending batches were run
         # How to verify? Check stdout or mock call count.

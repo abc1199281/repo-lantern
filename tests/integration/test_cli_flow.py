@@ -55,7 +55,7 @@ class TestCLIFlow:
         runner = CliRunner()
         
         # Invoke CLI
-        result = runner.invoke(app, ["run", "--repo", str(tmp_path)])
+        result = runner.invoke(app, ["run", "--repo", str(tmp_path), "--yes"])
         
         assert result.exit_code == 0
         assert "Lantern Analysis" in result.stdout
