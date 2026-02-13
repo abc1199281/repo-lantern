@@ -17,12 +17,7 @@ class TestMemoryManager:
         # Setup default response for analyze_batch (used for compression)
         # Must be > 100 chars to pass validation in MemoryManager
         long_summary = "Compressed summary " * 6  # 19 chars * 6 = 114 chars
-        result = AnalysisResult(
-            summary=long_summary,
-            key_insights=[],
-            raw_output=long_summary,
-        )
-        backend.analyze_batch.return_value = result
+        backend.invoke.return_value = long_summary
         return backend
 
     def test_update_summary_no_compression(self, mock_backend) -> None:
@@ -51,7 +46,7 @@ class TestMemoryManager:
         
         expected = ("Compressed summary " * 6).strip()
         assert updated == expected
-        mock_backend.analyze_batch.assert_called_once()
+        mock_backend.invoke.assert_called_once()
         assert manager.compression_count == 1
 
     def test_compression_fallback(self, mock_backend) -> None:
@@ -60,7 +55,7 @@ class TestMemoryManager:
         manager.COMPRESS_THRESHOLD = 20
         
         # Simulate backend failure
-        mock_backend.analyze_batch.side_effect = Exception("API Error")
+        mock_backend.invoke.side_effect = Exception("API Error")
         
         current = "A" * 50
         new_content = "B" * 50

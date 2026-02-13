@@ -7,7 +7,7 @@ from lantern_cli.backends.base import AnalysisResult
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.runner import Runner
 from lantern_cli.core.state_manager import ExecutionState
-from lantern_cli.llm.structured import StructuredAnalysisOutput
+from lantern_cli.llm.structured import BatchInteraction, StructuredAnalysisOutput
 
 
 def _make_runner(tmp_path: Path) -> tuple[Runner, MagicMock]:
@@ -32,8 +32,20 @@ def test_generate_bottom_up_doc_uses_batch_once(tmp_path: Path) -> None:
 
     analyzer = MagicMock()
     analyzer.analyze_batch.return_value = [
-        StructuredAnalysisOutput(summary="A summary", key_insights=["k1"], language="en"),
-        StructuredAnalysisOutput(summary="B summary", key_insights=["k2"], language="en"),
+        BatchInteraction(
+            prompt_payload={"file_content": "a", "language": "en"},
+            raw_response="raw",
+            analysis=StructuredAnalysisOutput(
+                summary="A summary", key_insights=["k1"], language="en"
+            ),
+        ),
+        BatchInteraction(
+            prompt_payload={"file_content": "b", "language": "en"},
+            raw_response="raw",
+            analysis=StructuredAnalysisOutput(
+                summary="B summary", key_insights=["k2"], language="en"
+            ),
+        ),
     ]
 
     with patch("lantern_cli.core.runner.StructuredAnalyzer", return_value=analyzer):
@@ -79,4 +91,3 @@ def test_generate_bottom_up_doc_fallbacks_to_invoke_then_batch_result(tmp_path: 
     assert "A single" in doc_a
     assert "batch fallback" in doc_b
     assert "- ki" in doc_b
-

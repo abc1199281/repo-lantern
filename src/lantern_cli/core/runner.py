@@ -1,12 +1,17 @@
 """Runner module for executing analysis batches."""
+import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from lantern_cli.backends.base import BackendAdapter, AnalysisResult
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.state_manager import StateManager
-from lantern_cli.llm.structured import StructuredAnalysisOutput, StructuredAnalyzer
+from lantern_cli.llm.structured import (
+    BatchInteraction,
+    StructuredAnalysisOutput,
+    StructuredAnalyzer,
+)
 from lantern_cli.utils.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
@@ -77,8 +82,8 @@ class Runner:
             else:
                 logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
             
-            # 2. Call backend
-            result = self.backend.analyze_batch(
+            # 2. Call backend (aggregate batch summary)
+            result = self.backend.summarize_batch(
                 files=batch.files,
                 context=context,
                 prompt=prompt
@@ -143,13 +148,20 @@ class Runner:
             batch_data.append({"file_content": file_content, "language": self.language})
 
         structured_results: list[Optional[StructuredAnalysisOutput]] = [None] * len(batch.files)
+        sense_records: list[dict[str, Any]] = []
+        interactions: list[BatchInteraction] = []
         try:
-            parsed_batch = analyzer.analyze_batch(batch_data)
-            for idx, parsed in enumerate(parsed_batch):
-                if idx < len(structured_results):
-                    structured_results[idx] = parsed
+            interactions = analyzer.analyze_batch(batch_data)
         except Exception as exc:
             logger.error(f"Structured batch analysis failed: {exc}")
+
+        for idx, interaction in enumerate(interactions):
+            if idx >= len(structured_results):
+                break
+            structured_results[idx] = interaction.analysis
+            sense_records.append(
+                {"batch": batch.id, "file_index": idx, **interaction.to_dict()}
+            )
 
         if any(item is None for item in structured_results):
             for idx, item in enumerate(structured_results):
@@ -161,10 +173,39 @@ class Runner:
                         language=self.language,
                     )
                     structured_results[idx] = single
+                    sense_records.append(
+                        {
+                            "batch": batch.id,
+                            "file_index": idx,
+                            "prompt": batch_data[idx],
+                            "raw_response": "fallback invocation",
+                            "analysis": single.model_dump(),
+                        }
+                    )
                 except Exception as exc:
                     logger.error(f"Structured fallback invoke failed for {batch.files[idx]}: {exc}")
+                    sense_records.append(
+                        {
+                            "batch": batch.id,
+                            "file_index": idx,
+                            "prompt": batch_data[idx],
+                            "raw_response": f"fallback error: {exc}",
+                            "analysis": {
+                                "summary": result.summary,
+                                "key_insights": result.key_insights,
+                            },
+                        }
+                    )
 
         num_files = len(batch.files)
+        sense_path = self.sense_dir / f"batch_{batch.id:04d}.sense"
+        try:
+            sense_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(sense_path, "w", encoding="utf-8") as sense_f:
+                json.dump(sense_records, sense_f, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            logger.warning(f"Unable to write sense metadata {sense_path}: {exc}")
+
         for idx, rel_path in enumerate(rel_paths):
             out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
             try:

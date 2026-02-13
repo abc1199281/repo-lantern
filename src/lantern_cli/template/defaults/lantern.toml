@@ -1,0 +1,20 @@
+# Lantern Configuration
+
+[lantern]
+language = "zh-TW"
+output_dir = ".lantern"
+
+[filter]
+exclude = [
+    "**/__pycache__/*", 
+    "**/.git/*", 
+    "**/node_modules/*", 
+    "**/.venv/*", 
+    "**/.idea/*", 
+    "**/.vscode/*",
+    "**/build*/*"
+]
+
+[backend]
+type = "ollama"
+ollama_model = "qwen3:8b"

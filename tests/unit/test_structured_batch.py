@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from langchain_core.runnables import RunnableLambda
 
 from lantern_cli.llm.structured import (
+    BatchInteraction,
     StructuredAnalyzer,
     StructuredAnalysisOutput,
     create_chain,
@@ -44,18 +45,17 @@ def test_analyze_batch_normalizes_outputs() -> None:
 
     with patch("lantern_cli.llm.structured.create_chain", return_value=fake_chain):
         analyzer = StructuredAnalyzer(llm=MagicMock())
-        outputs = analyzer.analyze_batch(
+        interactions = analyzer.analyze_batch(
             [
                 {"file_content": "a", "language": "en"},
                 {"file_content": "b", "language": "zh-TW"},
             ]
         )
 
-    assert len(outputs) == 2
-    assert isinstance(outputs[0], StructuredAnalysisOutput)
-    assert outputs[0].summary == "summary"
-    assert outputs[0].key_insights == ["A", "B"]
-    assert outputs[0].flow == "flow"
-    assert outputs[0].language == "en"
-    assert outputs[1].language == "zh-TW"
-
+    assert len(interactions) == 2
+    assert isinstance(interactions[0], BatchInteraction)
+    assert interactions[0].analysis.summary == "summary"
+    assert interactions[0].analysis.key_insights == ["A", "B"]
+    assert interactions[0].analysis.flow == "flow"
+    assert interactions[0].analysis.language == "en"
+    assert interactions[1].analysis.language == "zh-TW"

@@ -14,7 +14,7 @@ from lantern_cli.core.state_manager import ExecutionState
 @pytest.fixture
 def mock_backend() -> MagicMock:
     backend = MagicMock()
-    backend.analyze_batch.return_value = AnalysisResult(
+    backend.summarize_batch.return_value = AnalysisResult(
         summary="Test Summary",
         key_insights=["Insight 1"],
         raw_output="Raw",
@@ -44,8 +44,8 @@ def test_run_batch_success(
         success = runner.run_batch(batch, "Prompt")
 
     assert success is True
-    mock_backend.analyze_batch.assert_called_once()
-    args = mock_backend.analyze_batch.call_args
+    mock_backend.summarize_batch.assert_called_once()
+    args = mock_backend.summarize_batch.call_args
     assert args.kwargs["context"] == "Old Summary"
     mock_bottom_up.assert_called_once()
     mock_state_manager.update_global_summary.assert_called_with("Batch 1 Summary:\nTest Summary")
@@ -56,7 +56,7 @@ def test_run_batch_failure(
     runner: Runner, mock_backend: MagicMock, mock_state_manager: MagicMock
 ) -> None:
     batch = Batch(id=1, files=["file1.py"])
-    mock_backend.analyze_batch.side_effect = Exception("API Error")
+    mock_backend.summarize_batch.side_effect = Exception("API Error")
 
     success = runner.run_batch(batch, "Prompt")
 
@@ -71,4 +71,3 @@ def test_prepare_context_truncates(runner: Runner) -> None:
     runner.state_manager.state.global_summary = "A" * 5000
     long_context = runner._prepare_context()
     assert len(long_context) == runner.MAX_CONTEXT_LENGTH
-

@@ -21,27 +21,9 @@ class FilterConfig(BaseModel):
 class BackendConfig(BaseModel):
     """Backend configuration for LLM."""
 
-    type: Literal["cli", "api", "ollama"] = Field(
-        default="cli",
-        description="Backend type: cli, api, or ollama",
-    )
-
-    # CLI backend options
-    cli_command: str | None = Field(
-        default=None,
-        description="CLI command to use (e.g., 'gemini', 'claude')",
-    )
-    cli_timeout: int = Field(
-        default=300,
-        description="CLI timeout in seconds",
-    )
-    cli_fallback_to_api: bool = Field(
-        default=False,
-        description="Fallback to API if CLI fails",
-    )
-    cli_args_template: list[str] | None = Field(
-        default=None,
-        description="Template for CLI arguments (e.g., ['{command}', 'exec', '{prompt}'])",
+    type: Literal["api", "ollama"] = Field(
+        default="ollama",
+        description="Backend type: api or ollama",
     )
 
     # API backend options

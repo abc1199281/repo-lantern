@@ -1,4 +1,8 @@
-"""Ollama backend adapter."""
+"""Ollama backend adapter.
+
+Provider-specific code lives here. Shared invocation logic lives in
+`lantern_cli.backends.base.BackendAdapter`.
+"""
 
 from typing import Any
 
@@ -19,6 +23,7 @@ class OllamaBackend(BackendAdapter):
         """Initialize Ollama backend configuration."""
         self.model = model
         self.base_url = base_url.rstrip("/")
+        self._llm: Any | None = None
 
     def get_llm(self) -> Any:
         """Create a LangChain ChatOllama client from backend config."""
@@ -28,8 +33,10 @@ class OllamaBackend(BackendAdapter):
                 "install it with: pip install langchain-ollama"
             ) from _CHAT_OLLAMA_IMPORT_ERROR
 
-        return ChatOllama(
-            model=self.model,
-            base_url=self.base_url,
-            temperature=0,
-        )
+        if self._llm is None:
+            self._llm = ChatOllama(
+                model=self.model,
+                base_url=self.base_url,
+                temperature=0,
+            )
+        return self._llm

@@ -25,6 +25,16 @@ from lantern_cli.core.runner import Runner
 from lantern_cli.core.synthesizer import Synthesizer
 from lantern_cli.utils.cost_tracker import CostTracker
 
+TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
+DEFAULT_CONFIG_PATH = TEMPLATE_ROOT / "lantern.toml"
+
+
+def _load_default_config() -> str:
+    try:
+        return DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Unable to read default config at {DEFAULT_CONFIG_PATH}") from exc
+
 app = typer.Typer(
     name="lantern",
     help="Your repository mentor - AI-guided codebase analysis",
@@ -62,31 +72,8 @@ def init(
 
     try:
         lantern_dir.mkdir(parents=True, exist_ok=True)
-        # Create default config
         config_path = lantern_dir / "lantern.toml"
-        # Minimal default config
-        config_content = """# Lantern Configuration
-
-[lantern]
-language = "zh-TW"
-output_dir = ".lantern"
-
-[filter]
-exclude = [
-    "**/__pycache__/*", 
-    "**/.git/*", 
-    "**/node_modules/*", 
-    "**/.venv/*", 
-    "**/.idea/*", 
-    "**/.vscode/*",
-    "**/build*/*"
-]
-
-[backend]
-type = "cli"
-cli_command = "gemini"
-cli_args_template = ["{command}", "-p", "{prompt}"]
-"""
+        config_content = _load_default_config()
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
             
@@ -166,7 +153,7 @@ def run(
 
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
-    console.print(f"Backend: {config.backend.type} ({config.backend.api_provider or config.backend.cli_command})")
+    console.print(f"Backend: {config.backend.type} ({config.backend.api_provider })")
 
     # 2. Initialize Backend
     try:
@@ -214,16 +201,6 @@ def run(
     elif config.backend.type == "ollama":
         model_name = config.backend.ollama_model or "llama3"
         is_local = True
-    elif config.backend.type == "cli":
-        model_name = config.backend.cli_command or "cli-tool"
-        # CLI tools are technically local processes, but might call paid APIs (like codex/gemini).
-        # We assume "local" pricing (free/unknown) for CLI unless we know better, 
-        # BUT existing code defaulted to is_local=False, meaning it tries to look up pricing.
-        # If we set is_local=True, it says "Free".
-        # If we set is_local=False, it tries to look up pricing for "codex" or "gemini".
-        # If pricing lookup fails, it says "Offline/Unable to estimate".
-        # Let's keep is_local=False to attempt pricing lookup, but fallback gracefully.
-        is_local = False
     
     # Initialize state manager (needed for pending batches)
     # Pass backend_adapter for MemoryManager compression
@@ -304,8 +281,8 @@ def run(
                 state_manager, 
                 language=config.language,
                 model_name=model_name,
-                is_local=is_local
-                , output_dir=config.output_dir
+                is_local=is_local, 
+                output_dir=config.output_dir
             )
             
             for batch in pending_batches:

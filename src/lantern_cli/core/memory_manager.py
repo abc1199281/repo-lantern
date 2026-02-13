@@ -85,15 +85,7 @@ SUMMARY TO COMPRESS:
 
 COMPRESSED SUMMARY (aim for ~{self.TARGET_LENGTH} chars):"""
 
-            # Use analyze_batch with empty files and pass the summary as context
-            # This works with the current interface
-            result = self.backend.analyze_batch(
-                files=[],
-                context=long_summary,
-                prompt=prompt
-            )
-
-            compressed = result.summary.strip()
+            compressed = self.backend.invoke(prompt).strip()
 
             # Validate compression
             if len(compressed) < 100:

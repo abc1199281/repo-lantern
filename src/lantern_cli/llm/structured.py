@@ -11,6 +11,7 @@ Usage example:
 """
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -123,6 +124,20 @@ class StructuredAnalysisOutput(BaseModel):
         return values
 
 
+@dataclass
+class BatchInteraction:
+    prompt_payload: dict[str, str]
+    raw_response: str
+    analysis: StructuredAnalysisOutput
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "prompt": self.prompt_payload,
+            "raw_response": self.raw_response,
+            "analysis": self.analysis.model_dump(),
+        }
+
+
 class StructuredAnalyzer:
     """Structured analyzer for bottom-up docs.
 
@@ -159,6 +174,16 @@ class StructuredAnalyzer:
             return json.loads(_extract_json(response))
         raise ValueError(f"Unsupported structured response type: {type(response)!r}")
 
+    @staticmethod
+    def _to_text(response: Any) -> str:
+        if isinstance(response, str):
+            return response
+        if isinstance(response, BaseModel):
+            return response.model_dump_json()
+        if isinstance(response, dict):
+            return json.dumps(response, ensure_ascii=False, indent=2)
+        return str(response)
+
     def _parse_output(self, response: Any, language: str) -> StructuredAnalysisOutput:
         payload = self._to_payload(response)
         parsed = StructuredAnalysisOutput.model_validate(payload)
@@ -173,14 +198,22 @@ class StructuredAnalyzer:
         except Exception as exc:
             raise RuntimeError(f"Structured batch analysis failed: {exc}") from exc
 
-        outputs: list[StructuredAnalysisOutput] = []
+        outputs: list[BatchInteraction] = []
         for item, response in zip(items, responses, strict=False):
             language = item.get("language", "en")
-            outputs.append(self._parse_output(response, language))
+            raw_text = self._to_text(response)
+            parsed = self._parse_output(response, language)
+            outputs.append(
+                BatchInteraction(
+                    prompt_payload=item,
+                    raw_response=raw_text,
+                    analysis=parsed,
+                )
+            )
         return outputs
 
     def analyze(self, file_content: str, language: str) -> StructuredAnalysisOutput:
         """Backward-compatible single-file entrypoint."""
         return self.analyze_batch(
             [{"file_content": file_content, "language": language}]
-        )[0]
+        )[0].analysis
