@@ -65,8 +65,9 @@ class DependencyGraph:
 
             rel_path = path.relative_to(self.root_path)
             
-            # 1. Basic hardcoded Clean check
-            if any(part.startswith(".") or part == "__pycache__" or part == "venv" or part == "node_modules" for part in path.parts):
+            # 1. Basic hardcoded Clean check (use repository-relative parts)
+            # Use `rel_path.parts` so ancestor directories (e.g. /.../.openclaw/...) don't cause all files to be skipped.
+            if any(part.startswith(".") or part == "__pycache__" or part == "venv" or part == "node_modules" for part in rel_path.parts):
                 continue
             
             # 2. Config based Check
