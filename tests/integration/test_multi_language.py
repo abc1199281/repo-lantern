@@ -1,9 +1,10 @@
 """Integration tests for multi-language repositories."""
 import pytest
-from pathlib import Path
 from typer.testing import CliRunner
 from unittest.mock import MagicMock, patch
+
 from lantern_cli.cli.main import app
+from lantern_cli.llm.structured import StructuredAnalysisOutput
 
 @pytest.fixture
 def mixed_repo(tmp_path):
@@ -17,18 +18,27 @@ def mixed_repo(tmp_path):
     
     return tmp_path
 
+@patch("lantern_cli.core.runner.StructuredAnalyzer")
 @patch("lantern_cli.backends.factory.BackendFactory.create")
-def test_mixed_language_support(mock_backend_create, mixed_repo):
+def test_mixed_language_support(mock_backend_create, mock_structured_analyzer, mixed_repo):
     """Test that all supported file types are picked up."""
     
     # Mock backend to succeed 
     mock_backend = MagicMock()
     mock_backend.analyze_batch.return_value = MagicMock(
-        summary="Mixed Lang Analysis", 
-        key_insights=[]
-        raw_output="Raw output"
+        summary="Mixed Lang Analysis",
+        key_insights=[],
+        raw_output="Raw output",
     )
+    mock_backend.get_llm.return_value = MagicMock()
     mock_backend_create.return_value = mock_backend
+
+    analyzer = MagicMock()
+    analyzer.analyze_batch.return_value = [
+        StructuredAnalysisOutput(summary="main", key_insights=[], language="en"),
+        StructuredAnalysisOutput(summary="cpp", key_insights=[], language="en"),
+    ]
+    mock_structured_analyzer.return_value = analyzer
     
     runner = CliRunner()
     
@@ -46,7 +56,7 @@ def test_mixed_language_support(mock_backend_create, mixed_repo):
     # Current FileFilter likely supports .py, .cpp, .sh?
     # Let's verify output files exist
     
-    output_dir = mixed_repo / ".lantern" / "output" / "en" / "bottom_up" / "src"
+    output_dir = mixed_repo / ".lantern" / "output" / "zh-TW" / "bottom_up" / "src"
     
     assert (output_dir / "main.py.md").exists()
     assert (output_dir / "core.cpp.md").exists()

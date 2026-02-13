@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lantern_cli.backends.base import AnalysisResult, BackendAdapter
+from lantern_cli.backends.base import AnalysisResult
 from lantern_cli.core.memory_manager import MemoryManager
 
 
@@ -13,14 +13,14 @@ class TestMemoryManager:
     @pytest.fixture
     def mock_backend(self) -> MagicMock:
         """Mock backend adapter."""
-        backend = MagicMock(spec=BackendAdapter)
+        backend = MagicMock()
         # Setup default response for analyze_batch (used for compression)
         # Must be > 100 chars to pass validation in MemoryManager
         long_summary = "Compressed summary " * 6  # 19 chars * 6 = 114 chars
         result = AnalysisResult(
             summary=long_summary,
-            key_insights=[]
-            raw_output=long_summary
+            key_insights=[],
+            raw_output=long_summary,
         )
         backend.analyze_batch.return_value = result
         return backend
@@ -64,7 +64,6 @@ class TestMemoryManager:
         
         current = "A" * 50
         new_content = "B" * 50
-        combined_len = 100 + 2 # \n\n
         
         # Should fall back to tail truncation
         updated = manager.update_summary(current, new_content)

@@ -1,11 +1,10 @@
 """End-to-end simple integration test."""
-import os
 import pytest
-from pathlib import Path
 from typer.testing import CliRunner
 from unittest.mock import MagicMock, patch
 
 from lantern_cli.cli.main import app
+from lantern_cli.llm.structured import StructuredAnalysisOutput
 
 class TestE2ESimple:
     """Simple end-to-end test using a temporary directory."""
@@ -33,8 +32,9 @@ def helper():
 """)
         return tmp_path
 
+    @patch("lantern_cli.core.runner.StructuredAnalyzer")
     @patch("lantern_cli.backends.factory.BackendFactory.create")
-    def test_full_workflow(self, mock_backend_create, repo_path):
+    def test_full_workflow(self, mock_backend_create, mock_structured_analyzer, repo_path):
         """Test init -> plan -> run workflow."""
         runner = CliRunner()
         
@@ -60,7 +60,15 @@ def helper():
         mock_result.key_insights = ["Insight 1", "Insight 2"]
         mock_result.raw_output = "Raw output"
         mock_backend.analyze_batch.return_value = mock_result
+        mock_backend.get_llm.return_value = MagicMock()
         mock_backend_create.return_value = mock_backend
+
+        analyzer = MagicMock()
+        analyzer.analyze_batch.return_value = [
+            StructuredAnalysisOutput(summary="main", key_insights=["k1"], language="en"),
+            StructuredAnalysisOutput(summary="utils", key_insights=["k2"], language="en"),
+        ]
+        mock_structured_analyzer.return_value = analyzer
 
         result = runner.invoke(app, ["run", "--repo", str(repo_path), "--yes"])
         
@@ -68,7 +76,7 @@ def helper():
         assert "Analysis Complete" in result.stdout
         
         # Verify outputs
-        output_dir = repo_path / ".lantern" / "output" / "en"
+        output_dir = repo_path / ".lantern" / "output" / "zh-TW"
         
         # Top-down docs
         assert (output_dir / "top_down" / "OVERVIEW.md").exists()

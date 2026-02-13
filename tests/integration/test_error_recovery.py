@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from lantern_cli.cli.main import app
 from lantern_cli.core.state_manager import StateManager
+from lantern_cli.llm.structured import StructuredAnalysisOutput
 
 class TestErrorRecovery:
     """Test resume capability after failure."""
@@ -19,8 +20,9 @@ class TestErrorRecovery:
         (src / "utils.py").write_text("print('utils')")
         return tmp_path
 
+    @patch("lantern_cli.core.runner.StructuredAnalyzer")
     @patch("lantern_cli.backends.factory.BackendFactory.create")
-    def test_resume_after_failure(self, mock_backend_create, repo_path):
+    def test_resume_after_failure(self, mock_backend_create, mock_structured_analyzer, repo_path):
         """Test that failed batches are retried on next run."""
         runner = CliRunner()
         
@@ -57,7 +59,16 @@ class TestErrorRecovery:
             return MagicMock(summary="Success", raw_output="raw", key_insights=[])
 
         mock_backend.analyze_batch.side_effect = side_effect
+        mock_backend.get_llm.return_value = MagicMock()
         mock_backend_create.return_value = mock_backend
+
+        analyzer = MagicMock()
+        analyzer.analyze_batch.return_value = [
+            StructuredAnalysisOutput(summary="s1", key_insights=[], language="en"),
+            StructuredAnalysisOutput(summary="s2", key_insights=[], language="en"),
+            StructuredAnalysisOutput(summary="s3", key_insights=[], language="en"),
+        ]
+        mock_structured_analyzer.return_value = analyzer
 
         result = runner.invoke(app, ["run", "--repo", str(repo_path), "--yes"])
         
