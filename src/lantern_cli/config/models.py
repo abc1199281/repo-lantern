@@ -39,6 +39,10 @@ class BackendConfig(BaseModel):
         default=False,
         description="Fallback to API if CLI fails",
     )
+    cli_args_template: list[str] | None = Field(
+        default=None,
+        description="Template for CLI arguments (e.g., ['{command}', 'exec', '{prompt}'])",
+    )
 
     # API backend options
     api_provider: str | None = Field(

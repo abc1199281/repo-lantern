@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lantern_cli.backends.claude import ClaudeAdapter
-from lantern_cli.backends.codex import CodexAdapter
+from lantern_cli.backends.cli import CLIAdapter
 from lantern_cli.backends.factory import BackendFactory, detect_cli
 from lantern_cli.backends.gemini import GeminiAdapter
 from lantern_cli.config.models import BackendConfig, LanternConfig
@@ -60,9 +60,11 @@ class TestBackendFactory:
             )
         )
         adapter = BackendFactory.create(config)
-        assert isinstance(adapter, CodexAdapter)
+        assert isinstance(adapter, CLIAdapter)
         assert adapter.command == "custom_tool"
         assert adapter.timeout == 100
+        # Default fallback because custom_tool is unknown
+        assert adapter.args_template == ["{command}", "exec", "{prompt}"]
         mock_detect.assert_not_called()
 
     @patch("lantern_cli.backends.factory.detect_cli")
@@ -76,8 +78,10 @@ class TestBackendFactory:
             )
         )
         adapter = BackendFactory.create(config)
-        assert isinstance(adapter, CodexAdapter)
+        assert isinstance(adapter, CLIAdapter)
         assert adapter.command == "auto_tool"
+        # Unknown auto tool gets default template
+        assert adapter.args_template == ["{command}", "exec", "{prompt}"]
         mock_detect.assert_called_once()
 
     def test_create_api_backend_gemini(self) -> None:

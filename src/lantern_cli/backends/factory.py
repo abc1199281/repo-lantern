@@ -1,12 +1,16 @@
 """Backend Factory for creating LLM adapters."""
 import shutil
+from typing import TYPE_CHECKING, Optional
 
 from lantern_cli.backends.base import BackendAdapter
+from lantern_cli.backends.cli import CLIAdapter
 from lantern_cli.backends.claude import ClaudeAdapter
-from lantern_cli.backends.codex import CodexAdapter
 from lantern_cli.backends.gemini import GeminiAdapter
-from lantern_cli.backends.openai import OpenAIAdapter
 from lantern_cli.backends.ollama import OllamaBackend
+from lantern_cli.backends.openai import OpenAIAdapter
+
+if TYPE_CHECKING:
+    from lantern_cli.config.models import LanternConfig
 
 
 def detect_cli() -> str:
@@ -35,36 +39,47 @@ def detect_cli() -> str:
 
 class BackendFactory:
     """Factory for creating backend adapters."""
-    
+
     @staticmethod
-    def create(config: "LanternConfig") -> BackendAdapter:  # type: ignore
+    def create(config: "LanternConfig") -> BackendAdapter:
         """Create a backend adapter based on configuration.
-        
+
         Args:
             config: LanternConfig object.
-            
+
         Returns:
             Configured BackendAdapter instance.
         """
         backend_config = config.backend
-        
+
         if backend_config.type == "cli":
             command = backend_config.cli_command or detect_cli()
             
-            # wrapper logic: gemini and claude usually take prompt directly
-            use_exec = command not in ("gemini", "claude", "claude-code")
+            # wrapper logic: set default templates for known tools
+            template = backend_config.cli_args_template
             
-            return CodexAdapter(
+            if not template:
+                if command in ("gemini", "claude", "claude-code"):
+                    template = ["{command}", "{prompt}"]
+                elif command == "ollama":
+                     template = ["{command}", "run", "{model}", "{prompt}"]
+                else:
+                    # Default for antigravity, codex, and others
+                    template = ["{command}", "exec", "{prompt}"]
+
+            return CLIAdapter(
                 command=command,
                 timeout=backend_config.cli_timeout,
-                use_exec=use_exec
+                args_template=template
             )
+
         elif backend_config.type == "ollama":
             return OllamaBackend(
                 model=backend_config.ollama_model or "llama3",
                 base_url=backend_config.ollama_url or "http://localhost:11434"
             )
-        else:
+
+        elif backend_config.type == "api":
             provider = backend_config.api_provider
             model = backend_config.api_model
             api_key = backend_config.api_key_env
@@ -84,6 +99,8 @@ class BackendFactory:
                     model=model or "gpt-4o",
                     api_key_env=api_key or "OPENAI_API_KEY"
                 )
-            # Add other providers here
             
             raise NotImplementedError(f"API provider '{provider}' not implemented")
+
+        else:
+             raise ValueError(f"Unsupported backend type: {backend_config.type}")

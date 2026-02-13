@@ -61,6 +61,7 @@ class TestBackendAdapterInterface:
     def test_contract_execution(self) -> None:
         """Test execution of interface methods."""
         adapter = MockAdapter()
+        # Mock analyze_batch is used here, not the base _parse_output
         result = adapter.analyze_batch([], "", "")
         assert isinstance(result, AnalysisResult)
         assert result.summary == "Mock summary"
@@ -69,3 +70,65 @@ class TestBackendAdapterInterface:
         assert synth == "Synthesized content"
         
         assert adapter.health_check() is True
+
+    def test_parse_output_markdown_headers(self) -> None:
+        """Test parsing with Markdown headers."""
+        adapter = MockAdapter()
+        raw = """
+# Summary
+This is the summary.
+
+# Key Insights
+- Insight 1
+- Insight 2
+
+# Questions
+- Question 1
+"""
+        result = adapter._parse_output(raw)
+        assert result.summary == "This is the summary."
+        assert result.key_insights == ["Insight 1", "Insight 2"]
+        assert result.questions == ["Question 1"]
+
+    def test_parse_output_colon_format(self) -> None:
+        """Test parsing with 'Key:' format."""
+        adapter = MockAdapter()
+        raw = """
+Summary:
+Short summary.
+
+Key Insights:
+* Insight 1
+
+Questions:
+1. Q1
+"""
+        result = adapter._parse_output(raw)
+        assert result.summary == "Short summary."
+        assert result.key_insights == ["Insight 1"]
+        assert result.questions == ["Q1"]
+
+    def test_parse_output_inline_summary(self) -> None:
+        """Test parsing 'Summary: content' on same line."""
+        adapter = MockAdapter()
+        raw = """
+Summary: Inline summary content.
+Insights:
+- I1
+"""
+        result = adapter._parse_output(raw)
+        assert result.summary == "Inline summary content."
+        assert result.key_insights == ["I1"]
+        
+    def test_parse_output_fallback(self) -> None:
+        """Test parsing fallback for unstructured text."""
+        adapter = MockAdapter()
+        raw = "Just raw text."
+        result = adapter._parse_output(raw)
+        # Current logic doesn't fallback summary to raw_text unless explicitly handled
+        # But wait, looking at my implementation:
+        # if current_section == "summary": summary += line
+        # It won't capture anything if no header found.
+        # Let's verify this behavior.
+        assert result.summary == ""
+        assert result.raw_output == "Just raw text."

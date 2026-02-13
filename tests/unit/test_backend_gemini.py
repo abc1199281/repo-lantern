@@ -36,21 +36,3 @@ class TestGeminiAdapter:
         assert isinstance(result, AnalysisResult)
         assert "Test" in result.summary
         assert result.raw_output == "Summary: Test\nInsights: A"
-
-    def test_parse_output(self, adapter: GeminiAdapter) -> None:
-        """Test parsing logic."""
-        raw = """
-Summary:
-Analysis summary.
-
-Key Insights:
-- Insight 1
-- Insight 2
-
-Questions:
-- Q1
-        """
-        result = adapter._parse_output(raw)
-        assert result.summary == "Analysis summary."
-        assert len(result.key_insights) == 2
-        assert len(result.questions) == 1

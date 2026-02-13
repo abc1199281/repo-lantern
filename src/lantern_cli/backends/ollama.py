@@ -23,16 +23,25 @@ class OllamaBackend(BackendAdapter):
         context: str,
         prompt: str,
     ) -> AnalysisResult:
-        """Analyze a batch of files using Ollama.
+        """Analyze a batch of files using Ollama."""
+        # Check if Ollama is reachable before trying
+        if not self.health_check():
+             return AnalysisResult(
+                summary="Error: Ollama service not reachable",
+                raw_output="Could not connect to Ollama service at " + self.base_url
+            )
 
-        Args:
-            files: List of file paths to analyze.
-            context: Context from previous batches.
-            prompt: Specific instructions for this batch.
+        try:
+            raw_response = self._call_api(files, context, prompt)
+            return self._parse_output(raw_response)
+        except Exception as e:
+            return AnalysisResult(
+                summary=f"Error calling Ollama: {e}",
+                raw_output=str(e)
+            )
 
-        Returns:
-            AnalysisResult object.
-        """
+    def _call_api(self, files: list[str], context: str, prompt: str) -> str:
+        """Call Ollama API."""
         # Construct the full prompt
         full_prompt = f"""
 {prompt}
@@ -49,33 +58,20 @@ Please analyze the code in these files and provide:
 3. Any questions or areas that need clarification.
 """
 
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": full_prompt,
-                    "stream": False
-                },
-                timeout=300
-            )
-            response.raise_for_status()
-            data = response.json()
-            content = data.get("response", "")
-            
-            # Simple parsing for MVP - assume the entire response is the summary
-            # In a real implementation, we'd want more structured output from the LLM
-            return AnalysisResult(
-                summary=content,
-                key_insights=["(Extracted from raw output)"],
-                raw_output=content
-            )
+        response = requests.post(
+            f"{self.base_url}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": full_prompt,
+                "stream": False
+            },
+            timeout=300
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data.get("response", "")
 
-        except Exception as e:
-            return AnalysisResult(
-                summary=f"Error calling Ollama: {e}",
-                raw_output=str(e)
-            )
+
 
     def synthesize(
         self,

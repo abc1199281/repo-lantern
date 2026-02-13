@@ -36,10 +36,4 @@ class TestClaudeAdapter:
         assert isinstance(result, AnalysisResult)
         assert "Test" in result.summary
 
-    def test_parse_output(self, adapter: ClaudeAdapter) -> None:
-        """Test parsing logic."""
-        # Reuse logic verification or custom parsing if Claude differs
-        raw = "Summary: S\nKey Insights: \n- I"
-        result = adapter._parse_output(raw)
-        assert result.summary == "S"
-        assert result.key_insights == ["I"]
+
