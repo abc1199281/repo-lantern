@@ -101,5 +101,44 @@ class TestCLIAdapter:
         mock_run.side_effect = subprocess.CalledProcessError(returncode=1, cmd="codex", stderr="Error")
         
         adapter = CLIAdapter()
-        with pytest.raises(RuntimeError, match="CLI analysis failed"):
+        with pytest.raises(RuntimeError) as excinfo:
             adapter.analyze_batch(files=["test.py"], context="", prompt="analyze")
+        
+        assert "CLI analysis failed: Error" in str(excinfo.value)
+        assert "Hint" not in str(excinfo.value)
+
+    def test_analyze_batch_auth_error(self, mock_env) -> None:
+        """Test authentication error handling."""
+        _, mock_run = mock_env
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=1, 
+            cmd="codex", 
+            stderr="Failed to refresh token: 401 Unauthorized"
+        )
+        
+        adapter = CLIAdapter(command="codex")
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.analyze_batch(files=["test.py"], context="", prompt="analyze")
+            
+        assert "potenial authentication error" in str(excinfo.value) or "potential authentication error" in str(excinfo.value)
+        assert "Hint" in str(excinfo.value)
+        assert "logged in to 'codex'" in str(excinfo.value)
+
+    def test_analyze_batch_auth_error_stdout(self, mock_env) -> None:
+        """Test authentication error handling when error is in stdout with exit code 0."""
+        _, mock_run = mock_env
+        
+        # Simulate CLI returning 0 but printing error to stdout
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Error: Failed to refresh token: 401 Unauthorized"
+        mock_result.stderr = ""
+        mock_run.return_value = mock_result
+        
+        adapter = CLIAdapter(command="codex")
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.analyze_batch(files=["test.py"], context="", prompt="analyze")
+            
+        assert "potential authentication error" in str(excinfo.value)
+        assert "Hint" in str(excinfo.value)
+        assert "Output snippet" in str(excinfo.value)

@@ -26,11 +26,11 @@ class ConfigLoader:
         )
         self.project_config_path = project_config_path or Path(".lantern") / "lantern.toml"
 
-    def load(self, cli_overrides: dict[str, Any] | None = None) -> LanternConfig:
+    def load(self, overrides: dict[str, Any] | None = None) -> LanternConfig:
         """Load configuration with priority: CLI > Project > User > Default.
 
         Args:
-            cli_overrides: CLI argument overrides
+            overrides: structured dictionary of overrides (e.g. from CLI arguments)
 
         Returns:
             Merged LanternConfig
@@ -48,9 +48,9 @@ class ConfigLoader:
             project_data = self._load_toml(self.project_config_path)
             config_dict = self._merge_dicts(config_dict, project_data)
 
-        # Apply CLI overrides (highest priority)
-        if cli_overrides:
-            config_dict = self._merge_dicts(config_dict, {"lantern": cli_overrides})
+        # Apply overrides (highest priority)
+        if overrides:
+            config_dict = self._merge_dicts(config_dict, overrides)
 
         # Extract nested configs
         lantern_config = config_dict.get("lantern", {})
@@ -99,14 +99,49 @@ class ConfigLoader:
         return result
 
 
-def load_config(repo_path: Path) -> LanternConfig:
-    """Helper to load configuration for a given repository path.
+def _resolve_cli_overrides(
+    output: str | None = None,
+    lang: str | None = None,
+) -> dict[str, Any]:
+    """Resolve CLI arguments into configuration overrides dictionary.
+
+    Args:
+        output: Output directory override
+        lang: Language override
+
+    Returns:
+        Dictionary compatible with ConfigLoader.load overrides
+    """
+    overrides: dict[str, Any] = {"lantern": {}, "backend": {}}
+    
+    # Basic Lantern Config overrides
+    if output is not None:
+        overrides["lantern"]["output_dir"] = output
+    if lang is not None:
+        overrides["lantern"]["language"] = lang
+    return overrides
+
+
+def load_config(
+    repo_path: Path,
+    output: str | None = None,
+    lang: str | None = None,
+) -> LanternConfig:
+    """Helper to load configuration for a given repository path with CLI overrides.
 
     Args:
         repo_path: Repository root path.
+        output: Output directory override
+        lang: Language override
 
     Returns:
         Loaded LanternConfig.
     """
     loader = ConfigLoader(project_config_path=repo_path / ".lantern" / "lantern.toml")
-    return loader.load()
+    
+    # 1. Resolve overrides
+    overrides = _resolve_cli_overrides(output, lang)
+    
+    # 2. Load with overrides
+    return loader.load(overrides)
+

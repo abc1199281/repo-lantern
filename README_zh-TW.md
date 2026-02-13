@@ -184,7 +184,7 @@ lantern run
 lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 ```
 
-Lantern 自動偵測可用的 CLI 後端：`codex` → `gemini` → `claude`
+Lantern 自動偵測可用的 CLI 後端：`codex` → `gemini` → `claude`。您可以在 `lantern.toml` 中設定後端。
 
 ## 進階模式
 
@@ -199,13 +199,6 @@ lantern plan
 
 # Step 3: 執行分析
 lantern run
-```
-
-## 指定後端
-
-```bash
-lantern run --backend claude
-lantern run --backend gemini
 ```
 
 ---

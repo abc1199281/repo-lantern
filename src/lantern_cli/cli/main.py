@@ -64,7 +64,7 @@ def init(
         config_content = """# Lantern Configuration
 
 [lantern]
-language = "en"
+language = "zh-TW"
 output_dir = ".lantern"
 
 [filter]
@@ -79,9 +79,9 @@ exclude = [
 ]
 
 [backend]
-type = "ollama"
-ollama_model = "qwen3:8b"
-ollama_url = "http://localhost:11434"
+type = "cli"
+cli_command = "gemini"
+cli_args_template = ["{command}", "-p", "{prompt}"]
 """
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
@@ -104,10 +104,10 @@ def plan(
     repo_path = Path(repo).resolve()
     
     # 0. Load Configuration (for filters)
-    config = load_config(repo_path)
+    config = load_config(repo_path, output=output)
 
     # Respect config.output_dir when CLI `--output` is not provided
-    output_dir = output or config.output_dir
+    output_dir = config.output_dir
 
     with Progress(
         SpinnerColumn(),
@@ -147,59 +147,18 @@ def plan(
 def run(
     repo: str = typer.Option(".", help="Repository path"),
     output: Optional[str] = typer.Option(None, help="Output directory"),
-    backend: str = typer.Option(None, help="LLM backend (codex/gemini/claude/openai)"),
-    api: bool = typer.Option(False, help="Force API mode (api_provider)"),
     lang: Optional[str] = typer.Option(None, help="Output language (en/zh-TW)"),
-    model: str = typer.Option(None, help="Model name (e.g., 'llama3' for ollama, 'gpt-4o' for openai)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
     
     # 1. Load Configuration
-    config = load_config(repo_path)
-    
-    # Override config with CLI args only when explicitly provided
-    if output is not None:
-        config.output_dir = output
-    if lang is not None:
-        config.language = lang
-    
-    if api:
-        config.backend.type = "api"
-
-    if backend:
-        # 1. Check for specific known backends
-        if backend == "ollama":
-            config.backend.type = "ollama"
-        elif backend in ("claude", "anthropic", "openai", "gpt"):
-            config.backend.type = "api"
-            config.backend.api_provider = backend
-        elif backend == "gemini":
-            # Special handling for Gemini which has both
-            if shutil.which("gemini") and not api:
-                config.backend.type = "cli"
-                config.backend.cli_command = "gemini"
-            else:
-                config.backend.type = "api"
-                config.backend.api_provider = "gemini"
-        
-        # 2. Check if --api flag forces API mode
-        elif api:
-            config.backend.type = "api"
-            config.backend.api_provider = backend
-            
-        # 3. Default to CLI tool
-        else:
-            config.backend.type = "cli"
-            config.backend.cli_command = backend
-
-    # Handle model overrides
-    if model:
-        if config.backend.type == "ollama":
-            config.backend.ollama_model = model
-        elif config.backend.type == "api":
-            config.backend.api_model = model
+    config = load_config(
+        repo_path,
+        output=output,
+        lang=lang,
+    )
 
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
@@ -250,6 +209,16 @@ def run(
     elif config.backend.type == "ollama":
         model_name = config.backend.ollama_model or "llama3"
         is_local = True
+    elif config.backend.type == "cli":
+        model_name = config.backend.cli_command or "cli-tool"
+        # CLI tools are technically local processes, but might call paid APIs (like codex/gemini).
+        # We assume "local" pricing (free/unknown) for CLI unless we know better, 
+        # BUT existing code defaulted to is_local=False, meaning it tries to look up pricing.
+        # If we set is_local=True, it says "Free".
+        # If we set is_local=False, it tries to look up pricing for "codex" or "gemini".
+        # If pricing lookup fails, it says "Offline/Unable to estimate".
+        # Let's keep is_local=False to attempt pricing lookup, but fallback gracefully.
+        is_local = False
     
     # Initialize state manager (needed for pending batches)
     # Pass backend_adapter for MemoryManager compression
@@ -294,8 +263,12 @@ def run(
             console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
             console.print(f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]")
     else:
-        console.print(f"   Pricing Source: [red]Offline[/red]")
-        console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
+        if config.backend.type == "cli":
+            console.print(f"   Pricing Source: [yellow]CLI Tool[/yellow]")
+            console.print("   Estimated Cost: [bold yellow]CLI estimate not available[/bold yellow]")
+        else:
+            console.print(f"   Pricing Source: [red]Offline[/red]")
+            console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
     
     # Confirmation prompt (skip if --yes flag or no pending batches)
     if pending_batches and not assume_yes:

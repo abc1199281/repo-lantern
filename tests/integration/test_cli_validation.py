@@ -44,17 +44,22 @@ def test_run_invalid_backend(tmp_path):
     src.mkdir()
     (src / "test.py").write_text("print('hello')")
     
-    # Run with a backend that doesn't exist as a CLI tool
-    # We expect BackendFactory to eventually fail or the command to fail if it tries to run it
+    # Create invalid backend config
+    config_path = tmp_path / ".lantern" / "lantern.toml"
+    config_content = """
+[lantern]
+language = "en"
+output_dir = ".lantern"
+
+[backend]
+type = "cli"
+cli_command = "nonexistent_tool"
+"""
+    config_path.write_text(config_content)
     
-    # If we pass a name that is not a known API provider, it defaults to 'cli' type
-    # Then factory tries to create CodexAdapter with that command
-    # Then Runner tries to run it. 
-    # Since 'nonexistent_tool' is not installed, shutil.which might fail inside detect_cli 
-    # OR if we pass it explicitly, it uses it.
-    
-    # We want to verify that it fails gracefully
-    result = runner.invoke(app, ["run", "--repo", str(tmp_path), "--backend", "nonexistent_tool", "--yes"])
+    # Run without backend arg (it's removed)
+    # We want to verify that it fails gracefully when the tool is not found
+    result = runner.invoke(app, ["run", "--repo", str(tmp_path), "--yes"])
     
     # It should fail gracefully (exit code 0 but report failure)
     # Runner catches exceptions and prints failure message

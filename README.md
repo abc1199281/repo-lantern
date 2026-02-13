@@ -185,7 +185,7 @@ lantern run
 lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 ```
 
-Lantern auto-detects available CLI backends: `codex` → `gemini` → `claude`
+Lantern auto-detects available CLI backends: `codex` → `gemini` → `claude`. You can configure the backend in `lantern.toml`.
 
 ## Advanced Mode
 
@@ -200,13 +200,6 @@ lantern plan
 
 # Step 3: Execute analysis
 lantern run
-```
-
-## Specify Backend
-
-```bash
-lantern run --backend claude
-lantern run --backend gemini
 ```
 
 ---
