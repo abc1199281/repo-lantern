@@ -58,7 +58,8 @@ class TestRunner:
         
         # Verify state update
         mock_state_manager.update_batch_status.assert_called_with(1, success=True)
-        mock_state_manager.update_global_summary.assert_called()
+        # Verify global summary update (should pass new content only)
+        mock_state_manager.update_global_summary.assert_called_with("Batch 1 Summary:\nTest Summary")
         
         # Verify bottom-up doc generation (simple check if open called enough times)
         # 1 call for .sense, 1 call for .md

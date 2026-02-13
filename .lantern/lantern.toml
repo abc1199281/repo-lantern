@@ -20,5 +20,7 @@ exclude = [
 ]
 
 [backend]
-type = "cli"
-cli_timeout = 300
+type = "ollama"
+ollama_model = "llama3"
+ollama_url = "http://localhost:11434"
+

@@ -63,7 +63,7 @@ def helper():
         mock_backend.analyze_batch.return_value = mock_result
         mock_backend_create.return_value = mock_backend
 
-        result = runner.invoke(app, ["run", "--repo", str(repo_path)])
+        result = runner.invoke(app, ["run", "--repo", str(repo_path), "--yes"])
         
         assert result.exit_code == 0
         assert "Analysis Complete" in result.stdout
