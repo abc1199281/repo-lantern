@@ -14,6 +14,7 @@ from rich.progress import (
 from rich.text import Text
 
 from pathlib import Path
+from typing import Optional
 
 from lantern_cli.config.loader import load_config
 from lantern_cli.backends.factory import BackendFactory
@@ -79,7 +80,7 @@ exclude = [
 
 [backend]
 type = "ollama"
-ollama_model = "llama3"
+ollama_model = "qwen3:8b"
 ollama_url = "http://localhost:11434"
 """
         with open(config_path, "w", encoding="utf-8") as f:
@@ -97,13 +98,16 @@ ollama_url = "http://localhost:11434"
 @app.command()
 def plan(
     repo: str = typer.Option(".", help="Repository path"),
-    output: str = typer.Option(".lantern", help="Output directory"),
+    output: Optional[str] = typer.Option(None, help="Output directory"),
 ) -> None:
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
     
     # 0. Load Configuration (for filters)
     config = load_config(repo_path)
+
+    # Respect config.output_dir when CLI `--output` is not provided
+    output_dir = output or config.output_dir
 
     with Progress(
         SpinnerColumn(),
@@ -125,7 +129,7 @@ def plan(
         plan = architect.generate_plan()
         
         # Save plan
-        output_path = repo_path / output
+        output_path = repo_path / output_dir
         output_path.mkdir(parents=True, exist_ok=True)
         plan_path = output_path / "lantern_plan.md"
         
@@ -142,10 +146,10 @@ def plan(
 @app.command()
 def run(
     repo: str = typer.Option(".", help="Repository path"),
-    output: str = typer.Option(".lantern", help="Output directory"),
+    output: Optional[str] = typer.Option(None, help="Output directory"),
     backend: str = typer.Option(None, help="LLM backend (codex/gemini/claude/openai)"),
     api: bool = typer.Option(False, help="Force API mode (api_provider)"),
-    lang: str = typer.Option("en", help="Output language (en/zh-TW)"),
+    lang: Optional[str] = typer.Option(None, help="Output language (en/zh-TW)"),
     model: str = typer.Option(None, help="Model name (e.g., 'llama3' for ollama, 'gpt-4o' for openai)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
 ) -> None:
@@ -155,10 +159,10 @@ def run(
     # 1. Load Configuration
     config = load_config(repo_path)
     
-    # Override config with CLI args
-    if output:
+    # Override config with CLI args only when explicitly provided
+    if output is not None:
         config.output_dir = output
-    if lang:
+    if lang is not None:
         config.language = lang
     
     if api:
@@ -323,6 +327,7 @@ def run(
                 language=config.language,
                 model_name=model_name,
                 is_local=is_local
+                , output_dir=config.output_dir
             )
             
             for batch in pending_batches:
@@ -342,7 +347,7 @@ def run(
         
             # 6. Synthesize Docs
             task_synth = progress.add_task("Synthesizing documentation...", total=None)
-            synthesizer = Synthesizer(repo_path, language=config.language)
+            synthesizer = Synthesizer(repo_path, language=config.language, output_dir=config.output_dir)
             synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
 

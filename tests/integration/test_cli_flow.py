@@ -1,6 +1,7 @@
 """Integration tests for Lantern CLI flow."""
 import os
 from pathlib import Path
+from textwrap import dedent
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -116,3 +117,52 @@ class TestCLIFlow:
         
         # Ensure Runner was NOT called
         mocks["runner"].assert_not_called()
+
+    def test_run_inherits_language_from_config_when_flag_missing(self, tmp_path):
+        """Ensure run uses the TOML language when --lang is omitted."""
+        runner = CliRunner()
+        lantern_dir = tmp_path / ".lantern"
+        lantern_dir.mkdir()
+        config_content = dedent("""\
+[lantern]
+language = "zh-TW"
+output_dir = ".lantern"
+
+[filter]
+exclude = []
+include = []
+
+[backend]
+type = "cli"
+""")
+        (lantern_dir / "lantern.toml").write_text(config_content, encoding="utf-8")
+
+        batch = MagicMock()
+        batch.id = 1
+        batch.files = ["file.py"]
+
+        with patch("lantern_cli.cli.main.DependencyGraph") as mock_graph, \
+             patch("lantern_cli.cli.main.Architect") as mock_architect, \
+             patch("lantern_cli.cli.main.StateManager") as mock_state, \
+             patch("lantern_cli.cli.main.Runner") as mock_runner, \
+             patch("lantern_cli.cli.main.Synthesizer") as mock_synth, \
+             patch("lantern_cli.cli.main.BackendFactory") as mock_factory:
+
+            mock_architect_inst = mock_architect.return_value
+            mock_plan = MagicMock()
+            mock_plan.to_markdown.return_value = "# Plan"
+            mock_phase = MagicMock()
+            mock_phase.batches = [MagicMock()]
+            mock_plan.phases = [mock_phase]
+            mock_architect_inst.generate_plan.return_value = mock_plan
+
+            mock_state_inst = mock_state.return_value
+            mock_state_inst.get_pending_batches.side_effect = [[batch], []]
+
+            mock_runner_inst = mock_runner.return_value
+            mock_runner_inst.run_batch.return_value = True
+
+            result = runner.invoke(app, ["run", "--repo", str(tmp_path), "--yes"])
+
+            assert result.exit_code == 0
+            assert mock_runner.call_args.kwargs["language"] == "zh-TW"
