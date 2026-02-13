@@ -6,15 +6,15 @@ from pathlib import Path
 class DependencyGraph:
     """Graph structure to represent module dependencies."""
 
-    def __init__(self, root_path: Path, excludes: list[str] = None) -> None:
+    def __init__(self, root_path: Path, file_filter: "FileFilter") -> None:
         """Initialize DependencyGraph.
 
         Args:
             root_path: Root directory of the project.
-            excludes: List of glob patterns to exclude.
+            file_filter: FileFilter instance for ignoring files.
         """
         self.root_path = root_path
-        self.excludes = excludes or []
+        self.file_filter = file_filter
         
         # Map: Source -> Set of Targets
         self.dependencies: dict[str, set[str]] = defaultdict(set)
@@ -24,14 +24,11 @@ class DependencyGraph:
         # Lazy import to avoid circular dependency
         from lantern_cli.static_analysis.python import PythonAnalyzer
         from lantern_cli.static_analysis.cpp import CppAnalyzer
-        from pathspec import PathSpec
-        from pathspec.patterns import GitWildMatchPattern
         
         self.analyzers = {
             "python": PythonAnalyzer(),
             "cpp": CppAnalyzer(),
         }
-        self.spec = PathSpec.from_lines(GitWildMatchPattern, self.excludes)
 
     def build(self) -> None:
         """Build the dependency graph by analyzing files in root_path."""
@@ -52,27 +49,14 @@ class DependencyGraph:
             ".hxx": "cpp",
         }
 
-        # Walk excluding hidden/venv etc. AND user defined excludes
-        # We need to walk all files now, not just .py
-        for path in self.root_path.rglob("*"):
-            if not path.is_file():
-                continue
-
+        # Use FileFilter to walk and filter files
+        for path in self.file_filter.walk():
             # Check extension
             ext = path.suffix.lower()
             if ext not in extensions:
                 continue
 
             rel_path = path.relative_to(self.root_path)
-            
-            # 1. Basic hardcoded Clean check (use repository-relative parts)
-            # Use `rel_path.parts` so ancestor directories (e.g. /.../.openclaw/...) don't cause all files to be skipped.
-            if any(part.startswith(".") or part == "__pycache__" or part == "venv" or part == "node_modules" for part in rel_path.parts):
-                continue
-            
-            # 2. Config based Check
-            if self.spec.match_file(str(rel_path)):
-                continue
             
             file_type = extensions[ext]
             all_files.append((rel_path, file_type))

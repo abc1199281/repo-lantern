@@ -18,7 +18,7 @@ from typing import Optional
 
 from lantern_cli.config.loader import load_config
 from lantern_cli.backends.factory import BackendFactory
-from lantern_cli.static_analysis.dependency_graph import DependencyGraph
+from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.core.architect import Architect
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.runner import Runner
@@ -42,19 +42,23 @@ class FlexibleTaskProgressColumn(TaskProgressColumn):
             return Text("...", style="progress.percentage")
         return super().render(task)
 
-
-@app.command()
 @app.command()
 def init(
     repo: str = typer.Option(".", help="Repository path or URL"),
+    overwrite: bool = typer.Option(False, "--overwrite", "-f", help="Force re-initialization and overwrite existing config"),
 ) -> None:
     """Initialize Lantern for a repository."""
     repo_path = Path(repo).resolve()
     lantern_dir = repo_path / ".lantern"
     
     if lantern_dir.exists():
-        console.print(f"[yellow]Lantern is already initialized in {repo_path}[/yellow]")
-        return
+        if overwrite:
+            console.print(f"[yellow]Overwriting existing Lantern configuration in {repo_path}...[/yellow]")
+            shutil.rmtree(lantern_dir)
+        else:
+            console.print(f"[yellow]Lantern is already initialized in {repo_path}[/yellow]")
+            console.print("[dim]Use --overwrite to re-initialize.[/dim]")
+            return
 
     try:
         lantern_dir.mkdir(parents=True, exist_ok=True)
@@ -87,14 +91,13 @@ cli_args_template = ["{command}", "-p", "{prompt}"]
             f.write(config_content)
             
         console.print(f"[green]Initialized Lantern in {lantern_dir}[/green]")
+        console.print(f"[green]Content is as follows: {config_content}[/green]")
         console.print(f"Configuration created at: {config_path}")
         
     except Exception as e:
         console.print(f"[bold red]Failed to initialize:[/bold red] {e}")
         raise typer.Exit(code=1)
 
-
-@app.command()
 @app.command()
 def plan(
     repo: str = typer.Option(".", help="Repository path"),
@@ -119,7 +122,8 @@ def plan(
     ) as progress:
         # 1. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
-        graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
+        file_filter = FileFilter(repo_path, config.filter)
+        graph = DependencyGraph(repo_path, file_filter=file_filter)
         graph.build()
         progress.update(task_static, total=1, completed=1)
 
@@ -182,7 +186,8 @@ def run(
         
         # 3. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
-        graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
+        file_filter = FileFilter(repo_path, config.filter)
+        graph = DependencyGraph(repo_path, file_filter=file_filter)
         graph.build()
         progress.update(task_static, total=1, completed=1)
 

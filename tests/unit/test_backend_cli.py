@@ -20,7 +20,7 @@ class TestCLIAdapter:
         adapter = CLIAdapter()
         assert adapter.command == "cli"
         assert adapter.timeout == 300
-        assert adapter.args_template == ["{command}", "exec", "{prompt}"]
+        assert adapter.args_template == ["{command}", "-p", "{prompt}"]
 
     def test_init_custom(self):
         """Test initialization with custom values."""
@@ -70,7 +70,7 @@ class TestCLIAdapter:
         
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
-        assert args == ["cli", "exec", "prompt"]
+        assert args == ["cli", "-p", "prompt"]
 
     def test_analyze_batch_custom_template(self, mock_env) -> None:
         """Test analysis with custom template."""
