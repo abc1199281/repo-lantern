@@ -23,6 +23,13 @@ class TestRunner:
             questions=[],
             raw_output="Raw"
         )
+        # Per-file analysis returns unique results
+        backend.analyze_file.return_value = AnalysisResult(
+            summary="File-specific summary",
+            key_insights=["File insight"],
+            questions=["File question"],
+            raw_output="Raw file"
+        )
         return backend
 
     @pytest.fixture
@@ -51,10 +58,13 @@ class TestRunner:
             
         assert success
         
-        # Verify backend call
+        # Verify batch-level backend call
         mock_backend.analyze_batch.assert_called_once()
         args = mock_backend.analyze_batch.call_args
         assert args[1]["context"] == "Old Summary"  # Check Temporal RAG injection
+        
+        # Verify per-file analysis call
+        mock_backend.analyze_file.assert_called_once()
         
         # Verify state update
         mock_state_manager.update_batch_status.assert_called_with(1, success=True)
@@ -64,6 +74,39 @@ class TestRunner:
         # Verify bottom-up doc generation (simple check if open called enough times)
         # 1 call for .sense, 1 call for .md
         assert mock_file.call_count >= 2
+
+    def test_per_file_analysis_produces_unique_docs(self, runner: Runner, mock_backend: MagicMock, tmp_path: Path) -> None:
+        """Test that each file in a batch gets its own unique LLM analysis."""
+        batch = Batch(id=1, files=[
+            str(tmp_path / "module_a.py"),
+            str(tmp_path / "module_b.py"),
+        ])
+        
+        # Create dummy source files
+        for f in batch.files:
+            Path(f).write_text("# dummy", encoding="utf-8")
+        
+        # Return different results for each file
+        results = iter([
+            AnalysisResult(summary="Module A handles authentication.", key_insights=["Uses JWT"], questions=[], raw_output=""),
+            AnalysisResult(summary="Module B handles database access.", key_insights=["Uses SQLAlchemy"], questions=[], raw_output=""),
+        ])
+        mock_backend.analyze_file.side_effect = lambda **kwargs: next(results)
+        mock_backend.analyze_batch.return_value = AnalysisResult(summary="Batch summary", key_insights=[], questions=[], raw_output="Raw")
+        
+        runner.run_batch(batch, "Prompt")
+        
+        # Verify analyze_file was called once per file
+        assert mock_backend.analyze_file.call_count == 2
+        
+        # Verify output files have different content
+        bottom_up_dir = tmp_path / ".lantern" / "output" / "en" / "bottom_up"
+        doc_a = (bottom_up_dir / "module_a.py.md").read_text(encoding="utf-8")
+        doc_b = (bottom_up_dir / "module_b.py.md").read_text(encoding="utf-8")
+        
+        assert "Module A handles authentication" in doc_a
+        assert "Module B handles database access" in doc_b
+        assert doc_a != doc_b
 
     def test_run_batch_failure(self, runner: Runner, mock_backend: MagicMock, mock_state_manager: MagicMock) -> None:
         """Test failed batch execution."""

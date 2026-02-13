@@ -52,6 +52,27 @@ class BackendAdapter(ABC):
         """
         pass
 
+    def analyze_file(
+        self,
+        file: str,
+        context: str,
+        prompt: str,
+    ) -> AnalysisResult:
+        """Analyze a single file.
+
+        Default implementation delegates to analyze_batch with a single file.
+        Subclasses can override for optimized single-file analysis.
+
+        Args:
+            file: File path to analyze.
+            context: Context from previous batches (Temporal RAG).
+            prompt: Specific instructions for this file.
+
+        Returns:
+            AnalysisResult object containing summary and insights.
+        """
+        return self.analyze_batch([file], context, prompt)
+
     @abstractmethod
     def health_check(self) -> bool:
         """Check if the backend is available and configured correctly.

@@ -117,24 +117,24 @@ class Runner:
             return False
 
     def _generate_bottom_up_doc(self, batch: Batch, result: AnalysisResult) -> None:
-        """Generate formatted bottom-up documentation for the batch."""
+        """Generate formatted bottom-up documentation for the batch.
+        
+        Each file gets its own LLM analysis via backend.analyze_file() for
+        unique per-file documentation.
+        """
         # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
         base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
         
-        # Split insights and questions among files for variety
-        all_insights = result.key_insights.copy()
-        all_questions = result.questions.copy()
-        num_files = len(batch.files)
+        context = self._prepare_context()
         
         for idx, file_path in enumerate(batch.files):
             # 1. Determine output path
             # src/foo.py -> .lantern/output/en/bottom_up/src/foo.py.md
-            rel_path = Path(file_path) # Assuming batch.files are relative to root or we treat them as such
+            rel_path = Path(file_path)
             if rel_path.is_absolute():
                  try:
                      rel_path = rel_path.relative_to(self.root_path)
                  except ValueError:
-                     # Fallback if not relative
                      rel_path = Path(rel_path.name)
             
             out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
@@ -143,85 +143,45 @@ class Runner:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
             except OSError as e:
                 logger.warning(f"Could not create directory {out_path.parent}: {e}")
-                
-            # 2. Generate Content with distributed insights
+            
+            # 2. Per-file LLM analysis
+            language_instruction = f" Please respond in {self.language}." if self.language != "en" else ""
+            file_prompt = f"Analyze this file: {file_path}. Provide a summary, key insights, and questions.{language_instruction}"
+            
+            try:
+                file_result = self.backend.analyze_file(
+                    file=file_path,
+                    context=context,
+                    prompt=file_prompt,
+                )
+            except Exception as e:
+                logger.error(f"Per-file analysis failed for {file_path}: {e}")
+                # Fallback to batch-level result
+                file_result = result
+            
+            # 3. Generate Content from per-file result
+            num_files = len(batch.files)
             md_content = f"# {rel_path.name}\n\n"
             md_content += f"> **Original File**: `{rel_path}`\n"
             md_content += f"> **Batch**: {batch.id} ({idx + 1}/{num_files})\n\n"
             
-            # Add unique summary per file based on filename
             md_content += "## Summary\n"
-            md_content += f"{result.summary}\n"
-            md_content += self._file_specific_analysis(rel_path, result.summary)
+            md_content += f"{file_result.summary}\n"
             
-            # Distribute insights: each file gets a portion
-            file_insights = self._distribute_items(all_insights, num_files, idx)
-            if file_insights:
+            if file_result.key_insights:
                 md_content += "\n## Key Insights\n"
-                for insight in file_insights:
+                for insight in file_result.key_insights:
                     md_content += f"- {insight}\n"
             
-            # Distribute questions: each file gets a portion
-            file_questions = self._distribute_items(all_questions, num_files, idx)
-            if file_questions:
+            if file_result.questions:
                 md_content += "\n## Questions & TODOs\n"
-                for q in file_questions:
+                for q in file_result.questions:
                     md_content += f"- {q}\n"
 
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
-    
-    def _distribute_items(self, items: list[str], num_files: int, file_idx: int) -> list[str]:
-        """Distribute items across files to avoid duplication.
-        
-        Args:
-            items: List of items to distribute.
-            num_files: Total number of files in batch.
-            file_idx: Index of current file (0-based).
-            
-        Returns:
-            Items for this file.
-        """
-        if not items:
-            return []
-        
-        items_per_file = max(1, len(items) // num_files)
-        start_idx = file_idx * items_per_file
-        end_idx = start_idx + items_per_file if file_idx < num_files - 1 else len(items)
-        
-        return items[start_idx:end_idx]
-    
-    def _file_specific_analysis(self, file_path: Path, general_summary: str) -> str:
-        """Generate file-specific analysis based on file type and name.
-        
-        Args:
-            file_path: Path to the file.
-            general_summary: General batch summary.
-            
-        Returns:
-            File-specific analysis content.
-        """
-        content = ""
-        suffix = file_path.suffix.lower()
-        name = file_path.stem.lower()
-        
-        # Generate type-specific insights
-        if suffix == ".py":
-            if "__init__" in name:
-                content += "\n### Module Initialization\nThis file initializes the module and exports its public API.\n"
-            elif "test" in name:
-                content += "\n### Test Coverage\nThis file contains tests for core functionality.\n"
-            elif any(x in name for x in ["config", "setting", "env"]):
-                content += "\n### Configuration\nThis file handles configuration and settings management.\n"
-            else:
-                content += f"\n### Implementation Details\nThis file implements core logic for the module.\n"
-        elif suffix in [".ts", ".tsx", ".js", ".jsx"]:
-            if "component" in name:
-                content += "\n### Component\nThis file defines a reusable UI component.\n"
-            elif "hook" in name or suffix == ".ts":
-                content += "\n### Utility/Hook\nThis file provides reusable functionality.\n"
-        
-        return content
+
+
 
     def _prepare_context(self) -> str:
         """Prepare context from global summary."""

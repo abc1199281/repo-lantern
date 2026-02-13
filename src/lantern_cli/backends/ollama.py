@@ -42,17 +42,28 @@ class OllamaBackend(BackendAdapter):
 
     def _call_api(self, files: list[str], context: str, prompt: str) -> str:
         """Call Ollama API."""
-        # Construct the full prompt
-        full_prompt = f"""
-{prompt}
+        import logging
+        logger = logging.getLogger(__name__)
 
-Context:
-{context}
+        # Construct the full prompt with actual file contents
+        full_prompt = f"{prompt}\n\n"
 
-Files:
-{', '.join(files)}
+        if context:
+            full_prompt += f"Context:\n{context}\n\n"
 
-Please analyze the code in these files and provide:
+        for file_path in files:
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    full_prompt += f"File: {file_path}\n```\n{content}\n```\n\n"
+            except (FileNotFoundError, UnicodeDecodeError, PermissionError) as e:
+                logger.error(f"Failed to read {file_path}: {e}")
+                full_prompt += f"Error: Could not read {file_path}\n\n"
+            except Exception as e:
+                logger.exception(f"Unexpected error reading {file_path}")
+                full_prompt += f"Error reading {file_path}: {str(e)}\n\n"
+
+        full_prompt += """Please analyze the code in these files and provide:
 1. A summary of what the code does.
 2. Key insights or observations.
 3. Any questions or areas that need clarification.
