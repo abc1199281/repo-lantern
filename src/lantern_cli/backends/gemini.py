@@ -1,8 +1,11 @@
 """Gemini API adapter."""
 import os
+import logging
 from typing import Any
 
 from lantern_cli.backends.base import AnalysisResult, BackendAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiAdapter(BackendAdapter):
@@ -62,7 +65,11 @@ class GeminiAdapter(BackendAdapter):
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                     parts.append(f"\nFile: {file_path}\n```\n{content}\n```\n")
+            except (FileNotFoundError, UnicodeDecodeError, PermissionError) as e:
+                logger.error(f"Failed to read {file_path}: {e}")
+                parts.append(f"\nError: Could not read {file_path}\n")
             except Exception as e:
+                logger.exception(f"Unexpected error reading {file_path}")
                 parts.append(f"\nError reading {file_path}: {str(e)}\n")
 
         try:

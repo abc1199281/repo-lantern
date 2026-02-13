@@ -129,8 +129,10 @@ class Runner:
             
             out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
             
-            if not out_path.parent.exists():
+            try:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                logger.warning(f"Could not create directory {out_path.parent}: {e}")
                 
             # 2. Generate Content
             # In a real batch with multiple files, the LLM result might be combined or specific.
@@ -166,8 +168,10 @@ class Runner:
 
     def _save_sense_file(self, batch: Batch, content: str) -> None:
         """Save the raw analysis output to a .sense file."""
-        if not self.output_dir.exists():
+        try:
             self.output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning(f"Could not create output directory {self.output_dir}: {e}")
             
         filename = f"batch_{batch.id:04d}.sense"
         file_path = self.output_dir / filename

@@ -164,32 +164,31 @@ def run(
     if api:
         config.backend.type = "api"
 
-    if backend == "ollama":
-        config.backend.type = "ollama"
-        
     if backend:
-        # If --api matching flag is set, treat backend as api_provider
-        if config.backend.type == "api" or api:
-             config.backend.type = "api"
-             config.backend.api_provider = backend
-        elif config.backend.type == "ollama":
-             pass
+        # 1. Check for specific known backends
+        if backend == "ollama":
+            config.backend.type = "ollama"
+        elif backend in ("claude", "anthropic", "openai", "gpt"):
+            config.backend.type = "api"
+            config.backend.api_provider = backend
+        elif backend == "gemini":
+            # Special handling for Gemini which has both
+            if shutil.which("gemini") and not api:
+                config.backend.type = "cli"
+                config.backend.cli_command = "gemini"
+            else:
+                config.backend.type = "api"
+                config.backend.api_provider = "gemini"
+        
+        # 2. Check if --api flag forces API mode
+        elif api:
+            config.backend.type = "api"
+            config.backend.api_provider = backend
+            
+        # 3. Default to CLI tool
         else:
-             # Heuristic: if backend matches known API providers AND is not meant to be CLI
-             if backend in ("claude", "anthropic", "openai", "gpt"):
-                 config.backend.type = "api"
-                 config.backend.api_provider = backend
-             elif backend == "gemini":
-                 # Special handling for Gemini which has both
-                 if shutil.which("gemini") and not api:
-                     config.backend.type = "cli"
-                     config.backend.cli_command = "gemini"
-                 else:
-                     config.backend.type = "api"
-                     config.backend.api_provider = "gemini"
-             else:
-                 config.backend.type = "cli"
-                 config.backend.cli_command = backend
+            config.backend.type = "cli"
+            config.backend.cli_command = backend
 
     # Handle model overrides
     if model:

@@ -7,6 +7,9 @@ from typing import List, Optional
 from lantern_cli.core.architect import Plan, Batch
 from lantern_cli.backends.base import BackendAdapter
 from lantern_cli.core.memory_manager import MemoryManager
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,8 +44,8 @@ class StateManager:
         if not self.lantern_dir.exists():
             try:
                 self.lantern_dir.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                pass # Already handled or permission issue
+            except OSError as e:
+                logger.warning(f"Could not create lantern directory: {e}")
 
         if self.state_path.exists():
             try:
@@ -61,9 +64,8 @@ class StateManager:
         try:
             with open(self.state_path, "w", encoding="utf-8") as f:
                 json.dump(asdict(self.state), f, indent=2)
-        except OSError:
-            # Create a warning log in real app
-            pass
+        except OSError as e:
+            logger.warning(f"Failed to save state to {self.state_path}: {e}")
 
     def update_batch_status(self, batch_id: int, success: bool) -> None:
         """Update status of a batch execution.

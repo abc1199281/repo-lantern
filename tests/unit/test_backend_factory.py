@@ -36,7 +36,7 @@ class TestCLIBackendDetection:
         # If implementation prioritizes antigravity
         # Let's align test with implementation plan
         # We'll assert "antigravity" if implemented
-        pass 
+        assert detect_cli() == "antigravity" 
 
     @patch("shutil.which")
     def test_no_cli_found(self, mock_which: MagicMock) -> None:
