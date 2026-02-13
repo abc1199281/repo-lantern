@@ -2,6 +2,11 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+import urllib.request
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,55 +29,78 @@ class UsageStats:
 class CostTracker:
     """Track and estimate LLM API costs."""
 
-    # Pricing as of 2026-02 (USD per 1M tokens)
-    PRICING = {
-        "gemini-1.5-flash": ModelPricing(input_per_million=0.075, output_per_million=0.30),
-        "gemini-1.5-flash-8b": ModelPricing(
-            input_per_million=0.0375, output_per_million=0.15
-        ),
-        "gemini-1.5-pro": ModelPricing(input_per_million=1.25, output_per_million=5.00),
-        "gemini-2.0-flash": ModelPricing(input_per_million=0.10, output_per_million=0.40),
-        "claude-sonnet-4": ModelPricing(input_per_million=3.0, output_per_million=15.0),
-        "claude-haiku-3.5": ModelPricing(input_per_million=0.80, output_per_million=4.00),
-        "claude-opus-4": ModelPricing(input_per_million=15.0, output_per_million=75.0),
-        "gpt-4o": ModelPricing(input_per_million=2.5, output_per_million=10.0),
-        "gpt-4o-mini": ModelPricing(input_per_million=0.15, output_per_million=0.60),
-        "gpt-4-turbo": ModelPricing(input_per_million=10.0, output_per_million=30.0),
-    }
+    # Source URL for pricing data
+    PRICING_URL = "https://raw.githubusercontent.com/powei-lin/lantern-cli/main/pricing.json"
 
-    # Default pricing for unknown models (conservative estimate)
-    DEFAULT_PRICING = ModelPricing(input_per_million=2.0, output_per_million=8.0)
-
-    def __init__(self, model_name: str = "gemini-1.5-flash") -> None:
+    def __init__(self, model_name: str = "gemini-1.5-flash", is_local: bool = False) -> None:
         """Initialize CostTracker.
 
         Args:
             model_name: Name of the LLM model being used.
+            is_local: Whether the model is running locally (free).
         """
         self.model_name = model_name
-        self.pricing = self._get_pricing(model_name)
+        self.is_local = is_local
+        self.pricing_data: dict[str, ModelPricing] = {}
+        self.pricing: Optional[ModelPricing] = None
+        
+        if self.is_local:
+            # Local models are free
+            self.pricing = ModelPricing(input_per_million=0.0, output_per_million=0.0)
+        else:
+            # Try to fetch pricing online for API models
+            if self._fetch_pricing():
+                self.pricing = self._get_pricing(model_name)
+            else:
+                logger.warning("Could not fetch pricing data. Cost estimation will be unavailable.")
+                self.pricing = None
+
         self.usage = UsageStats()
 
-    def _get_pricing(self, model_name: str) -> ModelPricing:
+    def _fetch_pricing(self) -> bool:
+        """Fetch pricing data from online source.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        try:
+            with urllib.request.urlopen(self.PRICING_URL, timeout=3) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    # Parse JSON into ModelPricing objects
+                    for model, price in data.get("models", {}).items():
+                        self.pricing_data[model] = ModelPricing(
+                            input_per_million=price["input_per_million"],
+                            output_per_million=price["output_per_million"]
+                        )
+                    return True
+        except Exception as e:
+            logger.debug(f"Failed to fetch pricing: {e}")
+            return False
+
+    def _get_pricing(self, model_name: str) -> Optional[ModelPricing]:
         """Get pricing for a model.
 
         Args:
             model_name: Model name.
 
         Returns:
-            ModelPricing object.
+            ModelPricing object or None if not found.
         """
         # Try exact match first
-        if model_name in self.PRICING:
-            return self.PRICING[model_name]
+        if model_name in self.pricing_data:
+            return self.pricing_data[model_name]
 
         # Try partial match (e.g., "gemini-1.5-flash-latest" -> "gemini-1.5-flash")
-        for key in self.PRICING:
+        for key in self.pricing_data:
             if key in model_name:
-                return self.PRICING[key]
+                return self.pricing_data[key]
 
-        # Return default
-        return self.DEFAULT_PRICING
+        # Return default from loaded data if possible, or None
+        # User requested "unable to estimate" if network fail, 
+        # but if we have network but unknown model? 
+        # For now, let's return None to be safe/strict as requested.
+        return None
 
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for text.
@@ -106,7 +134,7 @@ class CostTracker:
 
     def estimate_batch_cost(
         self, files: list[str], context: str = "", prompt: str = ""
-    ) -> tuple[int, float]:
+    ) -> Optional[tuple[int, float]]:
         """Estimate cost for analyzing a batch of files.
 
         Args:
@@ -115,8 +143,11 @@ class CostTracker:
             prompt: Prompt string.
 
         Returns:
-            Tuple of (estimated_tokens, estimated_cost_usd).
+            Tuple of (estimated_tokens, estimated_cost_usd), or None if pricing unavailable.
         """
+        if not self.pricing:
+            return None
+
         # Input tokens = files + context + prompt
         input_tokens = 0
         for file_path in files:
@@ -153,6 +184,9 @@ class CostTracker:
         Returns:
             Total cost in USD.
         """
+        if not self.pricing:
+            return 0.0
+            
         input_cost = (self.usage.input_tokens / 1_000_000) * self.pricing.input_per_million
         output_cost = (
             self.usage.output_tokens / 1_000_000

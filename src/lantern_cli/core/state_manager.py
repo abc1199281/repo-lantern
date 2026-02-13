@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List, Optional
 
 from lantern_cli.core.architect import Plan, Batch
+from lantern_cli.backends.base import BackendAdapter
+from lantern_cli.core.memory_manager import MemoryManager
 
 
 @dataclass
@@ -21,13 +23,15 @@ class StateManager:
 
     STATE_FILE = "state.json"
 
-    def __init__(self, root_path: Path) -> None:
+    def __init__(self, root_path: Path, backend: Optional[BackendAdapter] = None) -> None:
         """Initialize StateManager.
 
         Args:
             root_path: Project root path.
+            backend: Backend adapter for memory compression (optional).
         """
         self.root_path = root_path
+        self.memory_manager = MemoryManager(backend)
         self.lantern_dir = root_path / ".lantern"
         self.state_path = self.lantern_dir / self.STATE_FILE
         self.state: ExecutionState = self.load_state()
@@ -86,13 +90,15 @@ class StateManager:
                 
         self.save_state()
 
-    def update_global_summary(self, summary: str) -> None:
-        """Update the global summary context.
+    def update_global_summary(self, new_content: str) -> None:
+        """Update global summary with new content using MemoryManager.
 
         Args:
-            summary: New aggregated summary.
+            new_content: New content to append (e.g., batch summary).
         """
-        self.state.global_summary = summary
+        current = self.state.global_summary
+        updated = self.memory_manager.update_summary(current, new_content)
+        self.state.global_summary = updated
         self.save_state()
 
     def is_batch_completed(self, batch_id: int) -> bool:

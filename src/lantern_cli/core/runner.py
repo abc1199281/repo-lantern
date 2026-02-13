@@ -22,7 +22,8 @@ class Runner:
         backend: BackendAdapter, 
         state_manager: StateManager,
         language: str = "en",
-        model_name: str = "gemini-1.5-flash"
+        model_name: str = "gemini-1.5-flash",
+        is_local: bool = False
     ) -> None:
         """Initialize Runner.
 
@@ -32,13 +33,14 @@ class Runner:
             state_manager: State manager instance.
             language: Output language (default: en).
             model_name: LLM model name for cost tracking.
+            is_local: Whether the model is running locally (free).
         """
         self.root_path = root_path
         self.backend = backend
         self.state_manager = state_manager
         self.language = language
         self.output_dir = root_path / ".lantern" / "sense"
-        self.cost_tracker = CostTracker(model_name)
+        self.cost_tracker = CostTracker(model_name, is_local=is_local)
 
     def run_batch(self, batch: Batch, prompt: str) -> bool:
         """Execute a single batch analysis.
@@ -55,14 +57,19 @@ class Runner:
             context = self._prepare_context()
             
             # 1b. Estimate cost for this batch
-            estimated_tokens, estimated_cost = self.cost_tracker.estimate_batch_cost(
+            est_result = self.cost_tracker.estimate_batch_cost(
                 files=batch.files,
                 context=context,
                 prompt=prompt
             )
-            logger.debug(
-                f"Batch {batch.id}: Estimated {estimated_tokens} tokens, ${estimated_cost:.4f}"
-            )
+            
+            if est_result:
+                estimated_tokens, estimated_cost = est_result
+                logger.debug(
+                    f"Batch {batch.id}: Estimated {estimated_tokens} tokens, ${estimated_cost:.4f}"
+                )
+            else:
+                logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
             
             # 2. Call backend
             result = self.backend.analyze_batch(
@@ -91,19 +98,9 @@ class Runner:
             self._generate_bottom_up_doc(batch, result)
             
             # 4. Update Global Summary
-            # Simple append strategy for MVP, or replace if summary is regenerative
-            # For now, we append the new summary to the global context, 
-            # effectively building a rolling summary.
-            current_summary = self.state_manager.state.global_summary
-            new_summary = f"{current_summary}\n\nBatch {batch.id} Summary:\n{result.summary}"
-            
-            # Truncate if too long (simple FIFO or smart truncation later)
-            if len(new_summary) > self.MAX_CONTEXT_LENGTH:
-                 # Keep the earliest part (overview) and the latest part (recent context)
-                 # or just tail. Let's keep tail for now for simplicity.
-                 new_summary = "..." + new_summary[-(self.MAX_CONTEXT_LENGTH-3):]
-
-            self.state_manager.update_global_summary(new_summary)
+            # Delegate to StateManager which uses MemoryManager for compression
+            new_content = f"Batch {batch.id} Summary:\n{result.summary}"
+            self.state_manager.update_global_summary(new_content)
             
             # 5. Update State
             self.state_manager.update_batch_status(batch.id, success=True)

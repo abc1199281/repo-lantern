@@ -11,6 +11,8 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
+from rich.text import Text
+
 from pathlib import Path
 
 from lantern_cli.config.loader import load_config
@@ -29,6 +31,15 @@ app = typer.Typer(
 )
 
 console = Console()
+
+
+class FlexibleTaskProgressColumn(TaskProgressColumn):
+    """Progress column that shows '...' for indeterminate tasks."""
+    
+    def render(self, task) -> Text:
+        if task.total is None:
+            return Text("...", style="progress.percentage")
+        return super().render(task)
 
 
 @app.command()
@@ -98,7 +109,7 @@ def plan(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
-        TaskProgressColumn(),
+        FlexibleTaskProgressColumn(),
         TimeRemainingColumn(),
         console=console,
     ) as progress:
@@ -106,7 +117,7 @@ def plan(
         task_static = progress.add_task("Building dependency graph...", total=None)
         graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
         graph.build()
-        progress.update(task_static, completed=True)
+        progress.update(task_static, total=1, completed=1)
 
         # 2. Architect Plan
         task_plan = progress.add_task("Architecting analysis plan...", total=None)
@@ -121,7 +132,7 @@ def plan(
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan.to_markdown())
             
-        progress.update(task_plan, completed=True)
+        progress.update(task_plan, total=1, completed=1)
         
     console.print(f"[bold green]Plan generated successfully![/bold green]")
     console.print(f"Plan file: {plan_path}")
@@ -202,7 +213,7 @@ def run(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
-        TaskProgressColumn(),
+        FlexibleTaskProgressColumn(),
         TimeRemainingColumn(),
         console=console,
     ) as progress:
@@ -211,7 +222,7 @@ def run(
         task_static = progress.add_task("Building dependency graph...", total=None)
         graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
         graph.build()
-        progress.update(task_static, completed=True)
+        progress.update(task_static, total=1, completed=1)
 
         # 4. Architect Plan
         task_plan = progress.add_task("Architecting analysis plan...", total=None)
@@ -224,68 +235,96 @@ def run(
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan.to_markdown())
             
-        progress.update(task_plan, completed=True)
+        progress.update(task_plan, total=1, completed=1)
         console.print(f"Plan generated: {plan_path}")
 
-        # 5. Cost Estimation
-        # Determine model name for cost tracking
-        model_name = "gemini-1.5-flash"  # default
-        if config.backend.type == "api":
-            model_name = config.backend.api_model or model_name
-        elif config.backend.type == "ollama":
-            model_name = config.backend.ollama_model or "llama3"
-        
-        # Initialize state manager (needed for pending batches)
-        state_manager = StateManager(repo_path)
-        
-        cost_tracker = CostTracker(model_name)
-        pending_batches = state_manager.get_pending_batches(plan)
-        
-        # Estimate total cost
-        total_estimated_tokens = 0
-        total_estimated_cost = 0.0
-        
-        for batch in pending_batches:
-            est_tokens, est_cost = cost_tracker.estimate_batch_cost(
-                files=batch.files,
-                context="",  # Simplified for estimation
-                prompt="Analyze these files and provide insights."
-            )
+    # 5. Cost Estimation
+    # Determine model name for cost tracking
+    model_name = "gemini-1.5-flash"  # default
+    is_local = False
+    if config.backend.type == "api":
+        model_name = config.backend.api_model or model_name
+    elif config.backend.type == "ollama":
+        model_name = config.backend.ollama_model or "llama3"
+        is_local = True
+    
+    # Initialize state manager (needed for pending batches)
+    # Pass backend_adapter for MemoryManager compression
+    state_manager = StateManager(repo_path, backend=backend_adapter)
+    
+    cost_tracker = CostTracker(model_name, is_local=is_local)
+    pending_batches = state_manager.get_pending_batches(plan)
+    
+    # Estimate total cost
+    total_estimated_tokens = 0
+    total_estimated_cost = 0.0
+    pricing_available = True
+    
+    for batch in pending_batches:
+        est_result = cost_tracker.estimate_batch_cost(
+            files=batch.files,
+            context="",  # Simplified for estimation
+            prompt="Analyze these files and provide insights."
+        )
+        if est_result:
+            est_tokens, est_cost = est_result
             total_estimated_tokens += est_tokens
             total_estimated_cost += est_cost
-        
-        # Display cost estimate
-        console.print("\n[bold cyan]📊 Analysis Plan Summary[/bold cyan]")
-        console.print(f"   Total Phases: {len(plan.phases)}")
-        console.print(f"   Total Batches: {len([b for p in plan.phases for b in p.batches])}")
-        console.print(f"   Pending Batches: {len(pending_batches)}")
-        console.print(f"   Model: {model_name}")
-        console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,}")
-        console.print(f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]")
-        
-        # Confirmation prompt (skip if --yes flag or no pending batches)
-        if pending_batches and not assume_yes:
-            console.print("")
-            proceed = typer.confirm("⚠️  Continue with analysis?")
-            if not proceed:
-                console.print("[yellow]Analysis cancelled by user.[/yellow]")
-                raise typer.Exit(0)
-
-        # 6. Runner Execution
-        task_runner = progress.add_task("Running analysis batches...", total=len(plan.phases)) # Rough progress
-        
-        runner = Runner(
-            repo_path, 
-            backend_adapter, 
-            state_manager, 
-            language=config.language,
-            model_name=model_name
-        )
-        
-        if not pending_batches:
-             console.print("[yellow]All batches completed. Skipping execution.[/yellow]")
         else:
+            pricing_available = False
+            break
+    
+    # Display cost estimate
+    console.print("\n[bold cyan]📊 Analysis Plan Summary[/bold cyan]")
+    console.print(f"   Total Phases: {len(plan.phases)}")
+    console.print(f"   Total Batches: {len([b for p in plan.phases for b in p.batches])}")
+    console.print(f"   Pending Batches: {len(pending_batches)}")
+    console.print(f"   Model: {model_name}")
+    
+    if pricing_available:
+        if is_local:
+            console.print(f"   Pricing Source: [green]Local (Free)[/green]")
+            console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
+            console.print(f"   Estimated Cost: [bold green]$0.0000 (Free)[/bold green]")
+        else:
+            console.print(f"   Pricing Source: [green]Online (Live)[/green]")
+            console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
+            console.print(f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]")
+    else:
+        console.print(f"   Pricing Source: [red]Offline[/red]")
+        console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
+    
+    # Confirmation prompt (skip if --yes flag or no pending batches)
+    if pending_batches and not assume_yes:
+        console.print("")
+        proceed = typer.confirm("⚠️  Continue with analysis?")
+        if not proceed:
+            console.print("[yellow]Analysis cancelled by user.[/yellow]")
+            raise typer.Exit(0)
+
+    # 6. Runner Execution
+    if not pending_batches:
+            console.print("[yellow]All batches completed. Skipping execution.[/yellow]")
+    else:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            FlexibleTaskProgressColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as progress:
+            task_runner = progress.add_task("Running analysis batches...", total=len(plan.phases)) # Rough progress
             task_batch = progress.add_task(f"Processing {len(pending_batches)} batches...", total=len(pending_batches))
+            
+            runner = Runner(
+                repo_path, 
+                backend_adapter, 
+                state_manager, 
+                language=config.language,
+                model_name=model_name,
+                is_local=is_local
+            )
             
             for batch in pending_batches:
                 progress.update(task_batch, description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...")
@@ -300,14 +339,13 @@ def run(
                     # Continue or break based on policy? For MVP, continue/retry logic is in Runner state
                 
                 progress.advance(task_batch)
+                progress.advance(task_runner) # Advance phase/runner progress roughly
         
-        progress.update(task_runner, completed=True)
-
-        # 6. Synthesize Docs
-        task_synth = progress.add_task("Synthesizing documentation...", total=None)
-        synthesizer = Synthesizer(repo_path, language=config.language)
-        synthesizer.generate_top_down_docs()
-        progress.update(task_synth, completed=True)
+            # 6. Synthesize Docs
+            task_synth = progress.add_task("Synthesizing documentation...", total=None)
+            synthesizer = Synthesizer(repo_path, language=config.language)
+            synthesizer.generate_top_down_docs()
+            progress.update(task_synth, total=1, completed=1)
 
     console.print(f"[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
