@@ -21,7 +21,7 @@ wheels/
 *.egg
 *.lock
 .claude*
-
+.agent*
 
 # This
 .lantern*
