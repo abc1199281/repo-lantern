@@ -182,7 +182,7 @@ Lantern 的設計基於心理學原則：
 
 ## 前置需求
 
-Lantern 支援兩種後端選項：
+Lantern 支援三種後端選項：
 
 ### 選項 A：本地模型（免費、隱私）
 
@@ -196,20 +196,33 @@ ollama pull qwen2.5:14b
 
 **最適合**：離線工作、敏感程式碼庫、零 API 成本
 
-### 選項 B：雲端 API（最佳品質）
+### 選項 B：OpenAI API（生產環境、推薦）⭐
+
+取得 [OpenAI API 金鑰](https://platform.openai.com/api-keys)並設定：
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**最適合**：生產環境使用、成本效益高、穩定可靠
+- **gpt-4o-mini**：$0.15/1M 輸入 tokens，$0.60/1M 輸出 tokens（快速且便宜）
+- **gpt-4o**：$2.50/1M 輸入 tokens，$10/1M 輸出 tokens（更高品質）
+
+### 選項 C：OpenRouter（多模型存取）
 
 取得 [OpenRouter API 金鑰](https://openrouter.ai/keys)並設定：
 
 ```bash
-export OPENROUTER_API_KEY="your-key-here"
+export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
-**最適合**：最新模型（GPT-4、Claude Sonnet）、最高品質輸出
+**最適合**：存取多個供應商（Claude、Gemini 等）
 
 | 後端 | 成本 | 隱私 | 品質 | 速度 |
 | :--- | :--- | :--- | :--- | :--- |
 | **Ollama** | 免費 | 100% 本地 | 良好 | 中等 |
-| **OpenRouter** | 按 token 計費 | 雲端 API | 優秀 | 快速 |
+| **OpenAI** | $0.15-$10/1M tokens | 雲端 API | 優秀 | 快速 |
+| **OpenRouter** | 依模型而定 | 雲端 API | 優秀 | 快速 |
 
 ## 安裝
 
@@ -230,13 +243,13 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 lantern run --lang zh-TW  # 繁體中文
 ```
 
-Lantern 會在開始前顯示**成本估算**。預設後端為 OpenRouter，但你可以在 `.lantern/lantern.toml` 中設定：
+Lantern 會在開始前顯示**成本估算**。預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
 
 ```toml
 [backend]
-type = "ollama"              # 或 "openrouter"
-ollama_model = "qwen2.5:14b"
-# openrouter_model = "openai/gpt-4o"
+type = "openai"              # 或 "ollama"、"openrouter"
+openai_model = "gpt-4o-mini" # 生產環境快速且便宜
+# openai_model = "gpt-4o"    # 更高品質選項
 ```
 
 ## 進階模式
@@ -293,19 +306,36 @@ lantern run --lang zh-TW
 
 Lantern 支援多種 LLM 後端，設定簡單：
 
-### Ollama（本地模型）
+### OpenAI（生產環境推薦）⭐
 ```toml
 # .lantern/lantern.toml
+[backend]
+type = "openai"
+openai_model = "gpt-4o-mini"  # 快速且便宜
+# openai_model = "gpt-4o"     # 更高品質
+```
+
+設定你的 API 金鑰：
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**定價**（2025 年）：
+- gpt-4o-mini：$0.15/1M 輸入，$0.60/1M 輸出
+- gpt-4o：$2.50/1M 輸入，$10/1M 輸出
+
+### Ollama（本地模型）
+```toml
 [backend]
 type = "ollama"
 ollama_model = "qwen2.5:14b"  # 或 llama3、mistral 等
 ```
 
-### OpenRouter（雲端 API）
+### OpenRouter（多模型存取）
 ```toml
 [backend]
 type = "openrouter"
-openrouter_model = "openai/gpt-4o"  # 或 anthropic/claude-sonnet-4 等
+openrouter_model = "openai/gpt-4o-mini"  # 或 anthropic/claude-sonnet-4 等
 ```
 
 設定你的 API 金鑰：

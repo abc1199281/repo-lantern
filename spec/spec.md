@@ -31,10 +31,37 @@ ollama_model = "qwen2.5:14b"
 # ollama_base_url = "http://localhost:11434"  # 可選
 ```
 
-#### 1.1.2 OpenRouter 後端（雲端 API）✅ 已實作
+#### 1.1.2 OpenAI 後端（直接 API）✅ 已實作
 
 > [!TIP]
-> 適合需要最新、最強模型的場景（GPT-4o、Claude Sonnet 4 等）。
+> **生產環境推薦**：穩定、快速、成本效益高。
+
+- **官方 API**：直接使用 OpenAI API（非透過代理）
+- **LangChain 整合**：使用 `ChatOpenAI`
+- **成本效益**：gpt-4o-mini 非常便宜（$0.15/1M 輸入 tokens）
+- **穩定可靠**：OpenAI 官方支援，SLA 保障
+
+**配置範例**：
+```toml
+[backend]
+type = "openai"
+openai_model = "gpt-4o-mini"  # 推薦：快速且便宜
+# openai_model = "gpt-4o"     # 更高品質選項
+```
+
+**環境變數**：
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**定價**（2025）：
+- gpt-4o-mini: $0.15/1M 輸入，$0.60/1M 輸出
+- gpt-4o: $2.50/1M 輸入，$10/1M 輸出
+
+#### 1.1.3 OpenRouter 後端（多模型存取）✅ 已實作
+
+> [!TIP]
+> 適合需要存取多個供應商模型的場景（Claude、Gemini 等）。
 
 - **LangChain 整合**：使用 `ChatOpenAI` 搭配 OpenRouter 端點
 - **模型選擇豐富**：支援所有 OpenRouter 提供的模型
@@ -45,7 +72,7 @@ ollama_model = "qwen2.5:14b"
 ```toml
 [backend]
 type = "openrouter"
-openrouter_model = "openai/gpt-4o"
+openrouter_model = "openai/gpt-4o-mini"
 # openrouter_model = "anthropic/claude-sonnet-4"
 ```
 
@@ -54,7 +81,7 @@ openrouter_model = "openai/gpt-4o"
 export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
-#### 1.1.3 ~~API 模式 (Gemini/Claude SDK)~~ ❌ 未實作
+#### 1.1.4 ~~API 模式 (Gemini/Claude SDK)~~  ）✅ 已實作
 
 > [!NOTE]
 > 原規劃的直接 SDK 調用尚未實作。目前可透過 OpenRouter 使用 Gemini 與 Claude 模型。
@@ -91,7 +118,8 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 | 依賴圖生成 | ✅ 完成 | 分層計算、模組解析 |
 | **LLM 後端** | | |
 | Ollama 後端 | ✅ 完成 | 本地模型支援（LangChain） |
-| OpenRouter 後端 | ✅ 完成 | 雲端 API 支援（LangChain） |
+| OpenAI 後端 | ✅ 完成 | 直接 API 支援（生產環境推薦） |
+| OpenRouter 後端 | ✅ 完成 | 雲端 API 支援（多模型存取） |
 | API 後端 (Gemini/Claude SDK) | ❌ 未實作 | 規劃中，目前透過 OpenRouter 使用 |
 | CLI 後端 (antigravity) | ❌ 已廢棄 | 已移除，改用 LangChain 直接整合 |
 | **新功能（規範外）** | | |
@@ -107,6 +135,42 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 | Execution Trace Mode | 🔵 規劃中 | 動態分析支援 |
 | Incremental Update | 🔵 規劃中 | 增量更新模式 |
 | VSCode Extension | 🔵 規劃中 | IDE 整合 |
+
+### 2.1 最近變更 (Recent Changes)
+
+> [!NOTE]
+> **2025-02-14**: 重大錯誤修復與功能調整
+
+#### 修復項目：
+
+1. **Schema 格式錯誤修復** ✅
+   - **問題**：`schema.json` 混用 JSON Schema 與 OpenAI function 格式，導致 `KeyError: 'parameters'`
+   - **修復**：重構為正確的 OpenAI function format（包含 `name`、`description`、`parameters`）
+   - **影響**：修復前所有批次分析都會失敗
+   - **檔案**：`src/lantern_cli/template/bottom_up/schema.json`
+
+2. **模型名稱配置修復** ✅
+   - **問題**：後端類型檢查錯誤，檢查 `"api"` 而非 `"openai"` 或 `"openrouter"`
+   - **修復**：正確處理 OpenAI 與 OpenRouter 後端類型
+   - **影響**：成本追蹤顯示錯誤的模型名稱（gemini-1.5-flash 而非 gpt-4o-mini）
+   - **檔案**：`src/lantern_cli/cli/main.py`
+
+3. **ChatOpenAI 參數修復** ✅
+   - **問題**：使用已棄用的 `model_name` 參數
+   - **修復**：改用正確的 `model` 參數
+   - **影響**：與最新版 langchain-openai 相容
+   - **檔案**：`src/lantern_cli/llm/openai.py`
+
+#### 功能調整：
+
+4. **移除風險欄位 (Risks Field Removal)** ✅
+   - **理由**：文檔目的為幫助讀者理解程式碼，而非風險評估
+   - **變更內容**：
+     - 從提示詞移除風險相關指示（`prompts.json`）
+     - 從結構化輸出模型移除 `risks` 欄位（`structured.py`）
+     - 從 bottom-up 文件渲染移除風險區塊（`runner.py`）
+     - 從 top-down 合成移除風險提取（`synthesizer.py`）
+   - **影響**：Bottom-up 文件不再包含 "## Risks" 區塊，CONCEPTS.md 不再顯示 ⚠️ 風險項目
 
 ---
 

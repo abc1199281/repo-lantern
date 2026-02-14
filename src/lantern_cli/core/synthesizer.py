@@ -193,14 +193,11 @@ class Synthesizer:
                         file_lines.append(f"\n{flow}")
 
             elif section_type == "concepts":
-                # CONCEPTS: classes + risks only
+                # CONCEPTS: classes only
                 # key_insights already shown in OVERVIEW — avoid duplication
                 for cls in analysis.get("classes", []):
                     if cls:
                         file_lines.append(f"- {cls}")
-                for risk in analysis.get("risks", []):
-                    if risk:
-                        file_lines.append(f"- ⚠️ {risk}")
 
             if file_lines:
                 lines.append(f"### `{file_path}`\n")

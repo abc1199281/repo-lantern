@@ -1,67 +1,69 @@
 {
-    "title": "Lantern Bottom-up Batch Output",
+    "name": "lantern_bottom_up_analysis",
     "description": "Structured analysis for a single source file. Each field maps to Lantern's bottom-up template.",
-    "type": "object",
-    "properties": {
-        "summary": {
-            "type": "string",
-            "description": "Concise overview of what the file or code block does (4000 characters max).",
-            "maxLength": 4000
-        },
-        "key_insights": {
-            "type": "array",
-            "description": "Key takeaways from the file that explain important patterns, constraints, or behaviors.",
-            "items": {
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "summary": {
                 "type": "string",
-                "maxLength": 400
+                "description": "Concise overview of what the file or code block does (4000 characters max).",
+                "maxLength": 4000
             },
-            "maxItems": 8
-        },
-        "functions": {
-            "type": "array",
-            "description": "Important functions or procedures in the file, each with a short note about its purpose.",
-            "items": {
+            "key_insights": {
+                "type": "array",
+                "description": "Key takeaways from the file that explain important patterns, constraints, or behaviors.",
+                "items": {
+                    "type": "string",
+                    "maxLength": 400
+                },
+                "maxItems": 8
+            },
+            "functions": {
+                "type": "array",
+                "description": "Important functions or procedures in the file, each with a short note about its purpose.",
+                "items": {
+                    "type": "string",
+                    "maxLength": 400
+                },
+                "maxItems": 5
+            },
+            "classes": {
+                "type": "array",
+                "description": "Classes or types declared in this file plus a brief summary of their responsibility.",
+                "items": {
+                    "type": "string",
+                    "maxLength": 400
+                },
+                "maxItems": 5
+            },
+            "flow": {
                 "type": "string",
-                "maxLength": 400
+                "description": "Describe the most important control or data flow that involves this file (2000 characters).",
+                "maxLength": 2000
             },
-            "maxItems": 5
-        },
-        "classes": {
-            "type": "array",
-            "description": "Classes or types declared in this file plus a brief summary of their responsibility.",
-            "items": {
+            "flow_diagram": {
                 "type": "string",
-                "maxLength": 400
+                "description": "A Mermaid flowchart or sequence diagram showing the most important control/data flow. Use graph TD or sequenceDiagram syntax. Do NOT include fenced code block delimiters. Keep it concise with 5-10 nodes max.",
+                "maxLength": 2000
             },
-            "maxItems": 5
-        },
-        "flow": {
-            "type": "string",
-            "description": "Describe the most important control or data flow that involves this file (2000 characters).",
-            "maxLength": 2000
-        },
-        "flow_diagram": {
-            "type": "string",
-            "description": "A Mermaid flowchart or sequence diagram showing the most important control/data flow. Use graph TD or sequenceDiagram syntax. Do NOT include fenced code block delimiters. Keep it concise with 5-10 nodes max.",
-            "maxLength": 2000
-        },
-        "references": {
-            "type": "array",
-            "description": "Paths, line ranges, or components referenced when summarizing this file.",
-            "items": {
+            "references": {
+                "type": "array",
+                "description": "Paths, line ranges, or components referenced when summarizing this file.",
+                "items": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "maxItems": 5
+            },
+            "language": {
                 "type": "string",
-                "maxLength": 200
-            },
-            "maxItems": 5
+                "description": "Target language code for this summary (e.g., 'en', 'zh-TW').",
+                "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+            }
         },
-        "language": {
-            "type": "string",
-            "description": "Target language code for this summary (e.g., 'en', 'zh-TW').",
-            "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
-        }
-    },
-    "required": [
-        "summary",
-        "key_insights"
-    ]
+        "required": [
+            "summary",
+            "key_insights"
+        ]
+    }
 }

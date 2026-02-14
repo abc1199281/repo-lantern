@@ -183,7 +183,7 @@ Final outputs are designed for human reading, not machine consumption, focusing 
 
 ## Prerequisites
 
-Lantern supports two backend options:
+Lantern supports three backend options:
 
 ### Option A: Local Model (Free, Private)
 
@@ -197,20 +197,33 @@ ollama pull qwen2.5:14b
 
 **Best for**: Offline work, sensitive codebases, zero API costs
 
-### Option B: Cloud API (Best Quality)
+### Option B: OpenAI API (Production, Recommended) ⭐
+
+Get an [OpenAI API key](https://platform.openai.com/api-keys) and set it:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**Best for**: Production use, cost-effective, reliable
+- **gpt-4o-mini**: $0.15/1M input tokens, $0.60/1M output tokens (fast & cheap)
+- **gpt-4o**: $2.50/1M input tokens, $10/1M output tokens (higher quality)
+
+### Option C: OpenRouter (Multi-Model Access)
 
 Get an [OpenRouter API key](https://openrouter.ai/keys) and set it:
 
 ```bash
-export OPENROUTER_API_KEY="your-key-here"
+export OPENROUTER_API_KEY="sk-or-v1-..."
 ```
 
-**Best for**: Latest models (GPT-4, Claude Sonnet), highest quality output
+**Best for**: Access to multiple providers (Claude, Gemini, etc.)
 
 | Backend | Cost | Privacy | Quality | Speed |
 | :--- | :--- | :--- | :--- | :--- |
 | **Ollama** | Free | 100% Local | Good | Medium |
-| **OpenRouter** | Pay-per-token | Cloud API | Excellent | Fast |
+| **OpenAI** | $0.15-$10/1M tokens | Cloud API | Excellent | Fast |
+| **OpenRouter** | Varies by model | Cloud API | Excellent | Fast |
 
 ## Installation
 
@@ -231,13 +244,13 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 lantern run --lang zh-TW  # Traditional Chinese
 ```
 
-Lantern will show you a **cost estimate** before starting. The default backend is OpenRouter, but you can configure it in `.lantern/lantern.toml`:
+Lantern will show you a **cost estimate** before starting. The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
 
 ```toml
 [backend]
-type = "ollama"              # or "openrouter"
-ollama_model = "qwen2.5:14b"
-# openrouter_model = "openai/gpt-4o"
+type = "openai"              # or "ollama", "openrouter"
+openai_model = "gpt-4o-mini" # fast and cheap for production
+# openai_model = "gpt-4o"    # higher quality option
 ```
 
 ## Advanced Mode
@@ -294,19 +307,36 @@ lantern run --lang zh-TW
 
 Lantern supports multiple LLM backends with easy configuration:
 
-### Ollama (Local Models)
+### OpenAI (Recommended for Production) ⭐
 ```toml
 # .lantern/lantern.toml
+[backend]
+type = "openai"
+openai_model = "gpt-4o-mini"  # Fast and cheap
+# openai_model = "gpt-4o"     # Higher quality
+```
+
+Set your API key:
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**Pricing** (as of 2025):
+- gpt-4o-mini: $0.15/1M input, $0.60/1M output
+- gpt-4o: $2.50/1M input, $10/1M output
+
+### Ollama (Local Models)
+```toml
 [backend]
 type = "ollama"
 ollama_model = "qwen2.5:14b"  # or llama3, mistral, etc.
 ```
 
-### OpenRouter (Cloud API)
+### OpenRouter (Multi-Model Access)
 ```toml
 [backend]
 type = "openrouter"
-openrouter_model = "openai/gpt-4o"  # or anthropic/claude-sonnet-4, etc.
+openrouter_model = "openai/gpt-4o-mini"  # or anthropic/claude-sonnet-4, etc.
 ```
 
 Set your API key:

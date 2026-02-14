@@ -18,6 +18,7 @@ Example:
 from typing import TYPE_CHECKING, Any
 
 from lantern_cli.llm.ollama import create_ollama_llm
+from lantern_cli.llm.openai import create_openai_chat
 from lantern_cli.llm.openrouter import create_openrouter_chat
 
 if TYPE_CHECKING:
@@ -47,6 +48,8 @@ def create_llm(config: "LanternConfig", **kwargs: Any) -> Any:
             model=backend_config.ollama_model or "llama3",
             base_url=backend_config.ollama_url or "http://localhost:11434"
         )
+    elif backend_config.type == "openai":
+        return create_openai_chat(backend_config, **kwargs)
     elif backend_config.type == "openrouter":
         return create_openrouter_chat(backend_config, **kwargs)
     elif backend_config.type == "api":

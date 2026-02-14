@@ -193,14 +193,18 @@ def run(
         console.print(f"Plan generated: {plan_path}")
 
     # 5. Cost Estimation
-    # Determine model name for cost tracking
-    model_name = "gemini-1.5-flash"  # default
+    # Determine model name for cost tracking based on configured backend
     is_local = False
-    if config.backend.type == "api":
-        model_name = config.backend.api_model or model_name
+    if config.backend.type == "openai":
+        model_name = config.backend.openai_model or "gpt-4o-mini"
+    elif config.backend.type == "openrouter":
+        model_name = config.backend.openrouter_model or "openai/gpt-4o-mini"
     elif config.backend.type == "ollama":
         model_name = config.backend.ollama_model or "llama3"
         is_local = True
+    else:
+        # Fallback for unknown backend type
+        model_name = "unknown-model"
     
     # Initialize state manager (needed for pending batches)
     # Pass LLM for MemoryManager compression

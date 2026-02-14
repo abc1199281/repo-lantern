@@ -109,42 +109,25 @@ class Runner:
             else:
                 logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
             
-            # 2. Call LLM directly (aggregate batch summary)
-            full_prompt = f"{prompt}\n\nFiles:\n{files_content}"
-            if context:
-                full_prompt += f"\n\nContext:\n{context}"
-            response, latency_ms = timed_invoke(self.llm, full_prompt)
-            
-            # 2b. Record actual usage from LangChain response
-            self.cost_tracker.record_from_usage_metadata(response)
-            
-            # Extract and validate content from response
-            try:
-                raw_output = self._extract_response_content(response)
-            except ValueError as e:
-                logger.error(f"Failed to extract response content: {e}")
-                raise
-            
-            logger.info(f"Batch {batch.id} completed with {len(raw_output)} chars")
+            # 2. Generate Bottom-up Markdown & save .sense file using StructuredAnalyzer
+            # This handles the LLM call internally with structured output
+            sense_records = self._generate_bottom_up_doc(batch, files_content)
 
-            # 2c. Log LLM interaction
-            self.llm_logger.log(
-                caller="runner.run_batch",
-                prompt=full_prompt,
-                response=raw_output,
-                response_obj=response,
-                latency_ms=latency_ms,
-            )
-        
-            # 3. Generate Bottom-up Markdown & save .sense file
-            self._generate_bottom_up_doc(batch, raw_output)
-            
-            # 4. Update Global Summary
-            # Delegate to StateManager which uses MemoryManager for compression
-            new_content = f"Batch {batch.id} Summary:\n{raw_output}"
+            # 3. Update Global Summary from structured results
+            # Collect summaries from all files in the batch
+            batch_summary_lines = [f"Batch {batch.id} Analysis:"]
+            for record in sense_records:
+                analysis = record.get("analysis", {})
+                if isinstance(analysis, dict):
+                    summary = analysis.get("summary", "")
+                    file_path = record.get("file_path", "unknown")
+                    if summary:
+                        batch_summary_lines.append(f"\n{file_path}: {summary}")
+
+            new_content = "\n".join(batch_summary_lines)
             self.state_manager.update_global_summary(new_content)
-            
-            # 5. Update State
+
+            # 4. Update State
             self.state_manager.update_batch_status(batch.id, success=True)
             return True
             
@@ -202,12 +185,15 @@ class Runner:
 
         return text
 
-    def _generate_bottom_up_doc(self, batch: Batch, result: str) -> None:
+    def _generate_bottom_up_doc(self, batch: Batch, files_content: str) -> list[dict[str, Any]]:
         """Generate formatted bottom-up documentation for the batch.
 
         Primary path uses structured batch analysis (`chain.batch`) to generate
         per-file output in one request set. If batch call fails, it falls back
-        to per-file invoke. If a file still fails, fallback to batch-level result.
+        to per-file invoke.
+
+        Returns:
+            List of sense records (dicts with batch, file_path, and analysis data).
         """
         # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
         base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
@@ -296,12 +282,12 @@ class Runner:
 
             parsed = structured_results[idx]
             if parsed is None:
-                logger.warning(f"No structured analysis for {rel_path}, using batch-level fallback result")
+                logger.warning(f"No structured analysis for {rel_path}, skipping markdown generation")
                 md_content = (
                     f"# {rel_path.name}\n\n"
                     f"> **Original File**: `{rel_path}`\n"
                     f"> **Batch**: {batch.id} ({idx + 1}/{num_files})\n\n"
-                    f"## Summary\n\n{result}\n"
+                    f"## Summary\n\nAnalysis failed or not available.\n"
                 )
             else:
                 md_content = self._render_structured_markdown(
@@ -310,6 +296,8 @@ class Runner:
 
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
+
+        return sense_records
 
     def _resolve_paths(self, file_path: str) -> tuple[Path, Path]:
         path = Path(file_path)
@@ -352,9 +340,6 @@ class Runner:
             lines.extend(["", "## Flow", parsed.flow])
         if parsed.flow_diagram:
             lines.extend(["", "```mermaid", parsed.flow_diagram, "```"])
-        if parsed.risks:
-            lines.extend(["", "## Risks"])
-            lines.extend([f"- {item}" for item in parsed.risks])
         if parsed.references:
             lines.extend(["", "## References"])
             lines.extend([f"- {item}" for item in parsed.references])

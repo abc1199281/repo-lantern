@@ -102,7 +102,6 @@ class StructuredAnalysisOutput(BaseModel):
     classes: list[str] = Field(default_factory=list)
     flow: str | None = Field(default=None, max_length=2000)
     flow_diagram: str | None = Field(default=None, max_length=2000)
-    risks: list[str] = Field(default_factory=list)
     references: list[str] = Field(default_factory=list)
     language: str
 
@@ -121,13 +120,11 @@ class StructuredAnalysisOutput(BaseModel):
         values.setdefault("key_insights", [])
         values.setdefault("functions", [])
         values.setdefault("classes", [])
-        values.setdefault("risks", [])
         values.setdefault("references", [])
 
         values["key_insights"] = trim(values["key_insights"], 8, 400)
         values["functions"] = trim(values["functions"], 5, 400)
         values["classes"] = trim(values["classes"], 5, 400)
-        values["risks"] = trim(values["risks"], 5, 400)
         values["references"] = trim(values["references"], 5, 200)
 
         if "summary" in values and isinstance(values["summary"], str):
