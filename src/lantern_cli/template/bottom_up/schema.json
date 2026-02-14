@@ -40,6 +40,11 @@
             "description": "Describe the most important control or data flow that involves this file (2000 characters).",
             "maxLength": 2000
         },
+        "flow_diagram": {
+            "type": "string",
+            "description": "A Mermaid flowchart or sequence diagram showing the most important control/data flow. Use graph TD or sequenceDiagram syntax. Do NOT include fenced code block delimiters. Keep it concise with 5-10 nodes max.",
+            "maxLength": 2000
+        },
         "references": {
             "type": "array",
             "description": "Paths, line ranges, or components referenced when summarizing this file.",
@@ -55,5 +60,8 @@
             "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
         }
     },
-    "required": ["summary", "key_insights"]
+    "required": [
+        "summary",
+        "key_insights"
+    ]
 }

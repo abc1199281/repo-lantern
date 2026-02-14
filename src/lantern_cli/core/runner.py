@@ -350,6 +350,8 @@ class Runner:
             lines.extend([f"- {item}" for item in parsed.classes])
         if parsed.flow:
             lines.extend(["", "## Flow", parsed.flow])
+        if parsed.flow_diagram:
+            lines.extend(["", "```mermaid", parsed.flow_diagram, "```"])
         if parsed.risks:
             lines.extend(["", "## Risks"])
             lines.extend([f"- {item}" for item in parsed.risks])

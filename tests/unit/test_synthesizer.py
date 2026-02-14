@@ -93,17 +93,17 @@ class TestSynthesizer:
         assert "Module A handles user input." in overview
         assert "Uses argparse for CLI" in overview
 
-        # Architecture should contain classes, references, and file subheadings
+        # Architecture should contain classes and file subheadings
+        # (references are no longer dumped here — replaced by flow_diagram)
         assert "### `src/app/db.py`" in arch
         assert "Database" in arch
-        assert "sqlite3" in arch
 
         # Getting Started should contain functions grouped by file
         assert "### `src/app/cli.py`" in started
         assert "main(): entry point" in started
         assert "save(): persist data" in started
 
-        # Concepts should contain classes, insights, risks grouped by file
+        # Concepts should contain classes and risks (key_insights deduplicated to OVERVIEW)
         assert "### `src/app/db.py`" in concepts
         assert "Database" in concepts
         assert "No migration support" in concepts
@@ -158,3 +158,132 @@ class TestSynthesizer:
         # Each file should have its own ### subheading
         assert "### `src/app/cli.py`" in arch
         assert "### `src/app/db.py`" in arch
+
+    def test_load_mermaid_from_plan(self, tmp_path: Path) -> None:
+        """Test extracting Mermaid block from lantern_plan.md."""
+        plan_dir = tmp_path / ".lantern"
+        plan_dir.mkdir(parents=True)
+        plan_content = (
+            "# Lantern Plan\n\n"
+            "## Dependency Graph\n\n"
+            "```mermaid\n"
+            "graph TD\n"
+            "    A --> B\n"
+            "```\n\n"
+            "## Phase 1\n"
+        )
+        (plan_dir / "lantern_plan.md").write_text(plan_content)
+
+        synth = Synthesizer(root_path=tmp_path)
+        mermaid = synth._load_mermaid_from_plan()
+        assert "```mermaid" in mermaid
+        assert "A --> B" in mermaid
+        assert mermaid.endswith("```")
+
+    def test_load_mermaid_from_plan_no_file(self, tmp_path: Path) -> None:
+        """Test that missing plan file returns empty string."""
+        synth = Synthesizer(root_path=tmp_path)
+        assert synth._load_mermaid_from_plan() == ""
+
+    def test_load_mermaid_from_plan_no_mermaid_block(self, tmp_path: Path) -> None:
+        """Test that plan without mermaid block returns empty string."""
+        plan_dir = tmp_path / ".lantern"
+        plan_dir.mkdir(parents=True)
+        (plan_dir / "lantern_plan.md").write_text("# Plan\n\nNo diagrams here.\n")
+
+        synth = Synthesizer(root_path=tmp_path)
+        assert synth._load_mermaid_from_plan() == ""
+
+    def test_references_to_mermaid_with_file_refs(self) -> None:
+        """Test Mermaid generation from file-like references."""
+        result = Synthesizer._references_to_mermaid(
+            "src/app/cli.py",
+            ["argparse", "src/app/db.py", "config.json (JSON Schema)"],
+        )
+        # argparse has no dot-with-extension or slash so should be skipped
+        # src/app/db.py has slash so should appear
+        # config.json has a dot and no space so should appear
+        assert "```mermaid" in result
+        assert "src_app_db_py" in result
+        assert "config_json" in result
+
+    def test_references_to_mermaid_no_usable_refs(self) -> None:
+        """Test that prose-only references produce no Mermaid."""
+        result = Synthesizer._references_to_mermaid(
+            "src/app/cli.py",
+            ["argparse", "some library"],
+        )
+        assert result == ""
+
+    def test_references_to_mermaid_empty(self) -> None:
+        """Test that empty references produce no Mermaid."""
+        result = Synthesizer._references_to_mermaid("src/app/cli.py", [])
+        assert result == ""
+
+    def test_architecture_embeds_mermaid_from_plan(self, tmp_path: Path) -> None:
+        """Test that ARCHITECTURE.md includes the dependency graph from plan."""
+        lantern_dir = tmp_path / ".lantern"
+        sense_dir = lantern_dir / "sense"
+        sense_dir.mkdir(parents=True)
+
+        # Write a plan with Mermaid
+        plan_content = (
+            "# Plan\n\n"
+            "```mermaid\n"
+            "graph TD\n"
+            "    cli_py --> db_py\n"
+            "```\n"
+        )
+        (lantern_dir / "lantern_plan.md").write_text(plan_content)
+
+        # Write sense records
+        (sense_dir / "batch_0001.sense").write_text(
+            json.dumps(SAMPLE_SENSE_RECORDS, ensure_ascii=False, indent=2)
+        )
+
+        synth = Synthesizer(root_path=tmp_path)
+        synth.generate_top_down_docs()
+
+        arch = (synth.output_dir / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        assert "## Dependency Graph" in arch
+        assert "```mermaid" in arch
+        assert "cli_py --> db_py" in arch
+        # Component Details section should also be present
+        assert "## Component Details" in arch
+
+    def test_flow_diagram_in_architecture(self, tmp_path: Path) -> None:
+        """Test that flow_diagram Mermaid is embedded in ARCHITECTURE."""
+        sense_dir = tmp_path / ".lantern" / "sense"
+        sense_dir.mkdir(parents=True)
+        records = [
+            {
+                "batch": 1,
+                "file_index": 0,
+                "file_path": "src/app/cli.py",
+                "analysis": {
+                    "summary": "CLI entry point.",
+                    "key_insights": ["Simple CLI"],
+                    "functions": ["main()"],
+                    "classes": [],
+                    "flow": "User calls main",
+                    "flow_diagram": "graph TD\n    A[User] --> B[main]\n    B --> C[run]",
+                    "risks": [],
+                    "references": [],
+                    "language": "en",
+                },
+            },
+        ]
+        (sense_dir / "batch_0001.sense").write_text(
+            json.dumps(records, ensure_ascii=False, indent=2)
+        )
+        synth = Synthesizer(root_path=tmp_path)
+        synth.generate_top_down_docs()
+
+        arch = (synth.output_dir / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        assert "```mermaid" in arch
+        assert "graph TD" in arch
+        assert "A[User] --> B[main]" in arch
+
+        started = (synth.output_dir / "GETTING_STARTED.md").read_text(encoding="utf-8")
+        assert "```mermaid" in started
+        assert "graph TD" in started

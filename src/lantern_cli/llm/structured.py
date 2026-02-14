@@ -101,6 +101,7 @@ class StructuredAnalysisOutput(BaseModel):
     functions: list[str] = Field(default_factory=list)
     classes: list[str] = Field(default_factory=list)
     flow: str | None = Field(default=None, max_length=2000)
+    flow_diagram: str | None = Field(default=None, max_length=2000)
     risks: list[str] = Field(default_factory=list)
     references: list[str] = Field(default_factory=list)
     language: str
@@ -134,6 +135,9 @@ class StructuredAnalysisOutput(BaseModel):
 
         if "flow" in values and isinstance(values["flow"], str):
             values["flow"] = values["flow"].strip()[:2000]
+
+        if "flow_diagram" in values and isinstance(values["flow_diagram"], str):
+            values["flow_diagram"] = values["flow_diagram"].strip()[:2000]
 
         if "language" in values and isinstance(values["language"], str):
             values["language"] = values["language"].strip()
