@@ -1,15 +1,21 @@
 """Synthesizer module for generating top-down documentation."""
+import json
 import logging
+import re
+from collections import defaultdict
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Patterns that indicate a record should be skipped (empty / unanalyzable file)
+_SKIP_PATTERNS = ["未提供", "無法分析", "無法進行", "not provided", "unable to analyze"]
 
 
 class Synthesizer:
     """Synthesizes analysis results into top-down documentation."""
 
-    def __init__(self, root_path: Path, language: str = "en") -> None:
+    def __init__(self, root_path: Path, language: str = "en", output_dir: Optional[str] = None) -> None:
         """Initialize Synthesizer.
 
         Args:
@@ -18,78 +24,268 @@ class Synthesizer:
         """
         self.root_path = root_path
         self.language = language
-        self.sense_dir = root_path / ".lantern" / "sense"
-        self.output_dir = root_path / ".lantern" / "output" / language / "top_down"
+        base_out = output_dir or ".lantern"
+        self.base_output_dir = root_path / base_out
+        self.sense_dir = self.base_output_dir / "sense"
+        self.output_dir = self.base_output_dir / "output" / language / "top_down"
 
-    def load_sense_files(self) -> List[str]:
-        """Load all .sense files from the sense directory.
+    def load_sense_files(self) -> List[Dict[str, Any]]:
+        """Load and parse all .sense files from the sense directory.
 
         Returns:
-            List of file contents.
+            List of parsed analysis records (each is a dict with 'analysis' key).
         """
-        contents = []
+        records: List[Dict[str, Any]] = []
         if not self.sense_dir.exists():
-            return contents
+            return records
 
-        # Glob all .sense files and sort them to maintain order
         for sense_file in sorted(self.sense_dir.glob("*.sense")):
             try:
                 with open(sense_file, "r", encoding="utf-8") as f:
-                    contents.append(f.read())
-            except Exception as e:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    records.extend(data)
+                elif isinstance(data, dict):
+                    records.append(data)
+            except (json.JSONDecodeError, OSError) as e:
                 logger.warning(f"Failed to read {sense_file}: {e}")
-        
-        return contents
+
+        return records
+
+    @staticmethod
+    def _is_empty_record(record: Dict[str, Any]) -> bool:
+        """Check if a record represents an empty / unanalyzable file."""
+        analysis = record.get("analysis", {})
+        if not isinstance(analysis, dict):
+            return True
+        summary = analysis.get("summary", "")
+        if not summary:
+            return True
+        summary_lower = summary.lower()
+        return any(pat in summary_lower for pat in _SKIP_PATTERNS)
+
+    @staticmethod
+    def _group_by_file(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """Group records by file_path, keeping only the last entry per file."""
+        grouped: Dict[str, Dict[str, Any]] = {}
+        for record in records:
+            file_path = record.get("file_path", f"unknown_{record.get('file_index', '?')}")
+            grouped[file_path] = record
+        return grouped
 
     def generate_top_down_docs(self) -> None:
         """Generate top-down documentation files."""
-        contents = self.load_sense_files()
-        if not contents:
+        records = self.load_sense_files()
+        if not records:
             logger.warning("No analysis results found to synthesize.")
+            return
+
+        # Filter out empty/unanalyzable records
+        records = [r for r in records if not self._is_empty_record(r)]
+        if not records:
+            logger.warning("All records are empty after filtering.")
             return
 
         if not self.output_dir.exists():
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # For MVP, we will use a naive aggregation strategy:
-        # Concatenate all summaries and pretend we are generating distinct docs
-        # In a real system, this would involve a secondary LLM pass 
-        # (Map-Reduce or Summary-of-Summaries)
-        
-        aggregated_content = "\n\n".join(contents)
-        
-        self._generate_overview(aggregated_content)
-        self._generate_architecture(aggregated_content)
-        self._generate_getting_started(aggregated_content)
-        self._generate_concepts(aggregated_content)
+        self._generate_overview(records)
+        self._generate_architecture(records)
+        self._generate_getting_started(records)
+        self._generate_concepts(records)
 
-    def _generate_overview(self, content: str) -> None:
-        """Generate OVERVIEW.md."""
-        header = "# Project Overview\n\n> Generated by Lantern\n\n## Vision & Scope\n\n"
-        self._write_doc("OVERVIEW.md", header + content)
+    def _generate_overview(self, records: List[Dict[str, Any]]) -> None:
+        """Generate OVERVIEW.md focusing on project vision and scope."""
+        header = "# Project Overview\n\n> Generated by Lantern\n\n"
+        header += "## Vision & Scope\n\nThis document provides a high-level overview of the project structure and purpose.\n\n"
+        header += "## Analysis Summary\n\n"
+        self._write_doc("OVERVIEW.md", header + self._extract_section(records, "summary"))
 
-    def _generate_architecture(self, content: str) -> None:
-        """Generate ARCHITECTURE.md."""
-        header = "# System Architecture\n\n> Generated by Lantern\n\n## Module Design\n\n"
-        self._write_doc("ARCHITECTURE.md", header + content)
+    def _generate_architecture(self, records: List[Dict[str, Any]]) -> None:
+        """Generate ARCHITECTURE.md focusing on system design and modules."""
+        header = "# System Architecture\n\n> Generated by Lantern\n\n"
 
-    def _generate_getting_started(self, content: str) -> None:
-        """Generate GETTING_STARTED.md."""
-        header = "# Getting Started\n\n> Generated by Lantern\n\n## Onboarding\n\n"
-        self._write_doc("GETTING_STARTED.md", header + content)
+        # Embed global dependency graph from lantern_plan.md
+        mermaid = self._load_mermaid_from_plan()
+        if mermaid:
+            header += "## Dependency Graph\n\n" + mermaid + "\n\n"
 
-    def _generate_concepts(self, content: str) -> None:
-        """Generate CONCEPTS.md."""
-        header = "# Core Concepts\n\n> Generated by Lantern\n\n## Key Abstractions\n\n"
-        self._write_doc("CONCEPTS.md", header + content)
+        header += "## Component Details\n\nThis document describes the architectural components and their relationships.\n\n"
+        self._write_doc("ARCHITECTURE.md", header + self._extract_section(records, "architecture"))
+
+    def _generate_getting_started(self, records: List[Dict[str, Any]]) -> None:
+        """Generate GETTING_STARTED.md focusing on entry points and setup."""
+        header = "# Getting Started\n\n> Generated by Lantern\n\n"
+        header += "## Onboarding Guide\n\nThis guide helps new developers understand how to get started with this codebase.\n\n"
+        self._write_doc("GETTING_STARTED.md", header + self._extract_section(records, "entry_points"))
+
+    def _generate_concepts(self, records: List[Dict[str, Any]]) -> None:
+        """Generate CONCEPTS.md focusing on core abstractions and patterns."""
+        header = "# Core Concepts\n\n> Generated by Lantern\n\n"
+        header += "## Key Abstractions\n\nThis document covers fundamental concepts and design patterns used in the codebase.\n\n"
+        self._write_doc("CONCEPTS.md", header + self._extract_section(records, "concepts"))
+
+    def _extract_section(self, records: List[Dict[str, Any]], section_type: str) -> str:
+        """Extract content grouped by file path.
+
+        Args:
+            records: Parsed .sense records (already filtered).
+            section_type: One of 'summary', 'architecture', 'entry_points', 'concepts'.
+
+        Returns:
+            Formatted markdown content with file-based subheadings.
+        """
+        grouped = self._group_by_file(records)
+        lines: List[str] = []
+
+        for file_path, record in grouped.items():
+            analysis = record.get("analysis", {})
+            if not isinstance(analysis, dict):
+                continue
+
+            summary = analysis.get("summary", "")
+            if not summary:
+                continue
+
+            # File subheading
+            file_lines: List[str] = []
+
+            if section_type == "summary":
+                # OVERVIEW: summary + key_insights (unique to this doc)
+                file_lines.append(f"**{summary}**")
+                for insight in analysis.get("key_insights", []):
+                    if insight:
+                        file_lines.append(f"- {insight}")
+
+            elif section_type == "architecture":
+                # ARCHITECTURE: summary + classes + flow_diagram (Mermaid)
+                # Avoids dumping plain text flow (shown in GETTING_STARTED)
+                file_lines.append(summary)
+                for cls in analysis.get("classes", []):
+                    if cls:
+                        file_lines.append(f"- {cls}")
+
+                # Prefer flow_diagram (Mermaid); fall back to reference-based Mermaid
+                flow_diagram = analysis.get("flow_diagram", "")
+                if flow_diagram:
+                    file_lines.append(f"\n```mermaid\n{flow_diagram}\n```")
+                else:
+                    # Generate per-file Mermaid from references (legacy fallback)
+                    ref_mermaid = self._references_to_mermaid(
+                        file_path, analysis.get("references", [])
+                    )
+                    if ref_mermaid:
+                        file_lines.append(f"\n{ref_mermaid}")
+
+            elif section_type == "entry_points":
+                # GETTING_STARTED: functions + flow_diagram
+                # Shows function listing as quick-reference, plus visual flow
+                for func in analysis.get("functions", []):
+                    if func:
+                        file_lines.append(f"- {func}")
+                flow_diagram = analysis.get("flow_diagram", "")
+                if flow_diagram:
+                    file_lines.append(f"\n```mermaid\n{flow_diagram}\n```")
+                else:
+                    # Fall back to plain text flow if no diagram
+                    flow = analysis.get("flow", "")
+                    if flow:
+                        file_lines.append(f"\n{flow}")
+
+            elif section_type == "concepts":
+                # CONCEPTS: classes only
+                # key_insights already shown in OVERVIEW — avoid duplication
+                for cls in analysis.get("classes", []):
+                    if cls:
+                        file_lines.append(f"- {cls}")
+
+            if file_lines:
+                lines.append(f"### `{file_path}`\n")
+                lines.extend(file_lines)
+                lines.append("")  # blank line between sections
+
+        if not lines:
+            lines.append("No relevant content found.")
+
+        return "\n".join(lines)
+
+    def _load_mermaid_from_plan(self) -> str:
+        """Extract the first ```mermaid ... ``` block from lantern_plan.md.
+
+        Returns:
+            The full fenced Mermaid block (including ``` delimiters), or empty string.
+        """
+        plan_path = self.base_output_dir / "lantern_plan.md"
+        if not plan_path.exists():
+            return ""
+
+        try:
+            text = plan_path.read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+        match = re.search(r"```mermaid\n(.*?)```", text, re.DOTALL)
+        if not match:
+            return ""
+
+        return f"```mermaid\n{match.group(1)}```"
+
+    @staticmethod
+    def _sanitize_mermaid_id(name: str) -> str:
+        """Sanitize a name for use as a Mermaid node ID."""
+        return re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
+    @staticmethod
+    def _references_to_mermaid(
+        file_path: str, references: List[str]
+    ) -> str:
+        """Generate a small Mermaid graph showing this file's relationships.
+
+        Only produces output when references look like file paths or module names
+        (contain '.' or '/'). Skips generic text references.
+
+        Args:
+            file_path: The source file path.
+            references: List of reference strings from .sense analysis.
+
+        Returns:
+            A fenced Mermaid code block, or empty string if no usable refs.
+        """
+        # Filter references that look like file/module paths
+        usable = []
+        for ref in references:
+            if not ref:
+                continue
+            # Heuristic: references containing path separators or dots in
+            # a filename-like pattern are likely file/module references.
+            # Skip plain English/Chinese prose descriptions.
+            name = ref.split("(")[0].strip()  # strip description after '('
+            if "/" in name or (name.count(".") >= 1 and " " not in name):
+                usable.append(name)
+
+        if not usable:
+            return ""
+
+        src_id = re.sub(r"[^a-zA-Z0-9_]", "_", file_path)
+        lines = ["```mermaid", "graph LR"]
+        src_label = file_path.rsplit("/", 1)[-1] if "/" in file_path else file_path
+        lines.append(f"    {src_id}[{src_label}]")
+
+        for ref in usable:
+            ref_id = re.sub(r"[^a-zA-Z0-9_]", "_", ref)
+            ref_label = ref.rsplit("/", 1)[-1] if "/" in ref else ref
+            lines.append(f"    {src_id} --> {ref_id}[{ref_label}]")
+
+        lines.append("```")
+        return "\n".join(lines)
 
     def _write_doc(self, filename: str, content: str) -> None:
         """Write content to a file."""
         file_path = self.output_dir / filename
-        
+
         # Truncate for sanity in MVP
         if len(content) > 10000:
-             content = content[:10000] + "\n\n...(truncated)..."
+            content = content[:10000] + "\n\n...(truncated)..."
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)

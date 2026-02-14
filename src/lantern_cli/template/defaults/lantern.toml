@@ -1,0 +1,38 @@
+# Lantern Configuration
+
+[lantern]
+language = "zh-TW"
+output_dir = ".lantern"
+
+[filter]
+exclude = [
+    "**/__pycache__/*", 
+    "**/.git/*", 
+    "**/node_modules/*", 
+    "**/.venv/*", 
+    "**/.idea/*", 
+    "**/.vscode/*",
+    "**/build*/*"
+]
+
+# Backend configuration - choose one:
+
+# Option 1: Ollama (Local, Free, Private)
+# [backend]
+# type = "ollama"
+# ollama_model = "qwen2.5:14b"  # or llama3, mistral, etc.
+# # ollama_url = "http://localhost:11434"
+
+# Option 2: OpenAI (Production, Recommended)
+[backend]
+type = "openai"
+openai_model = "gpt-4o-mini"  # Fast and cheap ($0.15/1M input, $0.60/1M output)
+# openai_model = "gpt-4o"      # Higher quality ($2.50/1M input, $10/1M output)
+# openai_api_key_env = "OPENAI_API_KEY"  # Set: export OPENAI_API_KEY=<your-key>
+
+# Option 3: OpenRouter (Multi-model Access)
+# [backend]
+# type = "openrouter"
+# openrouter_model = "openai/gpt-4o-mini"  # or anthropic/claude-sonnet-4, etc.
+# # openrouter_url = "https://openrouter.ai/api/v1"
+# # openrouter_api_key_env = "OPENROUTER_API_KEY"  # Set: export OPENROUTER_API_KEY=<your-key>

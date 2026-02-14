@@ -14,15 +14,26 @@ from rich.progress import (
 from rich.text import Text
 
 from pathlib import Path
+from typing import Optional
 
 from lantern_cli.config.loader import load_config
-from lantern_cli.backends.factory import BackendFactory
-from lantern_cli.static_analysis.dependency_graph import DependencyGraph
+from lantern_cli.llm.factory import create_llm
+from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.core.architect import Architect
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.runner import Runner
 from lantern_cli.core.synthesizer import Synthesizer
 from lantern_cli.utils.cost_tracker import CostTracker
+
+TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
+DEFAULT_CONFIG_PATH = TEMPLATE_ROOT / "lantern.toml"
+
+
+def _load_default_config() -> str:
+    try:
+        return DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Unable to read default config at {DEFAULT_CONFIG_PATH}") from exc
 
 app = typer.Typer(
     name="lantern",
@@ -41,69 +52,52 @@ class FlexibleTaskProgressColumn(TaskProgressColumn):
             return Text("...", style="progress.percentage")
         return super().render(task)
 
-
-@app.command()
 @app.command()
 def init(
     repo: str = typer.Option(".", help="Repository path or URL"),
+    overwrite: bool = typer.Option(False, "--overwrite", "-f", help="Force re-initialization and overwrite existing config"),
 ) -> None:
     """Initialize Lantern for a repository."""
     repo_path = Path(repo).resolve()
     lantern_dir = repo_path / ".lantern"
     
     if lantern_dir.exists():
-        console.print(f"[yellow]Lantern is already initialized in {repo_path}[/yellow]")
-        return
+        if overwrite:
+            console.print(f"[yellow]Overwriting existing Lantern configuration in {repo_path}...[/yellow]")
+            shutil.rmtree(lantern_dir)
+        else:
+            console.print(f"[yellow]Lantern is already initialized in {repo_path}[/yellow]")
+            console.print("[dim]Use --overwrite to re-initialize.[/dim]")
+            return
 
     try:
         lantern_dir.mkdir(parents=True, exist_ok=True)
-        # Create default config
         config_path = lantern_dir / "lantern.toml"
-        # Minimal default config
-        config_content = """# Lantern Configuration
-
-[lantern]
-language = "en"
-output_dir = ".lantern"
-
-[filter]
-exclude = [
-    "**/__pycache__/*", 
-    "**/.git/*", 
-    "**/node_modules/*", 
-    "**/.venv/*", 
-    "**/.idea/*", 
-    "**/.vscode/*",
-    "**/build*/*"
-]
-
-[backend]
-type = "ollama"
-ollama_model = "llama3"
-ollama_url = "http://localhost:11434"
-"""
+        config_content = _load_default_config()
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
             
         console.print(f"[green]Initialized Lantern in {lantern_dir}[/green]")
+        console.print(f"[green]Content is as follows: {config_content}[/green]")
         console.print(f"Configuration created at: {config_path}")
         
     except Exception as e:
         console.print(f"[bold red]Failed to initialize:[/bold red] {e}")
         raise typer.Exit(code=1)
 
-
-@app.command()
 @app.command()
 def plan(
     repo: str = typer.Option(".", help="Repository path"),
-    output: str = typer.Option(".lantern", help="Output directory"),
+    output: Optional[str] = typer.Option(None, help="Output directory"),
 ) -> None:
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
     
     # 0. Load Configuration (for filters)
-    config = load_config(repo_path)
+    config = load_config(repo_path, output=output)
+
+    # Respect config.output_dir when CLI `--output` is not provided
+    output_dir = config.output_dir
 
     with Progress(
         SpinnerColumn(),
@@ -115,7 +109,8 @@ def plan(
     ) as progress:
         # 1. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
-        graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
+        file_filter = FileFilter(repo_path, config.filter)
+        graph = DependencyGraph(repo_path, file_filter=file_filter)
         graph.build()
         progress.update(task_static, total=1, completed=1)
 
@@ -125,7 +120,7 @@ def plan(
         plan = architect.generate_plan()
         
         # Save plan
-        output_path = repo_path / output
+        output_path = repo_path / output_dir
         output_path.mkdir(parents=True, exist_ok=True)
         plan_path = output_path / "lantern_plan.md"
         
@@ -142,71 +137,29 @@ def plan(
 @app.command()
 def run(
     repo: str = typer.Option(".", help="Repository path"),
-    output: str = typer.Option(".lantern", help="Output directory"),
-    backend: str = typer.Option(None, help="LLM backend (codex/gemini/claude/openai)"),
-    api: bool = typer.Option(False, help="Force API mode (api_provider)"),
-    lang: str = typer.Option("en", help="Output language (en/zh-TW)"),
-    model: str = typer.Option(None, help="Model name (e.g., 'llama3' for ollama, 'gpt-4o' for openai)"),
+    output: Optional[str] = typer.Option(None, help="Output directory"),
+    lang: Optional[str] = typer.Option(None, help="Output language (en/zh-TW)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
     
     # 1. Load Configuration
-    config = load_config(repo_path)
-    
-    # Override config with CLI args
-    if output:
-        config.output_dir = output
-    if lang:
-        config.language = lang
-    
-    if api:
-        config.backend.type = "api"
-
-    if backend == "ollama":
-        config.backend.type = "ollama"
-        
-    if backend:
-        # If --api matching flag is set, treat backend as api_provider
-        if config.backend.type == "api" or api:
-             config.backend.type = "api"
-             config.backend.api_provider = backend
-        elif config.backend.type == "ollama":
-             pass
-        else:
-             # Heuristic: if backend matches known API providers AND is not meant to be CLI
-             if backend in ("claude", "anthropic", "openai", "gpt"):
-                 config.backend.type = "api"
-                 config.backend.api_provider = backend
-             elif backend == "gemini":
-                 # Special handling for Gemini which has both
-                 if shutil.which("gemini") and not api:
-                     config.backend.type = "cli"
-                     config.backend.cli_command = "gemini"
-                 else:
-                     config.backend.type = "api"
-                     config.backend.api_provider = "gemini"
-             else:
-                 config.backend.type = "cli"
-                 config.backend.cli_command = backend
-
-    # Handle model overrides
-    if model:
-        if config.backend.type == "ollama":
-            config.backend.ollama_model = model
-        elif config.backend.type == "api":
-            config.backend.api_model = model
+    config = load_config(
+        repo_path,
+        output=output,
+        lang=lang,
+    )
 
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
-    console.print(f"Backend: {config.backend.type} ({config.backend.api_provider or config.backend.cli_command})")
+    console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
 
-    # 2. Initialize Backend
+    # 2. Initialize LLM
     try:
-        backend_adapter = BackendFactory.create(config)
+        llm = create_llm(config)
     except Exception as e:
-        console.print(f"[bold red]Error initializing backend:[/bold red] {e}")
+        console.print(f"[bold red]Error initializing LLM:[/bold red] {e}")
         raise typer.Exit(code=1)
 
     with Progress(
@@ -220,7 +173,8 @@ def run(
         
         # 3. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
-        graph = DependencyGraph(repo_path, excludes=config.filter.exclude)
+        file_filter = FileFilter(repo_path, config.filter)
+        graph = DependencyGraph(repo_path, file_filter=file_filter)
         graph.build()
         progress.update(task_static, total=1, completed=1)
 
@@ -239,18 +193,22 @@ def run(
         console.print(f"Plan generated: {plan_path}")
 
     # 5. Cost Estimation
-    # Determine model name for cost tracking
-    model_name = "gemini-1.5-flash"  # default
+    # Determine model name for cost tracking based on configured backend
     is_local = False
-    if config.backend.type == "api":
-        model_name = config.backend.api_model or model_name
+    if config.backend.type == "openai":
+        model_name = config.backend.openai_model or "gpt-4o-mini"
+    elif config.backend.type == "openrouter":
+        model_name = config.backend.openrouter_model or "openai/gpt-4o-mini"
     elif config.backend.type == "ollama":
         model_name = config.backend.ollama_model or "llama3"
         is_local = True
+    else:
+        # Fallback for unknown backend type
+        model_name = "unknown-model"
     
     # Initialize state manager (needed for pending batches)
-    # Pass backend_adapter for MemoryManager compression
-    state_manager = StateManager(repo_path, backend=backend_adapter)
+    # Pass LLM for MemoryManager compression
+    state_manager = StateManager(repo_path, llm=llm)
     
     cost_tracker = CostTracker(model_name, is_local=is_local)
     pending_batches = state_manager.get_pending_batches(plan)
@@ -291,8 +249,12 @@ def run(
             console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
             console.print(f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]")
     else:
-        console.print(f"   Pricing Source: [red]Offline[/red]")
-        console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
+        if config.backend.type == "cli":
+            console.print(f"   Pricing Source: [yellow]CLI Tool[/yellow]")
+            console.print("   Estimated Cost: [bold yellow]CLI estimate not available[/bold yellow]")
+        else:
+            console.print(f"   Pricing Source: [red]Offline[/red]")
+            console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
     
     # Confirmation prompt (skip if --yes flag or no pending batches)
     if pending_batches and not assume_yes:
@@ -319,11 +281,12 @@ def run(
             
             runner = Runner(
                 repo_path, 
-                backend_adapter, 
+                llm, 
                 state_manager, 
                 language=config.language,
                 model_name=model_name,
-                is_local=is_local
+                is_local=is_local, 
+                output_dir=config.output_dir
             )
             
             for batch in pending_batches:
@@ -343,7 +306,7 @@ def run(
         
             # 6. Synthesize Docs
             task_synth = progress.add_task("Synthesizing documentation...", total=None)
-            synthesizer = Synthesizer(repo_path, language=config.language)
+            synthesizer = Synthesizer(repo_path, language=config.language, output_dir=config.output_dir)
             synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
 

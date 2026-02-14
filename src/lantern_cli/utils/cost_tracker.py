@@ -1,7 +1,7 @@
 """Cost tracking and estimation for LLM API usage."""
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 import urllib.request
 import json
 import logging
@@ -177,6 +177,58 @@ class CostTracker:
         self.usage.input_tokens += input_tokens
         self.usage.output_tokens += output_tokens
         self.usage.api_calls += 1
+
+    def record_from_usage_metadata(self, response: Any) -> None:
+        """Record actual usage from LangChain response's usage_metadata.
+        
+        LangChain ChatModel responses include usage_metadata with real token counts
+        from the provider (e.g., Ollama, Claude, GPT). This provides actual counts
+        instead of estimates. For local models, usage_metadata may be absent.
+        
+        Expected Structure:
+            response.usage_metadata = {
+                'input_tokens': int,
+                'output_tokens': int,
+                # other fields vendor-specific
+            }
+        
+        Error Handling:
+            - Missing usage_metadata: Logs debug msg, returns gracefully
+            - Malformed metadata: Logs warning, falls back to estimate-based tracking
+            - Never raises exceptions (safe for production)
+        
+        Args:
+            response: LangChain AIMessage or chat model response object.
+            
+        Example:
+            >>> response = llm.invoke([{"role": "user", "content": "..."}])
+            >>> cost_tracker.record_from_usage_metadata(response)
+        """
+        try:
+            usage_metadata = getattr(response, "usage_metadata", None)
+            if not usage_metadata:
+                logger.debug("No usage_metadata in response, skipping token recording")
+                return
+
+            # Safely extract token counts with defaults
+            input_tokens = usage_metadata.get("input_tokens", 0)
+            output_tokens = usage_metadata.get("output_tokens", 0)
+
+            # Only record if we have actual token counts
+            if input_tokens or output_tokens:
+                self.record_usage(int(input_tokens), int(output_tokens))
+                logger.debug(
+                    f"Recorded usage from metadata: "
+                    f"in={input_tokens}, out={output_tokens}"
+                )
+            else:
+                logger.debug("No token counts found in usage_metadata")
+
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.warning(
+                f"Failed to extract usage metadata from response: {e}. "
+                f"Falling back to estimate-based tracking."
+            )
 
     def get_total_cost(self) -> float:
         """Calculate total cost based on recorded usage.

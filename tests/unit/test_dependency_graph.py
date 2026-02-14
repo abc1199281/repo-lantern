@@ -1,8 +1,10 @@
 """Tests for Dependency Graph construction."""
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
+from lantern_cli.config.models import FilterConfig
 from lantern_cli.static_analysis.dependency_graph import DependencyGraph
 
 
@@ -12,7 +14,8 @@ class TestDependencyGraph:
     @pytest.fixture
     def graph(self) -> DependencyGraph:
         """Create a DependencyGraph instance."""
-        return DependencyGraph(root_path=Path("/tmp"))
+        filter_config = FilterConfig()
+        return DependencyGraph(root_path=Path("/tmp"), file_filter=MagicMock())
 
     def test_add_dependency(self, graph: DependencyGraph) -> None:
         """Test adding dependencies."""

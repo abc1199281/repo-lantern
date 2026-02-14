@@ -1,0 +1,7 @@
+{
+    "compression": {
+        "name": "compress_summary",
+        "description": "Compress lengthy analysis summary while preserving key architectural and technical details",
+        "template": "Compress the following analysis summary to approximately {target_length} characters while preserving:\n1. Core architectural decisions and design patterns\n2. Key module relationships and dependencies\n3. Important technical details and constraints\n4. Critical insights and findings\n\nRemove redundant details and verbose explanations. Be concise but preserve technical accuracy.\n\nSUMMARY TO COMPRESS:\n{long_summary}\n\nCOMPRESSED SUMMARY (aim for ~{target_length} chars):"
+    }
+}

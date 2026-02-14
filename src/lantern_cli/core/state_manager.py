@@ -2,11 +2,13 @@
 import json
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from lantern_cli.core.architect import Plan, Batch
-from lantern_cli.backends.base import BackendAdapter
 from lantern_cli.core.memory_manager import MemoryManager
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -23,15 +25,15 @@ class StateManager:
 
     STATE_FILE = "state.json"
 
-    def __init__(self, root_path: Path, backend: Optional[BackendAdapter] = None) -> None:
+    def __init__(self, root_path: Path, llm: Optional[Any] = None) -> None:
         """Initialize StateManager.
 
         Args:
             root_path: Project root path.
-            backend: Backend adapter for memory compression (optional).
+            llm: LangChain ChatModel for memory compression (optional).
         """
         self.root_path = root_path
-        self.memory_manager = MemoryManager(backend)
+        self.memory_manager = MemoryManager(llm)
         self.lantern_dir = root_path / ".lantern"
         self.state_path = self.lantern_dir / self.STATE_FILE
         self.state: ExecutionState = self.load_state()
@@ -41,8 +43,8 @@ class StateManager:
         if not self.lantern_dir.exists():
             try:
                 self.lantern_dir.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                pass # Already handled or permission issue
+            except OSError as e:
+                logger.warning(f"Could not create lantern directory: {e}")
 
         if self.state_path.exists():
             try:
@@ -61,9 +63,8 @@ class StateManager:
         try:
             with open(self.state_path, "w", encoding="utf-8") as f:
                 json.dump(asdict(self.state), f, indent=2)
-        except OSError:
-            # Create a warning log in real app
-            pass
+        except OSError as e:
+            logger.warning(f"Failed to save state to {self.state_path}: {e}")
 
     def update_batch_status(self, batch_id: int, success: bool) -> None:
         """Update status of a batch execution.
