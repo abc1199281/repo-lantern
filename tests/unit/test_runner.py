@@ -168,3 +168,35 @@ class TestBottomUpDocGeneration:
         doc_b = (out_dir / "b.py.md").read_text(encoding="utf-8")
         assert "A summary" in doc_a
         assert "B summary" in doc_b
+
+    def test_generate_bottom_up_doc_fallback_on_none(self, tmp_path: Path) -> None:
+        """Test fallback when structured analysis fails for all files.
+
+        When analyze_batch raises an exception and per-file fallback also fails,
+        all structured_results entries are None. The runner should still produce
+        markdown files using the batch-level fallback result.
+        """
+        file_a = tmp_path / "src" / "a.py"
+        file_a.parent.mkdir(parents=True, exist_ok=True)
+        file_a.write_text("def a():\n    pass\n", encoding="utf-8")
+
+        llm = LLMMockFactory.create_batch(["# a.py"], has_metadata=True)
+        state_manager = StateManagerMockFactory.create()
+        runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
+
+        batch = Batch(id=3, files=[str(file_a)])
+        result = "Batch level fallback content"
+
+        analyzer = MagicMock()
+        # Both batch and single-file analysis fail
+        analyzer.analyze_batch.side_effect = RuntimeError("Invalid json output")
+        analyzer.analyze.side_effect = RuntimeError("Invalid json output")
+
+        with patch("lantern_cli.core.runner.StructuredAnalyzer", return_value=analyzer):
+            runner._generate_bottom_up_doc(batch, result)
+
+        # Verify fallback markdown was generated
+        out_dir = tmp_path / ".lantern" / "output" / "en" / "bottom_up" / "src"
+        doc_a = (out_dir / "a.py.md").read_text(encoding="utf-8")
+        assert "a.py" in doc_a
+        assert "Batch level fallback content" in doc_a

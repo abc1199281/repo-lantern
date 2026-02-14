@@ -1,7 +1,7 @@
 """Cost tracking and estimation for LLM API usage."""
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 import urllib.request
 import json
 import logging

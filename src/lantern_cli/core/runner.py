@@ -23,6 +23,7 @@ from lantern_cli.llm.structured import (
     StructuredAnalyzer,
 )
 from lantern_cli.utils.cost_tracker import CostTracker
+from lantern_cli.utils.llm_logger import LLMLogger, timed_invoke
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class Runner:
         self.sense_dir = self.base_output_dir / "sense"
         # Bottom-up / top-down outputs are placed under {base_output_dir}/output/{lang}/...
         self.cost_tracker = CostTracker(model_name, is_local=is_local)
+        self.llm_logger = LLMLogger(root_path, output_dir=base_out)
 
     def run_batch(self, batch: Batch, prompt: str) -> bool:
         """Execute a single batch analysis.
@@ -76,6 +78,21 @@ class Runner:
         try:
             # 1. Prepare context (Temporal RAG)
             context = self._prepare_context()
+
+            # 1a. Read file contents for the LLM prompt
+            file_sections = []
+            for file_path in batch.files:
+                src_path = (
+                    Path(file_path)
+                    if Path(file_path).is_absolute()
+                    else self.root_path / file_path
+                )
+                try:
+                    content = src_path.read_text(encoding="utf-8")
+                    file_sections.append(f"### {file_path}\n```\n{content}\n```")
+                except OSError:
+                    file_sections.append(f"### {file_path}\n(unable to read)")
+            files_content = "\n\n".join(file_sections)
             
             # 1b. Estimate cost for this batch
             est_result = self.cost_tracker.estimate_batch_cost(
@@ -93,8 +110,10 @@ class Runner:
                 logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
             
             # 2. Call LLM directly (aggregate batch summary)
-            full_prompt = f"{prompt}\n\nContext:\n{context}" if context else prompt
-            response = self.llm.invoke(full_prompt)
+            full_prompt = f"{prompt}\n\nFiles:\n{files_content}"
+            if context:
+                full_prompt += f"\n\nContext:\n{context}"
+            response, latency_ms = timed_invoke(self.llm, full_prompt)
             
             # 2b. Record actual usage from LangChain response
             self.cost_tracker.record_from_usage_metadata(response)
@@ -107,12 +126,17 @@ class Runner:
                 raise
             
             logger.info(f"Batch {batch.id} completed with {len(raw_output)} chars")
-        
-            
-            # 3. Save .sense file
-            self._save_sense_file(batch, raw_output)
 
-            # 3b. Generate Bottom-up Markdown (Phase 5.5)
+            # 2c. Log LLM interaction
+            self.llm_logger.log(
+                caller="runner.run_batch",
+                prompt=full_prompt,
+                response=raw_output,
+                response_obj=response,
+                latency_ms=latency_ms,
+            )
+        
+            # 3. Generate Bottom-up Markdown & save .sense file
             self._generate_bottom_up_doc(batch, raw_output)
             
             # 4. Update Global Summary
@@ -215,7 +239,7 @@ class Runner:
                 break
             structured_results[idx] = interaction.analysis
             sense_records.append(
-                {"batch": batch.id, "file_index": idx, **interaction.to_dict()}
+                {"batch": batch.id, "file_index": idx, "file_path": batch.files[idx], **interaction.to_dict()}
             )
 
         if any(item is None for item in structured_results):
@@ -232,6 +256,7 @@ class Runner:
                         {
                             "batch": batch.id,
                             "file_index": idx,
+                            "file_path": batch.files[idx],
                             "prompt": batch_data[idx],
                             "raw_response": "fallback invocation",
                             "analysis": single.model_dump(),
@@ -243,6 +268,7 @@ class Runner:
                         {
                             "batch": batch.id,
                             "file_index": idx,
+                            "file_path": batch.files[idx],
                             "prompt": batch_data[idx],
                             "raw_response": f"fallback error: {exc}",
                             "analysis": {
@@ -271,6 +297,12 @@ class Runner:
             parsed = structured_results[idx]
             if parsed is None:
                 logger.warning(f"No structured analysis for {rel_path}, using batch-level fallback result")
+                md_content = (
+                    f"# {rel_path.name}\n\n"
+                    f"> **Original File**: `{rel_path}`\n"
+                    f"> **Batch**: {batch.id} ({idx + 1}/{num_files})\n\n"
+                    f"## Summary\n\n{result}\n"
+                )
             else:
                 md_content = self._render_structured_markdown(
                     rel_path=rel_path, batch_id=batch.id, index=idx + 1, num_files=num_files, parsed=parsed
