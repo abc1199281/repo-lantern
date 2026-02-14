@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel, Field, root_validator
 
 
@@ -33,11 +34,29 @@ def create_chain(llm: Any, json_schema: dict[str, Any], prompts: dict[str, str])
     The chain enforces `json_schema` through `with_structured_output` and accepts
     inputs with `file_content` and `language`.
     """
-    structured_llm = llm.with_structured_output(json_schema)
     prompt = ChatPromptTemplate.from_messages(
-        [("system", prompts["system"]), ("user", prompts["user"])]
+        [("system", prompts["system"]), ("user", prompts["user"]) ]
     )
-    return prompt | structured_llm
+
+    # Apply structured output schema to the LLM.
+    # This forces the model to return JSON matching the schema.
+    structured_llm = llm.with_structured_output(json_schema)
+
+    # Wrap into a Runnable that accepts a simple dict input like
+    # {"file_content": ..., "language": ...} and converts it into a
+    # PromptValue expected by the structured LLM. This ensures callers can
+    # call `chain.invoke(dict)` or `chain.batch(list[dict])` without having
+    # to construct PromptValue objects themselves.
+    def _runner(inp: Any) -> Any:
+        # If caller already provided a PromptValue or string, pass through.
+        if not isinstance(inp, dict):
+            return structured_llm.invoke(inp)
+
+        # Format a PromptValue from the dict using the ChatPromptTemplate
+        prompt_value = prompt.format_prompt(**inp)
+        return structured_llm.invoke(prompt_value)
+
+    return RunnableLambda(lambda x: _runner(x))
 
 
 def _extract_json(raw: str) -> str:

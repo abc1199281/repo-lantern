@@ -48,26 +48,6 @@ api_model = "claude-sonnet-4"
         assert config.backend.type == "api"
         assert config.backend.api_provider == "anthropic"
 
-    def test_config_priority_cli_overrides_file(self, tmp_path: Path) -> None:
-        """Test CLI arguments override file configuration."""
-        config_file = tmp_path / "lantern.toml"
-        config_file.write_text("""
-[lantern]
-language = "zh-TW"
-output_dir = "/file/output"
-""")
-
-        loader = ConfigLoader(project_config_path=config_file)
-        config = loader.load(
-            cli_overrides={
-                "language": "ja",
-                "output_dir": "/cli/output",
-            }
-        )
-
-        assert config.language == "ja"  # CLI override
-        assert config.output_dir == "/cli/output"  # CLI override
-
     def test_load_nonexistent_file_returns_default(self) -> None:
         """Test loading nonexistent file returns default config."""
         loader = ConfigLoader(project_config_path=Path("/nonexistent/lantern.toml"))

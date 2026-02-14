@@ -1,17 +1,16 @@
-"""Focused tests for OllamaBackend.get_llm."""
+"""Tests for create_ollama_llm factory function."""
 
 from unittest.mock import patch
 
 import pytest
 
-from lantern_cli.backends.ollama import OllamaBackend
+from lantern_cli.llm.ollama import create_ollama_llm
 
 
-def test_get_llm_constructs_chatollama_with_backend_config() -> None:
-    """Build ChatOllama with backend model/base_url/temperature."""
-    with patch("lantern_cli.backends.ollama.ChatOllama") as mock_chat:
-        backend = OllamaBackend(model="qwen3:8b", base_url="http://localhost:11434")
-        llm = backend.get_llm()
+def test_create_ollama_llm_constructs_chatollama() -> None:
+    """create_ollama_llm returns ChatOllama instance."""
+    with patch("lantern_cli.llm.ollama.ChatOllama") as mock_chat:
+        llm = create_ollama_llm(model="qwen3:8b", base_url="http://localhost:11434")
 
     assert llm is mock_chat.return_value
     mock_chat.assert_called_once_with(
@@ -21,21 +20,19 @@ def test_get_llm_constructs_chatollama_with_backend_config() -> None:
     )
 
 
-def test_get_llm_raises_runtime_error_when_langchain_ollama_missing() -> None:
+def test_create_ollama_llm_raises_runtime_error_when_langchain_ollama_missing() -> None:
     """Raise actionable error when langchain-ollama dependency is missing."""
-    with patch("lantern_cli.backends.ollama.ChatOllama", None), patch(
-        "lantern_cli.backends.ollama._CHAT_OLLAMA_IMPORT_ERROR", ImportError("missing")
+    with patch("lantern_cli.llm.ollama.ChatOllama", None), patch(
+        "lantern_cli.llm.ollama._CHAT_OLLAMA_IMPORT_ERROR", ImportError("missing")
     ):
-        backend = OllamaBackend(model="qwen3:8b", base_url="http://localhost:11434")
         with pytest.raises(RuntimeError, match="pip install langchain-ollama"):
-            backend.get_llm()
+            create_ollama_llm(model="qwen3:8b", base_url="http://localhost:11434")
 
 
-def test_get_llm_uses_trimmed_base_url_from_init() -> None:
+def test_create_ollama_llm_trims_base_url() -> None:
     """Use stripped base_url (without trailing slash)."""
-    with patch("lantern_cli.backends.ollama.ChatOllama") as mock_chat:
-        backend = OllamaBackend(model="qwen3:8b", base_url="http://localhost:11434/")
-        backend.get_llm()
+    with patch("lantern_cli.llm.ollama.ChatOllama") as mock_chat:
+        create_ollama_llm(model="qwen3:8b", base_url="http://localhost:11434/")
 
     mock_chat.assert_called_once_with(
         model="qwen3:8b",

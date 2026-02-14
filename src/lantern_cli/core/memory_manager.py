@@ -2,9 +2,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional
-
-from lantern_cli.backends.base import BackendAdapter
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +14,15 @@ class MemoryManager:
     COMPRESS_THRESHOLD = 3000  # Compress when summary exceeds this length
     TARGET_LENGTH = 1000  # Target length after compression
 
-    def __init__(self, backend: Optional[BackendAdapter] = None) -> None:
+    def __init__(self, llm: Optional[Any] = None) -> None:
         """Initialize MemoryManager.
 
         Args:
-            backend: Backend adapter for LLM compression (optional).
+            llm: LangChain ChatModel for LLM compression (optional).
         """
-        self.prompts = self._load_prompts()
-        self.backend = backend
+        self.llm = llm
         self.compression_count = 0
+        self.prompts = self._load_prompts()
 
     def update_summary(self, current_summary: str, new_content: str) -> str:
         """Update summary with new content, compressing if necessary.
@@ -88,8 +86,8 @@ class MemoryManager:
         Returns:
             Compressed summary, or None if compression fails.
         """
-        if not self.backend:
-            logger.debug("No backend available for compression")
+        if not self.llm:
+            logger.debug("No LLM available for compression")
             return None
 
         try:
@@ -107,7 +105,11 @@ class MemoryManager:
                 long_summary=long_summary
             )
 
-            compressed = self.backend.invoke(prompt).strip()
+            response = self.llm.invoke(prompt)
+            compressed = getattr(response, "content", response)
+            if isinstance(compressed, list):
+                compressed = "\n".join(str(item) for item in compressed)
+            compressed = str(compressed).strip()
 
             # Validate compression
             if len(compressed) < 100:

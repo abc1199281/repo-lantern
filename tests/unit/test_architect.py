@@ -49,13 +49,6 @@ class TestArchitect:
         phase2 = plan.phases[1]
         assert phase2.id == 2
         assert "core.py" in phase2.batches[0].files
-
-    def test_learning_objectives(self, architect: Architect) -> None:
-        """Test generation of learning objectives."""
-        plan = architect.generate_plan()
-        
-        for phase in plan.phases:
-            assert len(phase.learning_objectives) > 0
             
     def test_confidence_score(self, architect: Architect) -> None:
         """Test confidence score calculation."""

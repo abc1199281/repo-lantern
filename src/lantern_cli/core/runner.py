@@ -1,10 +1,20 @@
-"""Runner module for executing analysis batches."""
+"""Runner module for executing analysis batches.
+
+Architecture:
+- Directly uses LangChain ChatModel (no adapter layer)
+- Records actual token usage via response.usage_metadata
+- Extracts and validates response content
+- Delegates compression to MemoryManager
+
+LLM Response Contract:
+- Must return object with .content attribute
+- For cost tracking: optional .usage_metadata dict with 'input_tokens' and 'output_tokens'
+"""
 import json
 import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from lantern_cli.backends.base import BackendAdapter, AnalysisResult
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.llm.structured import (
@@ -25,7 +35,7 @@ class Runner:
     def __init__(
         self, 
         root_path: Path, 
-        backend: BackendAdapter, 
+        llm: Any,
         state_manager: StateManager,
         language: str = "en",
         model_name: str = "gemini-1.5-flash",
@@ -36,14 +46,14 @@ class Runner:
 
         Args:
             root_path: Project root path.
-            backend: Configured backend adapter.
+            llm: LangChain ChatModel instance (from factory).
             state_manager: State manager instance.
             language: Output language (default: en).
             model_name: LLM model name for cost tracking.
             is_local: Whether the model is running locally (free).
         """
         self.root_path = root_path
-        self.backend = backend
+        self.llm = llm
         self.state_manager = state_manager
         self.language = language
         # Base output dir is configurable (from lantern.toml or CLI). Default to ".lantern" if unset.
@@ -82,31 +92,32 @@ class Runner:
             else:
                 logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
             
-            # 2. Call backend (aggregate batch summary)
-            result = self.backend.invoke(f"{prompt}\n\nContext:\n{context}")
+            # 2. Call LLM directly (aggregate batch summary)
+            full_prompt = f"{prompt}\n\nContext:\n{context}" if context else prompt
+            response = self.llm.invoke(full_prompt)
             
-            # 2b. Record actual usage
-            # For now, use estimated tokens as we don't have actual token counts from backends
-            # In future, backends should return actual token counts
-            input_tokens = self.cost_tracker.estimate_tokens(context + prompt)
-            for file_path in batch.files:
-                input_tokens += self.cost_tracker.estimate_file_tokens(file_path)
-            output_tokens = self.cost_tracker.estimate_tokens(result)
+            # 2b. Record actual usage from LangChain response
+            self.cost_tracker.record_from_usage_metadata(response)
             
-            self.cost_tracker.record_usage(input_tokens, output_tokens)
-            logger.info(
-                f"Batch {batch.id} completed: {input_tokens + output_tokens} tokens used"
-            )
+            # Extract and validate content from response
+            try:
+                raw_output = self._extract_response_content(response)
+            except ValueError as e:
+                logger.error(f"Failed to extract response content: {e}")
+                raise
+            
+            logger.info(f"Batch {batch.id} completed with {len(raw_output)} chars")
+        
             
             # 3. Save .sense file
-            self._save_sense_file(batch, result)
+            self._save_sense_file(batch, raw_output)
 
             # 3b. Generate Bottom-up Markdown (Phase 5.5)
-            self._generate_bottom_up_doc(batch, result)
+            self._generate_bottom_up_doc(batch, raw_output)
             
             # 4. Update Global Summary
             # Delegate to StateManager which uses MemoryManager for compression
-            new_content = f"Batch {batch.id} Summary:\n{result}"
+            new_content = f"Batch {batch.id} Summary:\n{raw_output}"
             self.state_manager.update_global_summary(new_content)
             
             # 5. Update State
@@ -118,7 +129,56 @@ class Runner:
             self.state_manager.update_batch_status(batch.id, success=False)
             return False
 
-    def _generate_bottom_up_doc(self, batch: Batch, result: AnalysisResult) -> None:
+    def _extract_response_content(self, response: Any) -> str:
+        """Extract and validate response content from LangChain ChatModel.
+        
+        Defensive extraction that handles multiple response formats:
+        - AIMessage with .content attribute (string or list)
+        - Raw string responses
+        - List responses (some LLMs return list of content blocks)
+        
+        Validates at multiple levels:
+        1. Response object is not None/falsy
+        2. Content list is not empty (if list)
+        3. Final string is not empty after stripping
+        
+        This method ensures run_batch() never crashes on unexpected response formats.
+
+        Args:
+            response: LangChain response object (AIMessage, ChatMessage, or string).
+
+        Returns:
+            Extracted and validated text content as non-empty string.
+
+        Raises:
+            ValueError: If response is None, content is empty, or extraction fails.
+            
+        Example:
+            >>> response = llm.invoke([...])
+            >>> text = runner._extract_response_content(response)
+            >>> print(text)  # Guaranteed non-empty string
+        """
+        if not response:
+            raise ValueError("Empty response from LLM")
+
+        # Get content attribute, fallback to response itself if string
+        content = getattr(response, "content", response)
+
+        # Handle list responses (some LLMs return list of content)
+        if isinstance(content, list):
+            if not content:
+                raise ValueError("Response content list is empty")
+            content = "\n".join(str(item) for item in content if item)
+
+        # Convert to string and strip
+        text = str(content).strip()
+
+        if not text:
+            raise ValueError("Response content is empty after extraction")
+
+        return text
+
+    def _generate_bottom_up_doc(self, batch: Batch, result: str) -> None:
         """Generate formatted bottom-up documentation for the batch.
 
         Primary path uses structured batch analysis (`chain.batch`) to generate
@@ -128,8 +188,7 @@ class Runner:
         # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
         base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
 
-        llm = self.backend.get_llm()
-        analyzer = StructuredAnalyzer(llm)
+        analyzer = StructuredAnalyzer(self.llm)
 
         rel_paths: list[Path] = []
         batch_data: list[dict[str, str]] = []
@@ -211,9 +270,7 @@ class Runner:
 
             parsed = structured_results[idx]
             if parsed is None:
-                md_content = self._render_fallback_markdown(
-                    rel_path=rel_path, batch_id=batch.id, index=idx + 1, num_files=num_files, result=result
-                )
+                logger.warning(f"No structured analysis for {rel_path}, using batch-level fallback result")
             else:
                 md_content = self._render_structured_markdown(
                     rel_path=rel_path, batch_id=batch.id, index=idx + 1, num_files=num_files, parsed=parsed
@@ -268,29 +325,6 @@ class Runner:
             lines.extend(["", "## References"])
             lines.extend([f"- {item}" for item in parsed.references])
         return "\n".join(lines).rstrip() + "\n"
-
-    def _render_fallback_markdown(
-        self,
-        rel_path: Path,
-        batch_id: int,
-        index: int,
-        num_files: int,
-        result: AnalysisResult,
-    ) -> str:
-        lines = [
-            f"# {rel_path.name}",
-            "",
-            f"> **Original File**: `{rel_path}`",
-            f"> **Batch**: {batch_id} ({index}/{num_files})",
-            "",
-            "## Summary",
-            result.summary,
-        ]
-        if result.key_insights:
-            lines.extend(["", "## Key Insights"])
-            lines.extend([f"- {insight}" for insight in result.key_insights])
-        return "\n".join(lines).rstrip() + "\n"
-
 
 
     def _prepare_context(self) -> str:

@@ -39,20 +39,20 @@ class TestBackendConfig:
     """Test BackendConfig model."""
 
     def test_default_backend_type(self) -> None:
-        """Test default backend type is CLI."""
+        """Test default backend type is Ollama."""
         config = BackendConfig()
-        assert config.type == "cli"
+        assert config.type == "ollama"
 
-    def test_cli_backend_config(self) -> None:
-        """Test CLI backend configuration."""
+    def test_ollama_backend_config(self) -> None:
+        """Test Ollama backend configuration."""
         config = BackendConfig(
-            type="cli",
-            cli_command="gemini",
-            cli_timeout=300,
+            type="ollama",
+            ollama_model="qwen2:7b",
+            ollama_url="http://localhost:11434",
         )
-        assert config.type == "cli"
-        assert config.cli_command == "gemini"
-        assert config.cli_timeout == 300
+        assert config.type == "ollama"
+        assert config.ollama_model == "qwen2:7b"
+        assert config.ollama_url == "http://localhost:11434"
 
     def test_api_backend_config(self) -> None:
         """Test API backend configuration."""

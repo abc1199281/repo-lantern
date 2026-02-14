@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from lantern_cli.config.loader import load_config
-from lantern_cli.backends.factory import BackendFactory
+from lantern_cli.llm.factory import create_llm
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.core.architect import Architect
 from lantern_cli.core.state_manager import StateManager
@@ -153,13 +153,13 @@ def run(
 
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
-    console.print(f"Backend: {config.backend.type} ({config.backend.api_provider })")
+    console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
 
-    # 2. Initialize Backend
+    # 2. Initialize LLM
     try:
-        backend_adapter = BackendFactory.create(config)
+        llm = create_llm(config)
     except Exception as e:
-        console.print(f"[bold red]Error initializing backend:[/bold red] {e}")
+        console.print(f"[bold red]Error initializing LLM:[/bold red] {e}")
         raise typer.Exit(code=1)
 
     with Progress(
@@ -203,8 +203,8 @@ def run(
         is_local = True
     
     # Initialize state manager (needed for pending batches)
-    # Pass backend_adapter for MemoryManager compression
-    state_manager = StateManager(repo_path, backend=backend_adapter)
+    # Pass LLM for MemoryManager compression
+    state_manager = StateManager(repo_path, llm=llm)
     
     cost_tracker = CostTracker(model_name, is_local=is_local)
     pending_batches = state_manager.get_pending_batches(plan)
@@ -277,7 +277,7 @@ def run(
             
             runner = Runner(
                 repo_path, 
-                backend_adapter, 
+                llm, 
                 state_manager, 
                 language=config.language,
                 model_name=model_name,

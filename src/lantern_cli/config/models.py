@@ -21,9 +21,9 @@ class FilterConfig(BaseModel):
 class BackendConfig(BaseModel):
     """Backend configuration for LLM."""
 
-    type: Literal["api", "ollama"] = Field(
+    type: Literal["api", "ollama", "openrouter"] = Field(
         default="ollama",
-        description="Backend type: api or ollama",
+        description="Backend type: api, ollama, or openrouter",
     )
 
     # API backend options
@@ -52,6 +52,20 @@ class BackendConfig(BaseModel):
     ollama_url: str | None = Field(
         default="http://localhost:11434",
         description="Ollama base URL",
+    )
+
+    # OpenRouter backend options
+    openrouter_model: str | None = Field(
+        default=None,
+        description="OpenRouter model identifier",
+    )
+    openrouter_url: str | None = Field(
+        default=None,
+        description="OpenRouter base URL",
+    )
+    openrouter_api_key_env: str | None = Field(
+        default="OPENROUTER_API_KEY",
+        description="Environment variable name containing OpenRouter API key",
     )
 
 

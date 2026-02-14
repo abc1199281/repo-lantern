@@ -15,6 +15,15 @@ exclude = [
     "**/build*/*"
 ]
 
+# [backend]
+# type = "ollama"
+# ollama_model = "qwen3:8b"
+
+# Alternative backend configurations:
+
+# OpenRouter backend:
 [backend]
-type = "ollama"
-ollama_model = "qwen3:8b"
+type = "openrouter"
+openrouter_model = "openrouter/aurora-alpha"
+# openrouter_url = "https://openrouter.ai/api/v1"
+# openrouter_api_key_env = "OPENROUTER_API_KEY"  # Set: export OPENROUTER_API_KEY=<your-key>
