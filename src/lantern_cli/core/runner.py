@@ -79,28 +79,13 @@ class Runner:
             # 1. Prepare context (Temporal RAG)
             context = self._prepare_context()
 
-            # 1a. Read file contents for the LLM prompt
-            file_sections = []
-            for file_path in batch.files:
-                src_path = (
-                    Path(file_path)
-                    if Path(file_path).is_absolute()
-                    else self.root_path / file_path
-                )
-                try:
-                    content = src_path.read_text(encoding="utf-8")
-                    file_sections.append(f"### {file_path}\n```\n{content}\n```")
-                except OSError:
-                    file_sections.append(f"### {file_path}\n(unable to read)")
-            files_content = "\n\n".join(file_sections)
-            
-            # 1b. Estimate cost for this batch
+            # 1a. Estimate cost for this batch
             est_result = self.cost_tracker.estimate_batch_cost(
                 files=batch.files,
                 context=context,
                 prompt=prompt
             )
-            
+
             if est_result:
                 estimated_tokens, estimated_cost = est_result
                 logger.debug(
@@ -108,10 +93,10 @@ class Runner:
                 )
             else:
                 logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
-            
+
             # 2. Generate Bottom-up Markdown & save .sense file using StructuredAnalyzer
-            # This handles the LLM call internally with structured output
-            sense_records = self._generate_bottom_up_doc(batch, files_content)
+            # File reading is handled inside _generate_bottom_up_doc per-file
+            sense_records = self._generate_bottom_up_doc(batch)
 
             # 3. Update Global Summary from structured results
             # Collect summaries from all files in the batch
@@ -185,7 +170,7 @@ class Runner:
 
         return text
 
-    def _generate_bottom_up_doc(self, batch: Batch, files_content: str) -> list[dict[str, Any]]:
+    def _generate_bottom_up_doc(self, batch: Batch) -> list[dict[str, Any]]:
         """Generate formatted bottom-up documentation for the batch.
 
         Primary path uses structured batch analysis (`chain.batch`) to generate
@@ -352,19 +337,6 @@ class Runner:
         if len(summary) > self.MAX_CONTEXT_LENGTH:
             return summary[:self.MAX_CONTEXT_LENGTH] # Should be pre-truncated but safe guard
         return summary
-
-    def _save_sense_file(self, batch: Batch, content: str) -> None:
-        """Save the raw analysis output to a .sense file."""
-        try:
-            self.sense_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            logger.warning(f"Could not create sense directory {self.sense_dir}: {e}")
-            
-        filename = f"batch_{batch.id:04d}.sense"
-        file_path = self.sense_dir / filename
-        
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(content)
 
     def get_cost_report(self) -> str:
         """Get cost report from cost tracker.

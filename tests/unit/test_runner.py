@@ -144,7 +144,6 @@ class TestBottomUpDocGeneration:
         runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
 
         batch = Batch(id=2, files=[str(file_a), str(file_b)])
-        result = "batch fallback content"
 
         analyzer = MagicMock()
         analyzer.analyze_batch.return_value = [
@@ -165,7 +164,7 @@ class TestBottomUpDocGeneration:
         ]
 
         with patch("lantern_cli.core.runner.StructuredAnalyzer", return_value=analyzer):
-            runner._generate_bottom_up_doc(batch, result)
+            runner._generate_bottom_up_doc(batch)
 
         analyzer.analyze_batch.assert_called_once()
 
@@ -192,7 +191,6 @@ class TestBottomUpDocGeneration:
         runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
 
         batch = Batch(id=3, files=[str(file_a)])
-        result = "unused fallback string"
 
         analyzer = MagicMock()
         # Both batch and single-file analysis fail
@@ -200,7 +198,7 @@ class TestBottomUpDocGeneration:
         analyzer.analyze.side_effect = RuntimeError("Invalid json output")
 
         with patch("lantern_cli.core.runner.StructuredAnalyzer", return_value=analyzer):
-            runner._generate_bottom_up_doc(batch, result)
+            runner._generate_bottom_up_doc(batch)
 
         # Verify fallback markdown was generated with failure message
         out_dir = tmp_path / ".lantern" / "output" / "en" / "bottom_up" / "src"
