@@ -20,8 +20,6 @@
 | 🌐 **母語輸出** | 技術文檔以你的母語呈現——中文、日文、西班牙文等 |
 | 📊 **自動生成圖表** | 為每個模組自動生成 Mermaid 流程圖 + Sequence Diagram |
 | 💡 **概念萃取** | 核心認知模型：認證流程、快取策略、重試機制 |
-| 💰 **成本透明度** | 執行前成本估算與即時 token 追蹤 |
-| 🔄 **檢查點恢復** | 失敗分析可重啟而不丟失進度——生產級可靠性 |
 | 🔒 **本地優先、隱私可控** | 支援 Ollama 100% 本地分析——適合企業與敏感程式碼庫 |
 
 ---
@@ -266,28 +264,6 @@ lantern plan
 # Step 3: 執行分析
 lantern run
 ```
-
----
-
-# 實際範例
-
-分析 [accellera-official/systemc](https://github.com/accellera-official/systemc)：
-
-**Top-down 輸出** (`ARCHITECTURE.md`)：
-> SystemC 實際上是一個 **專為硬體模擬設計的協作式多任務作業系統**。
-> 其核心是 `sc_simcontext`，充當核心、排程器和事件管理器。
-
-**Bottom-up 輸出** (`sc_simcontext.md`)：
-> `sc_simcontext` 是 SystemC 模擬核心的 **中樞神經系統**。
-> 它管理：全域模擬狀態、物件註冊表、排程器、處理程序管理。
-
----
-
-# 實例展示：Lantern 自我分析
-
-[點擊查看 Lantern 分析自身程式碼庫 (`lantern-cli`) 後生成的架構報告摘要](.lantern/output/zh-TW)
-
----
 
 # 設定
 
