@@ -18,10 +18,11 @@ Understand codebases faster with AI-guided architecture scans, planned learning 
 | :--- | :--- |
 | 🧠 **Cognitive Load Reduction** | Psychology-based chunking (Miller's Law) breaks analysis into digestible batches |
 | 🌐 **Native Language Output** | Technical docs in your mother tongue—Chinese, Japanese, Spanish, and more |
-| 📈 **Flow Reconstruction** | Sequence diagrams showing `request → service → db → response` |
+| 📊 **Auto-Generated Diagrams** | Mermaid flowcharts + sequence diagrams automatically created for every module |
 | 💡 **Concept Extraction** | Key mental models: authentication flow, caching strategy, retry mechanisms |
-| 📊 **Visual Scaffolding** | Mermaid architecture diagrams + sequence diagrams |
-| 🔒 **Local & Private** | CLI-native, no cloud uploads—safe for enterprise codebases |
+| 💰 **Cost Transparency** | Pre-execution cost estimates with real-time token tracking |
+| 🔄 **Checkpoint Resume** | Restart failed analyses without losing progress—production-grade reliability |
+| 🔒 **Local & Private** | Supports Ollama for 100% local analysis—safe for enterprise codebases |
 
 ---
 
@@ -71,8 +72,8 @@ Not just documentation—**designed for human comprehension**. Chunking, scaffol
 ### 🔄 Dual-Perspective Analysis
 **Bottom-up** (file-by-file details) + **Top-down** (architecture overview) = complete understanding from any angle.
 
-### 🔌 Adaptable Backends
-Works with your preferred AI CLI: Codex, Gemini, Claude. Swap backends without changing your workflow.
+### 🔌 Flexible Backends
+Choose between local privacy (Ollama) or cloud power (OpenRouter). Swap backends without changing your workflow.
 
 ### ✏️ Human-in-the-Loop
 Review and edit `lantern_plan.md` before execution. You control what gets analyzed and how.
@@ -101,10 +102,9 @@ path to repo
 ├── en/
 │   ├── top_down/                    # 📖 High-level guides
 │   │   ├── OVERVIEW.md             # Project vision & scope
-│   │   ├── ARCHITECTURE.md         # System design & module relationships
+│   │   ├── ARCHITECTURE.md         # System design + Mermaid dependency graphs
 │   │   ├── CONCEPTS.md             # Key concepts (auth flow, caching, retry)
-│   │   ├── FLOWS.md                # Critical data flows (Sequence Diagrams)
-│   │   └── GETTING_STARTED.md      # Onboarding guide
+│   │   └── GETTING_STARTED.md      # Onboarding guide + Mermaid sequence diagrams
 │   │
 │   └── bottom_up/                   # 📝 File-by-file analysis
 │       └── src/                     # Mirrors your repo structure
@@ -129,6 +129,41 @@ You don't need to manage this—just run `lantern run` and let it work.
 
 ---
 
+# Visual Flow Reconstruction
+
+Lantern automatically generates **Mermaid diagrams** for every analyzed file, embedded in both bottom-up and top-down documentation:
+
+### Architecture Diagrams
+Show module dependencies and relationships in `ARCHITECTURE.md`:
+
+```mermaid
+graph LR
+    API --> Auth
+    API --> Models
+    Auth --> Database
+    Models --> Database
+```
+
+### Sequence Diagrams
+Illustrate request/response flows in `GETTING_STARTED.md`:
+
+```mermaid
+sequenceDiagram
+    User->>API: POST /login
+    API->>Auth: validate()
+    Auth->>DB: check_credentials()
+    DB-->>Auth: user_data
+    Auth-->>API: token
+    API-->>User: 200 OK
+```
+
+### Per-File Flow Diagrams
+Each file's documentation includes a custom flow diagram showing its internal logic.
+
+**No manual diagramming needed**—Lantern's AI analyzes code structure and generates these automatically.
+
+---
+
 # Key Ideas
 
 Lantern is built on psychological design principles:
@@ -148,26 +183,34 @@ Final outputs are designed for human reading, not machine consumption, focusing 
 
 ## Prerequisites
 
-### Option A: API Key (Recommended)
+Lantern supports two backend options:
 
-Set up an API key for stable, non-interactive analysis:
+### Option A: Local Model (Free, Private)
 
-| Provider | API Key Setup |
-| :--- | :--- |
-| **Gemini** | `export GEMINI_API_KEY="your-key"` ([Get key](https://aistudio.google.com/app/apikey)) |
-| **Claude** | `export ANTHROPIC_API_KEY="your-key"` ([Get key](https://console.anthropic.com/)) |
+Install [Ollama](https://ollama.ai) and pull a model:
 
-### Option B: CLI Tools (Experimental)
+```bash
+# Install Ollama (see https://ollama.ai for your platform)
+# Then pull a recommended model:
+ollama pull qwen2.5:14b
+```
 
-Alternatively, install one of these AI CLI tools:
+**Best for**: Offline work, sensitive codebases, zero API costs
 
-| CLI Tool | Installation |
-| :--- | :--- |
-| **Codex CLI** | `npm install -g @openai/codex` |
-| **Gemini CLI** | `npm install -g @google/gemini-cli` |
-| **Claude Code** | `npm install -g @anthropic/claude-code` |
+### Option B: Cloud API (Best Quality)
 
-> ⚠️ CLI mode may encounter authentication issues or interactive prompts. API mode is recommended for automation.
+Get an [OpenRouter API key](https://openrouter.ai/keys) and set it:
+
+```bash
+export OPENROUTER_API_KEY="your-key-here"
+```
+
+**Best for**: Latest models (GPT-4, Claude Sonnet), highest quality output
+
+| Backend | Cost | Privacy | Quality | Speed |
+| :--- | :--- | :--- | :--- | :--- |
+| **Ollama** | Free | 100% Local | Good | Medium |
+| **OpenRouter** | Pay-per-token | Cloud API | Excellent | Fast |
 
 ## Installation
 
@@ -183,9 +226,19 @@ lantern run
 
 # Specify input and output
 lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
+
+# Use specific language
+lantern run --lang zh-TW  # Traditional Chinese
 ```
 
-Lantern auto-detects available CLI backends: `codex` → `gemini` → `claude`. You can configure the backend in `lantern.toml`.
+Lantern will show you a **cost estimate** before starting. The default backend is OpenRouter, but you can configure it in `.lantern/lantern.toml`:
+
+```toml
+[backend]
+type = "ollama"              # or "openrouter"
+ollama_model = "qwen2.5:14b"
+# openrouter_model = "openai/gpt-4o"
+```
 
 ## Advanced Mode
 
@@ -237,12 +290,37 @@ lantern run --lang zh-TW
 
 ---
 
-# Supported Agents
+# Backend Configuration
 
-Lantern drives your favorite CLI agents:
-* Claude Code
-* Gemini CLI (Antigravity)
-* Open-source local runners
+Lantern supports multiple LLM backends with easy configuration:
+
+### Ollama (Local Models)
+```toml
+# .lantern/lantern.toml
+[backend]
+type = "ollama"
+ollama_model = "qwen2.5:14b"  # or llama3, mistral, etc.
+```
+
+### OpenRouter (Cloud API)
+```toml
+[backend]
+type = "openrouter"
+openrouter_model = "openai/gpt-4o"  # or anthropic/claude-sonnet-4, etc.
+```
+
+Set your API key:
+```bash
+export OPENROUTER_API_KEY="sk-or-v1-..."
+```
+
+### Cost Estimation
+Before execution, Lantern fetches **real-time pricing** and shows you:
+- Estimated input/output tokens
+- Projected cost (USD)
+- Confirmation prompt
+
+Local models (Ollama) show $0.00 cost.
 
 ---
 
