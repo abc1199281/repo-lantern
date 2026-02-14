@@ -18,7 +18,6 @@ SAMPLE_SENSE_RECORDS = [
             "functions": ["main(): entry point", "parse_args(): handle CLI"],
             "classes": [],
             "flow": "User calls main -> parse_args -> run",
-            "risks": [],
             "references": ["argparse", "sys"],
             "language": "en",
         },
@@ -33,7 +32,6 @@ SAMPLE_SENSE_RECORDS = [
             "functions": ["save(): persist data", "load(): read data"],
             "classes": ["Database: wraps SQLite connection"],
             "flow": "save writes to DB, load reads from DB",
-            "risks": ["No migration support"],
             "references": ["sqlite3"],
             "language": "en",
         },
@@ -103,10 +101,9 @@ class TestSynthesizer:
         assert "main(): entry point" in started
         assert "save(): persist data" in started
 
-        # Concepts should contain classes and risks (key_insights deduplicated to OVERVIEW)
+        # Concepts should contain classes (key_insights deduplicated to OVERVIEW)
         assert "### `src/app/db.py`" in concepts
         assert "Database" in concepts
-        assert "No migration support" in concepts
 
     def test_empty_sense_files(self, tmp_path: Path) -> None:
         """Test behavior with no sense files."""
@@ -267,8 +264,7 @@ class TestSynthesizer:
                     "classes": [],
                     "flow": "User calls main",
                     "flow_diagram": "graph TD\n    A[User] --> B[main]\n    B --> C[run]",
-                    "risks": [],
-                    "references": [],
+                            "references": [],
                     "language": "en",
                 },
             },

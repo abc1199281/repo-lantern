@@ -30,39 +30,46 @@ class TestRunBatchLifecycle:
     """Test Runner.run_batch execution lifecycle."""
 
     def test_run_batch_success(
-        self, runner: Runner, mock_llm: MagicMock, mock_state_manager: MagicMock
+        self, runner: Runner, mock_state_manager: MagicMock
     ) -> None:
-        """Test successful batch execution."""
+        """Test successful batch execution.
+
+        Runner delegates LLM calls to StructuredAnalyzer via _generate_bottom_up_doc,
+        so we patch that method and verify the lifecycle (success flag + state update).
+        """
         batch = Batch(id=1, files=["file1.py"])
 
-        with patch.object(runner, "_generate_bottom_up_doc") as mock_bottom_up:
+        with patch.object(runner, "_generate_bottom_up_doc", return_value=[]) as mock_bottom_up:
             success = runner.run_batch(batch, "Prompt")
 
         assert success is True
-        mock_llm.invoke.assert_called_once()
         mock_bottom_up.assert_called_once()
         mock_state_manager.update_batch_status.assert_called_with(1, success=True)
 
-    def test_run_batch_failure_on_llm_error(
+    def test_run_batch_failure_on_analysis_error(
         self, runner: Runner, mock_state_manager: MagicMock
     ) -> None:
-        """Test batch failure handling when LLM errors."""
+        """Test batch failure handling when analysis raises an unrecoverable error."""
         batch = Batch(id=1, files=["file1.py"])
-        runner.llm.invoke.side_effect = Exception("LLM API Error")
 
-        success = runner.run_batch(batch, "Prompt")
+        with patch.object(
+            runner, "_generate_bottom_up_doc", side_effect=RuntimeError("LLM API Error")
+        ):
+            success = runner.run_batch(batch, "Prompt")
 
         assert success is False
         mock_state_manager.update_batch_status.assert_called_with(1, success=False)
 
-    def test_run_batch_failure_on_empty_response(
+    def test_run_batch_failure_on_doc_generation_error(
         self, runner: Runner, mock_state_manager: MagicMock
     ) -> None:
-        """Test batch failure when response is empty."""
+        """Test batch failure when doc generation raises."""
         batch = Batch(id=1, files=["file1.py"])
-        runner.llm.invoke.return_value = MagicMock(content="")
 
-        success = runner.run_batch(batch, "Prompt")
+        with patch.object(
+            runner, "_generate_bottom_up_doc", side_effect=OSError("Disk full")
+        ):
+            success = runner.run_batch(batch, "Prompt")
 
         assert success is False
         mock_state_manager.update_batch_status.assert_called_with(1, success=False)
@@ -137,7 +144,6 @@ class TestBottomUpDocGeneration:
         runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
 
         batch = Batch(id=2, files=[str(file_a), str(file_b)])
-        result = "batch fallback content"
 
         analyzer = MagicMock()
         analyzer.analyze_batch.return_value = [
@@ -158,7 +164,7 @@ class TestBottomUpDocGeneration:
         ]
 
         with patch("lantern_cli.core.runner.StructuredAnalyzer", return_value=analyzer):
-            runner._generate_bottom_up_doc(batch, result)
+            runner._generate_bottom_up_doc(batch)
 
         analyzer.analyze_batch.assert_called_once()
 
@@ -174,7 +180,7 @@ class TestBottomUpDocGeneration:
 
         When analyze_batch raises an exception and per-file fallback also fails,
         all structured_results entries are None. The runner should still produce
-        markdown files using the batch-level fallback result.
+        a fallback markdown with 'Analysis failed or not available.' message.
         """
         file_a = tmp_path / "src" / "a.py"
         file_a.parent.mkdir(parents=True, exist_ok=True)
@@ -185,7 +191,6 @@ class TestBottomUpDocGeneration:
         runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
 
         batch = Batch(id=3, files=[str(file_a)])
-        result = "Batch level fallback content"
 
         analyzer = MagicMock()
         # Both batch and single-file analysis fail
@@ -193,10 +198,10 @@ class TestBottomUpDocGeneration:
         analyzer.analyze.side_effect = RuntimeError("Invalid json output")
 
         with patch("lantern_cli.core.runner.StructuredAnalyzer", return_value=analyzer):
-            runner._generate_bottom_up_doc(batch, result)
+            runner._generate_bottom_up_doc(batch)
 
-        # Verify fallback markdown was generated
+        # Verify fallback markdown was generated with failure message
         out_dir = tmp_path / ".lantern" / "output" / "en" / "bottom_up" / "src"
         doc_a = (out_dir / "a.py.md").read_text(encoding="utf-8")
         assert "a.py" in doc_a
-        assert "Batch level fallback content" in doc_a
+        assert "Analysis failed or not available." in doc_a
