@@ -1,5 +1,5 @@
 [project]
-name = "lantern-cli"
+name = "repo-lantern"
 version = "0.1.0"
 description = "Your repository mentor - AI-guided codebase analysis with psychology-driven design"
 authors = [
@@ -33,6 +33,7 @@ dev = [
 ]
 
 [project.scripts]
+repo-lantern = "lantern_cli.cli.main:app"
 lantern = "lantern_cli.cli.main:app"
 
 [tool.poetry]

@@ -1,4 +1,4 @@
-"""Pytest configuration and shared fixtures for lantern-cli tests."""
+"""Pytest configuration and shared fixtures for repo-lantern tests."""
 
 import pytest
 

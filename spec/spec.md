@@ -66,7 +66,7 @@ export OPENAI_API_KEY="sk-..."
 - **LangChain 整合**：使用 `ChatOpenAI` 搭配 OpenRouter 端點
 - **模型選擇豐富**：支援所有 OpenRouter 提供的模型
 - **成本透明**：執行前顯示估算成本
-- **線上定價**：自動從 GitHub 取得最新定價（https://raw.githubusercontent.com/powei-lin/lantern-cli/main/pricing.json）
+- **線上定價**：自動從 GitHub 取得最新定價（https://raw.githubusercontent.com/powei-lin/repo-lantern/main/pricing.json）
 
 **配置範例**：
 ```toml
@@ -920,7 +920,7 @@ lantern run --backend gemini
 - 顯示預計成本並要求使用者確認
 
 **定價來源**：
-- GitHub Repo: https://raw.githubusercontent.com/powei-lin/lantern-cli/main/pricing.json
+- GitHub Repo: https://raw.githubusercontent.com/powei-lin/repo-lantern/main/pricing.json
 - 自動取得（3 秒逾時）
 - 網路失敗時使用本地備用定價
 

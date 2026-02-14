@@ -226,7 +226,7 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 ## Installation
 
 ```bash
-pip install lantern-cli
+pip install repo-lantern
 ```
 
 ## Simple Mode (Recommended)

@@ -548,4 +548,4 @@ lantern run --include-diagrams docs/architecture.png
 
 **最後更新**: 2025-02
 **維護者**: [@powei-lin](https://github.com/powei-lin)
-**意見回饋**: [GitHub Issues](https://github.com/powei-lin/lantern-cli/issues)
+**意見回饋**: [GitHub Issues](https://github.com/powei-lin/repo-lantern/issues)
