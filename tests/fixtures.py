@@ -1,4 +1,4 @@
-"""Shared test fixtures and factories for lantern-cli tests."""
+"""Shared test fixtures and factories for repo-lantern tests."""
 
 from pathlib import Path
 from unittest.mock import MagicMock

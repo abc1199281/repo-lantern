@@ -30,7 +30,7 @@ class CostTracker:
     """Track and estimate LLM API costs."""
 
     # Source URL for pricing data
-    PRICING_URL = "https://raw.githubusercontent.com/powei-lin/lantern-cli/main/pricing.json"
+    PRICING_URL = "https://raw.githubusercontent.com/powei-lin/repo-lantern/main/pricing.json"
 
     def __init__(self, model_name: str = "gemini-1.5-flash", is_local: bool = False) -> None:
         """Initialize CostTracker.
