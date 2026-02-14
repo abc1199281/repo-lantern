@@ -83,11 +83,7 @@ class Runner:
                 logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
             
             # 2. Call backend (aggregate batch summary)
-            result = self.backend.summarize_batch(
-                files=batch.files,
-                context=context,
-                prompt=prompt
-            )
+            result = self.backend.invoke(f"{prompt}\n\nContext:\n{context}")
             
             # 2b. Record actual usage
             # For now, use estimated tokens as we don't have actual token counts from backends
@@ -95,7 +91,7 @@ class Runner:
             input_tokens = self.cost_tracker.estimate_tokens(context + prompt)
             for file_path in batch.files:
                 input_tokens += self.cost_tracker.estimate_file_tokens(file_path)
-            output_tokens = self.cost_tracker.estimate_tokens(result.raw_output)
+            output_tokens = self.cost_tracker.estimate_tokens(result)
             
             self.cost_tracker.record_usage(input_tokens, output_tokens)
             logger.info(
@@ -103,14 +99,14 @@ class Runner:
             )
             
             # 3. Save .sense file
-            self._save_sense_file(batch, result.raw_output)
+            self._save_sense_file(batch, result)
 
             # 3b. Generate Bottom-up Markdown (Phase 5.5)
             self._generate_bottom_up_doc(batch, result)
             
             # 4. Update Global Summary
             # Delegate to StateManager which uses MemoryManager for compression
-            new_content = f"Batch {batch.id} Summary:\n{result.summary}"
+            new_content = f"Batch {batch.id} Summary:\n{result}"
             self.state_manager.update_global_summary(new_content)
             
             # 5. Update State
@@ -191,8 +187,8 @@ class Runner:
                             "prompt": batch_data[idx],
                             "raw_response": f"fallback error: {exc}",
                             "analysis": {
-                                "summary": result.summary,
-                                "key_insights": result.key_insights,
+                                "summary": "",
+                                "key_insights": [],
                             },
                         }
                     )

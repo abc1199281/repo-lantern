@@ -45,11 +45,3 @@ class BackendAdapter(ABC):
         # Keep this minimal; file reading/prompt building belongs in core.
         raw_output = self.invoke(prompt if not context else f"{prompt}\n\nContext:\n{context}")
         return AnalysisResult(summary=raw_output.strip(), key_insights=[], raw_output=raw_output.strip())
-
-    def analyze_batch(self, files: list[str], context: str, prompt: str) -> AnalysisResult:
-        """Backward-compatible alias for `summarize_batch`.
-
-        Prefer calling `summarize_batch` to avoid confusion with structured
-        per-item batch execution (`StructuredAnalyzer.analyze_batch`).
-        """
-        return self.summarize_batch(files=files, context=context, prompt=prompt)

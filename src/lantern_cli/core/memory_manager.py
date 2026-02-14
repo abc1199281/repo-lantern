@@ -1,5 +1,7 @@
 """Memory management for Temporal RAG with intelligent compression."""
+import json
 import logging
+from pathlib import Path
 from typing import Optional
 
 from lantern_cli.backends.base import BackendAdapter
@@ -20,6 +22,7 @@ class MemoryManager:
         Args:
             backend: Backend adapter for LLM compression (optional).
         """
+        self.prompts = self._load_prompts()
         self.backend = backend
         self.compression_count = 0
 
@@ -57,6 +60,25 @@ class MemoryManager:
 
         return updated_summary
 
+    def _load_prompts(self) -> dict:
+        """Load prompts from JSON file.
+
+        Returns:
+            Dictionary containing prompt templates.
+        """
+        prompts_file = Path(__file__).parent.parent / "template" / "memory" / "prompts.json"
+        
+        if not prompts_file.exists():
+            logger.warning(f"Prompts file not found at {prompts_file}")
+            return {}
+        
+        try:
+            with open(prompts_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load prompts from {prompts_file}: {e}")
+            return {}
+
     def _compress_with_llm(self, long_summary: str) -> Optional[str]:
         """Compress summary using LLM.
 
@@ -71,19 +93,19 @@ class MemoryManager:
             return None
 
         try:
-            # Compression prompt optimized for cheap models (Flash/Haiku)
-            prompt = f"""Compress the following analysis summary to approximately {self.TARGET_LENGTH} characters while preserving:
-1. Core architectural decisions and design patterns
-2. Key module relationships and dependencies
-3. Important technical details and constraints
-4. Critical insights and findings
-
-Remove redundant details and verbose explanations. Be concise but preserve technical accuracy.
-
-SUMMARY TO COMPRESS:
-{long_summary}
-
-COMPRESSED SUMMARY (aim for ~{self.TARGET_LENGTH} chars):"""
+            # Get compression prompt template from JSON
+            compression_config = self.prompts.get("compression", {})
+            prompt_template = compression_config.get("template", "")
+            
+            if not prompt_template:
+                logger.warning("No compression prompt template found in prompts.json")
+                return None
+            
+            # Format prompt with parameters
+            prompt = prompt_template.format(
+                target_length=self.TARGET_LENGTH,
+                long_summary=long_summary
+            )
 
             compressed = self.backend.invoke(prompt).strip()
 

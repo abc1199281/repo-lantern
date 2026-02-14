@@ -11,7 +11,7 @@ class TestBackendFactory:
     """Test BackendFactory."""
 
     def test_create_api_ollama(self) -> None:
-        """Test creating Gemini API backend."""
+        """API backend is not implemented yet."""
         config = LanternConfig(
             backend=BackendConfig(
                 type="api",
@@ -19,7 +19,8 @@ class TestBackendFactory:
                 api_model="custom-gemini"
             )
         )
-        adapter = BackendFactory.create(config)
+        with pytest.raises(NotImplementedError):
+            BackendFactory.create(config)
 
     def test_create_unknown_api_backend(self) -> None:
         """Test creating unknown API backend."""
