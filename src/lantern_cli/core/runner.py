@@ -1,19 +1,15 @@
 """Runner module for executing analysis batches.
 
 Architecture:
-- Directly uses LangChain ChatModel (no adapter layer)
-- Records actual token usage via response.usage_metadata
+- Uses Backend protocol (no direct LangChain dependency)
+- Records actual token usage via LLMResponse.usage_metadata
 - Extracts and validates response content
 - Delegates compression to MemoryManager
-
-LLM Response Contract:
-- Must return object with .content attribute
-- For cost tracking: optional .usage_metadata dict with 'input_tokens' and 'output_tokens'
 """
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.state_manager import StateManager
@@ -23,7 +19,10 @@ from lantern_cli.llm.structured import (
     StructuredAnalyzer,
 )
 from lantern_cli.utils.cost_tracker import CostTracker
-from lantern_cli.utils.llm_logger import LLMLogger, timed_invoke
+from lantern_cli.utils.llm_logger import LLMLogger
+
+if TYPE_CHECKING:
+    from lantern_cli.llm.backend import Backend
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +33,9 @@ class Runner:
     MAX_CONTEXT_LENGTH = 4000
 
     def __init__(
-        self, 
-        root_path: Path, 
-        llm: Any,
+        self,
+        root_path: Path,
+        backend: "Backend",
         state_manager: StateManager,
         language: str = "en",
         model_name: str = "gemini-1.5-flash",
@@ -47,14 +46,14 @@ class Runner:
 
         Args:
             root_path: Project root path.
-            llm: LangChain ChatModel instance (from factory).
+            backend: Backend instance (from factory).
             state_manager: State manager instance.
             language: Output language (default: en).
             model_name: LLM model name for cost tracking.
             is_local: Whether the model is running locally (free).
         """
         self.root_path = root_path
-        self.llm = llm
+        self.backend = backend
         self.state_manager = state_manager
         self.language = language
         # Base output dir is configurable (from lantern.toml or CLI). Default to ".lantern" if unset.
@@ -122,33 +121,21 @@ class Runner:
             return False
 
     def _extract_response_content(self, response: Any) -> str:
-        """Extract and validate response content from LangChain ChatModel.
-        
-        Defensive extraction that handles multiple response formats:
-        - AIMessage with .content attribute (string or list)
+        """Extract and validate response content.
+
+        Handles multiple response formats:
+        - LLMResponse with .content attribute (str)
+        - Legacy LangChain AIMessage with .content (string or list)
         - Raw string responses
-        - List responses (some LLMs return list of content blocks)
-        
-        Validates at multiple levels:
-        1. Response object is not None/falsy
-        2. Content list is not empty (if list)
-        3. Final string is not empty after stripping
-        
-        This method ensures run_batch() never crashes on unexpected response formats.
 
         Args:
-            response: LangChain response object (AIMessage, ChatMessage, or string).
+            response: Response object (LLMResponse, AIMessage, or string).
 
         Returns:
             Extracted and validated text content as non-empty string.
 
         Raises:
             ValueError: If response is None, content is empty, or extraction fails.
-            
-        Example:
-            >>> response = llm.invoke([...])
-            >>> text = runner._extract_response_content(response)
-            >>> print(text)  # Guaranteed non-empty string
         """
         if not response:
             raise ValueError("Empty response from LLM")
@@ -183,7 +170,7 @@ class Runner:
         # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
         base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
 
-        analyzer = StructuredAnalyzer(self.llm)
+        analyzer = StructuredAnalyzer(self.backend)
 
         rel_paths: list[Path] = []
         batch_data: list[dict[str, str]] = []

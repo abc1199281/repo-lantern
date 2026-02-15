@@ -21,9 +21,19 @@ class FilterConfig(BaseModel):
 class BackendConfig(BaseModel):
     """Backend configuration for LLM."""
 
-    type: Literal["api", "ollama", "openai", "openrouter"] = Field(
+    type: Literal["api", "ollama", "openai", "openrouter", "cli"] = Field(
         default="ollama",
-        description="Backend type: api, ollama, openai, or openrouter",
+        description="Backend type: api, ollama, openai, openrouter, or cli",
+    )
+
+    # CLI backend options
+    cli_command: str | None = Field(
+        default=None,
+        description="CLI command to execute (e.g., 'codex exec')",
+    )
+    cli_model_name: str | None = Field(
+        default=None,
+        description="Model name for display and cost tracking",
     )
 
     # API backend options

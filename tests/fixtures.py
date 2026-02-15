@@ -2,15 +2,16 @@
 
 from pathlib import Path
 from unittest.mock import MagicMock
-from typing import Optional, Dict, Any
+from typing import Optional
 
 import pytest
 
 from lantern_cli.core.state_manager import ExecutionState
+from lantern_cli.llm.backend import LLMResponse
 
 
-class LLMMockFactory:
-    """Factory for creating consistent LLM mocks across tests."""
+class BackendMockFactory:
+    """Factory for creating consistent Backend mocks across tests."""
 
     @staticmethod
     def create(
@@ -18,7 +19,7 @@ class LLMMockFactory:
         input_tokens: Optional[int] = None,
         output_tokens: Optional[int] = None,
     ) -> MagicMock:
-        """Create a mock LLM with optional usage metadata.
+        """Create a mock Backend with optional usage metadata.
 
         Args:
             content: Response content text.
@@ -26,61 +27,63 @@ class LLMMockFactory:
             output_tokens: Optional output token count for usage_metadata.
 
         Returns:
-            Configured MagicMock LLM instance.
+            Configured MagicMock Backend instance.
         """
-        llm = MagicMock()
-        response = MagicMock(content=content)
+        backend = MagicMock()
 
-        # Add usage_metadata if tokens provided
+        usage = None
         if input_tokens is not None or output_tokens is not None:
-            response.usage_metadata = {
+            usage = {
                 "input_tokens": input_tokens or 0,
                 "output_tokens": output_tokens or 0,
             }
 
-        llm.invoke.return_value = response
-        return llm
+        response = LLMResponse(content=content, usage_metadata=usage)
+        backend.invoke.return_value = response
+        backend.model_name = "test-model"
+        return backend
 
     @staticmethod
     def create_batch(
         responses: list[str],
         has_metadata: bool = False,
     ) -> MagicMock:
-        """Create a mock LLM for batch operations.
+        """Create a mock Backend for batch operations.
 
         Args:
             responses: List of response content strings.
             has_metadata: Whether to add usage_metadata to responses.
 
         Returns:
-            Configured MagicMock LLM instance.
+            Configured MagicMock Backend instance.
         """
-        llm = MagicMock()
+        backend = MagicMock()
 
-        # Create response mocks
-        response_mocks = []
+        # Create LLMResponse mocks for invoke
+        response_list = []
         for content in responses:
-            response = MagicMock(content=content)
-            if has_metadata:
-                response.usage_metadata = {
-                    "input_tokens": 100,
-                    "output_tokens": 50,
-                }
-            response_mocks.append(response)
+            usage = {"input_tokens": 100, "output_tokens": 50} if has_metadata else None
+            response_list.append(LLMResponse(content=content, usage_metadata=usage))
 
-        llm.invoke.side_effect = response_mocks
-        return llm
+        backend.invoke.side_effect = response_list
+        backend.model_name = "test-model"
+        return backend
 
     @staticmethod
     def create_failing() -> MagicMock:
-        """Create a mock LLM that fails on invoke.
+        """Create a mock Backend that fails on invoke.
 
         Returns:
-            Configured MagicMock LLM instance that raises Exception.
+            Configured MagicMock Backend instance that raises Exception.
         """
-        llm = MagicMock()
-        llm.invoke.side_effect = Exception("LLM API Error")
-        return llm
+        backend = MagicMock()
+        backend.invoke.side_effect = Exception("LLM API Error")
+        backend.model_name = "test-model"
+        return backend
+
+
+# Keep backward-compatible alias
+LLMMockFactory = BackendMockFactory
 
 
 class StateManagerMockFactory:
@@ -106,15 +109,38 @@ class StateManagerMockFactory:
 # Pytest fixtures using factories
 
 @pytest.fixture
+def mock_backend() -> MagicMock:
+    """Fixture: Standard Backend mock."""
+    return BackendMockFactory.create()
+
+
+@pytest.fixture
+def mock_backend_with_metadata() -> MagicMock:
+    """Fixture: Backend mock with usage_metadata."""
+    return BackendMockFactory.create(
+        content="Test Summary",
+        input_tokens=100,
+        output_tokens=50,
+    )
+
+
+@pytest.fixture
+def mock_backend_failing() -> MagicMock:
+    """Fixture: Backend mock that fails."""
+    return BackendMockFactory.create_failing()
+
+
+# Backward-compatible fixtures
+@pytest.fixture
 def mock_llm() -> MagicMock:
-    """Fixture: Standard LLM mock."""
-    return LLMMockFactory.create()
+    """Fixture: Standard Backend mock (legacy name)."""
+    return BackendMockFactory.create()
 
 
 @pytest.fixture
 def mock_llm_with_metadata() -> MagicMock:
-    """Fixture: LLM mock with usage_metadata."""
-    return LLMMockFactory.create(
+    """Fixture: Backend mock with usage_metadata (legacy name)."""
+    return BackendMockFactory.create(
         content="Test Summary",
         input_tokens=100,
         output_tokens=50,
@@ -123,8 +149,8 @@ def mock_llm_with_metadata() -> MagicMock:
 
 @pytest.fixture
 def mock_llm_failing() -> MagicMock:
-    """Fixture: LLM mock that fails."""
-    return LLMMockFactory.create_failing()
+    """Fixture: Backend mock that fails (legacy name)."""
+    return BackendMockFactory.create_failing()
 
 
 @pytest.fixture
