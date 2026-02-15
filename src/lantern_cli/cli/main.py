@@ -140,6 +140,11 @@ def run(
     output: Optional[str] = typer.Option(None, help="Output directory"),
     lang: Optional[str] = typer.Option(None, help="Output language (en/zh-TW)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
+    synthesis_mode: str = typer.Option(
+        "batch",
+        "--synthesis-mode",
+        help="Synthesis mode: 'batch' (rule-based, fast) or 'agentic' (LLM-powered, higher quality)",
+    ),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
@@ -238,6 +243,7 @@ def run(
     console.print(f"   Total Batches: {len([b for p in plan.phases for b in p.batches])}")
     console.print(f"   Pending Batches: {len(pending_batches)}")
     console.print(f"   Model: {model_name}")
+    console.print(f"   Synthesis Mode: {synthesis_mode}")
     
     if pricing_available:
         if is_local:
@@ -305,9 +311,42 @@ def run(
                 progress.advance(task_runner) # Advance phase/runner progress roughly
         
             # 6. Synthesize Docs
-            task_synth = progress.add_task("Synthesizing documentation...", total=None)
-            synthesizer = Synthesizer(repo_path, language=config.language, output_dir=config.output_dir)
-            synthesizer.generate_top_down_docs()
+            if synthesis_mode == "agentic":
+                task_synth = progress.add_task(
+                    "Synthesizing documentation (agentic)...", total=None
+                )
+                try:
+                    from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
+
+                    agentic_synth = AgenticSynthesizer(
+                        repo_path, llm, language=config.language, output_dir=config.output_dir
+                    )
+                    agentic_synth.generate_top_down_docs()
+                except ImportError:
+                    console.print(
+                        "[bold yellow]langgraph not installed. "
+                        "Falling back to batch synthesis.[/bold yellow]"
+                    )
+                    console.print("[dim]Install with: pip install langgraph[/dim]")
+                    synthesizer = Synthesizer(
+                        repo_path, language=config.language, output_dir=config.output_dir
+                    )
+                    synthesizer.generate_top_down_docs()
+                except Exception as e:
+                    console.print(
+                        f"[bold yellow]Agentic synthesis failed: {e}. "
+                        f"Falling back to batch synthesis.[/bold yellow]"
+                    )
+                    synthesizer = Synthesizer(
+                        repo_path, language=config.language, output_dir=config.output_dir
+                    )
+                    synthesizer.generate_top_down_docs()
+            else:
+                task_synth = progress.add_task("Synthesizing documentation...", total=None)
+                synthesizer = Synthesizer(
+                    repo_path, language=config.language, output_dir=config.output_dir
+                )
+                synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
 
     console.print(f"[bold green]Analysis Complete![/bold green]")
