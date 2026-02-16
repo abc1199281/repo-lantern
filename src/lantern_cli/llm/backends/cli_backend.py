@@ -1,7 +1,7 @@
 """CLI backend – invokes an external CLI tool as the LLM.
 
-Executes a command like ``codex exec "<prompt>"`` via subprocess and
-parses the stdout as the model response.  Structured output is
+Executes a command via subprocess and passes the prompt via stdin.
+The stdout is parsed as the model response. Structured output is
 achieved by embedding the JSON schema in the prompt and parsing the
 returned JSON.
 """
@@ -74,9 +74,10 @@ class CLIBackend:
 
         [backend]
         type = "cli"
-        cli_command = "codex exec"
-        cli_model_name = "codex-default"
+        cli_command = "llm -m gpt-4o-mini"
+        cli_model_name = "gpt-4o-mini"
 
+    The CLI tool must accept prompts via stdin and write responses to stdout.
     Usage metadata is not available from CLI tools, so
     ``LLMResponse.usage_metadata`` always carries zero counts.
     """
@@ -103,10 +104,11 @@ class CLIBackend:
     # ------------------------------------------------------------------
 
     def _run(self, prompt: str) -> str:
-        """Execute the CLI command with *prompt* and return stdout."""
+        """Execute the CLI command with *prompt* via stdin and return stdout."""
         try:
             result = subprocess.run(
-                [*self._command, prompt],
+                self._command,
+                input=prompt,
                 capture_output=True,
                 text=True,
                 check=True,

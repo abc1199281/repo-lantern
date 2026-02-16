@@ -36,3 +36,9 @@ openai_model = "gpt-4o-mini"  # Fast and cheap ($0.15/1M input, $0.60/1M output)
 # openrouter_model = "openai/gpt-4o-mini"  # or anthropic/claude-sonnet-4, etc.
 # # openrouter_url = "https://openrouter.ai/api/v1"
 # # openrouter_api_key_env = "OPENROUTER_API_KEY"  # Set: export OPENROUTER_API_KEY=<your-key>
+
+# Option 4: CLI Tool (Use any CLI that accepts stdin and outputs to stdout)
+# [backend]
+# type = "cli"
+# cli_command = "codex exec"  # or "llm -m gpt-4o-mini", etc.
+# cli_model_name = "cli"

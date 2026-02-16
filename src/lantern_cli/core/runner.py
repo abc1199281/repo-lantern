@@ -5,6 +5,7 @@ Architecture:
 - Records actual token usage via LLMResponse.usage_metadata
 - Extracts and validates response content
 - Delegates compression to MemoryManager
+- Supports both structured (LangChain) and agent-based (CLI) workflows
 """
 import json
 import logging
@@ -159,6 +160,27 @@ class Runner:
 
     def _generate_bottom_up_doc(self, batch: Batch) -> list[dict[str, Any]]:
         """Generate formatted bottom-up documentation for the batch.
+
+        Detects backend type and uses appropriate workflow:
+        - CLIBackend: Agent-based file writing
+        - Others: Structured JSON analysis
+
+        Returns:
+            List of sense records (dicts with batch, file_path, and analysis data).
+        """
+        # Import here to avoid circular dependency
+        from lantern_cli.llm.backends.cli_backend import CLIBackend
+
+        # Detect backend type and route to appropriate workflow
+        if isinstance(self.backend, CLIBackend):
+            logger.info(f"Using agent-based workflow for batch {batch.id}")
+            return self._generate_bottom_up_doc_agent(batch)
+        else:
+            logger.info(f"Using structured workflow for batch {batch.id}")
+            return self._generate_bottom_up_doc_structured(batch)
+
+    def _generate_bottom_up_doc_structured(self, batch: Batch) -> list[dict[str, Any]]:
+        """Generate bottom-up docs using structured JSON analysis (for LangChain backends).
 
         Primary path uses structured batch analysis (`chain.batch`) to generate
         per-file output in one request set. If batch call fails, it falls back
@@ -317,6 +339,65 @@ class Runner:
             lines.extend([f"- {item}" for item in parsed.references])
         return "\n".join(lines).rstrip() + "\n"
 
+    def _generate_bottom_up_doc_agent(self, batch: Batch) -> list[dict[str, Any]]:
+        """Generate bottom-up docs using agent-based file writing (for CLI backends).
+
+        The agent analyzes files and writes Markdown documentation directly
+        using its file tool capabilities.
+
+        Returns:
+            List of sense records (metadata only, since files are written by agent).
+        """
+        from lantern_cli.llm.agent_analyzer import AgentAnalyzer
+
+        # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
+        base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
+
+        analyzer = AgentAnalyzer(self.backend)
+
+        # Prepare paths and data
+        rel_paths: list[Path] = []
+        output_paths: list[Path] = []
+        batch_data: list[dict[str, str]] = []
+        source_files: list[str] = []
+
+        for file_path in batch.files:
+            rel_path, src_path = self._resolve_paths(file_path)
+            rel_paths.append(rel_path)
+
+            # Output path for this file
+            out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
+            output_paths.append(out_path)
+            source_files.append(file_path)
+
+            # Read file content
+            try:
+                file_content = src_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                logger.error(f"Failed to read source file {src_path}: {exc}")
+                file_content = ""
+
+            batch_data.append({"file_content": file_content, "language": self.language})
+
+        # Let agent analyze and write files
+        sense_records = analyzer.analyze_and_write_batch(
+            items=batch_data,
+            output_paths=output_paths,
+            source_files=source_files,
+            batch_id=batch.id,
+            language=self.language,
+        )
+
+        # Write sense metadata
+        sense_path = self.sense_dir / f"batch_{batch.id:04d}.sense"
+        try:
+            sense_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(sense_path, "w", encoding="utf-8") as sense_f:
+                json.dump(sense_records, sense_f, ensure_ascii=False, indent=2)
+        except OSError as exc:
+            logger.warning(f"Unable to write sense metadata {sense_path}: {exc}")
+
+        return sense_records
 
     def _prepare_context(self) -> str:
         """Prepare context from global summary."""
