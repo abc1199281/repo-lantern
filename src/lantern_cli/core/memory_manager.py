@@ -2,7 +2,10 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Any
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from lantern_cli.llm.backend import Backend
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +17,13 @@ class MemoryManager:
     COMPRESS_THRESHOLD = 3000  # Compress when summary exceeds this length
     TARGET_LENGTH = 1000  # Target length after compression
 
-    def __init__(self, llm: Optional[Any] = None) -> None:
+    def __init__(self, backend: Optional["Backend"] = None) -> None:
         """Initialize MemoryManager.
 
         Args:
-            llm: LangChain ChatModel for LLM compression (optional).
+            backend: Backend instance for LLM compression (optional).
         """
-        self.llm = llm
+        self.backend = backend
         self.compression_count = 0
         self.prompts = self._load_prompts()
 
@@ -65,11 +68,11 @@ class MemoryManager:
             Dictionary containing prompt templates.
         """
         prompts_file = Path(__file__).parent.parent / "template" / "memory" / "prompts.json"
-        
+
         if not prompts_file.exists():
             logger.warning(f"Prompts file not found at {prompts_file}")
             return {}
-        
+
         try:
             with open(prompts_file, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -78,7 +81,7 @@ class MemoryManager:
             return {}
 
     def _compress_with_llm(self, long_summary: str) -> Optional[str]:
-        """Compress summary using LLM.
+        """Compress summary using LLM backend.
 
         Args:
             long_summary: Long summary to compress.
@@ -86,29 +89,27 @@ class MemoryManager:
         Returns:
             Compressed summary, or None if compression fails.
         """
-        if not self.llm:
-            logger.debug("No LLM available for compression")
+        if not self.backend:
+            logger.debug("No backend available for compression")
             return None
 
         try:
             # Get compression prompt template from JSON
             compression_config = self.prompts.get("compression", {})
             prompt_template = compression_config.get("template", "")
-            
+
             if not prompt_template:
                 logger.warning("No compression prompt template found in prompts.json")
                 return None
-            
+
             # Format prompt with parameters
             prompt = prompt_template.format(
                 target_length=self.TARGET_LENGTH,
                 long_summary=long_summary
             )
 
-            response = self.llm.invoke(prompt)
-            compressed = getattr(response, "content", response)
-            if isinstance(compressed, list):
-                compressed = "\n".join(str(item) for item in compressed)
+            response = self.backend.invoke(prompt)
+            compressed = response.content
             compressed = str(compressed).strip()
 
             # Validate compression

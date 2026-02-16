@@ -2,11 +2,14 @@
 import json
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import TYPE_CHECKING, List, Optional
 
 from lantern_cli.core.architect import Plan, Batch
 from lantern_cli.core.memory_manager import MemoryManager
 import logging
+
+if TYPE_CHECKING:
+    from lantern_cli.llm.backend import Backend
 
 logger = logging.getLogger(__name__)
 
@@ -25,15 +28,15 @@ class StateManager:
 
     STATE_FILE = "state.json"
 
-    def __init__(self, root_path: Path, llm: Optional[Any] = None) -> None:
+    def __init__(self, root_path: Path, backend: Optional["Backend"] = None) -> None:
         """Initialize StateManager.
 
         Args:
             root_path: Project root path.
-            llm: LangChain ChatModel for memory compression (optional).
+            backend: Backend instance for memory compression (optional).
         """
         self.root_path = root_path
-        self.memory_manager = MemoryManager(llm)
+        self.memory_manager = MemoryManager(backend)
         self.lantern_dir = root_path / ".lantern"
         self.state_path = self.lantern_dir / self.STATE_FILE
         self.state: ExecutionState = self.load_state()

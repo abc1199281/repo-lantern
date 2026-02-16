@@ -1,22 +1,24 @@
-"""LLM factory - deeply bound to LangChain.
+"""LLM backend factory.
 
-This module provides LLM instantiation from configuration. No adapter layer -
-returns LangChain ChatModel instances directly for use in orchestration logic.
-
-Response Contract:
-- All responses must have .content attribute (string or list)
-- Optional .usage_metadata dict with 'input_tokens' and 'output_tokens' keys
-- cost_tracker.record_from_usage_metadata() handles missing metadata gracefully
+Creates a ``Backend`` instance from configuration.  LangChain-based
+providers (OpenAI, Ollama, OpenRouter) are wrapped in
+``LangChainBackend``; the CLI provider uses ``CLIBackend`` directly.
 
 Example:
     config = load_config()
-    llm = create_llm(config)
-    result = llm.invoke([{"role": "user", "content": "..."}])
-    print(result.content)  # String or list
+    backend = create_backend(config)
+    response = backend.invoke("Hello")
+    print(response.content)
 """
 
+from __future__ import annotations
+
+import shlex
 from typing import TYPE_CHECKING, Any
 
+from lantern_cli.llm.backend import Backend
+from lantern_cli.llm.backends.cli_backend import CLIBackend
+from lantern_cli.llm.backends.langchain_backend import LangChainBackend
 from lantern_cli.llm.ollama import create_ollama_llm
 from lantern_cli.llm.openai import create_openai_chat
 from lantern_cli.llm.openrouter import create_openrouter_chat
@@ -25,34 +27,48 @@ if TYPE_CHECKING:
     from lantern_cli.config.models import LanternConfig
 
 
-def create_llm(config: "LanternConfig", **kwargs: Any) -> Any:
-    """Create LangChain ChatModel instance from configuration.
-    
-    Dispatches to provider-specific factory based on backend type.
-    Deep binding: returns ChatModel directly without adapter wrapper.
-    
+def create_backend(config: "LanternConfig", **kwargs: Any) -> Backend:
+    """Create a Backend instance from configuration.
+
+    Dispatches to provider-specific factory based on ``config.backend.type``.
+
     Args:
         config: LanternConfig object with backend configuration.
-        
+
     Returns:
-        LangChain ChatModel instance ready for invoke() calls.
-        
+        A ``Backend`` instance ready for ``invoke()`` /
+        ``batch_invoke_structured()`` calls.
+
     Raises:
-        ValueError: If backend type is not recognized or supported.
-        RuntimeError: If required LangChain provider package not installed.
+        ValueError: If backend type is not recognised or supported.
+        RuntimeError: If required provider package is not installed.
     """
     backend_config = config.backend
-    
-    if backend_config.type == "ollama":
-        return create_ollama_llm(
-            model=backend_config.ollama_model or "llama3",
-            base_url=backend_config.ollama_url or "http://localhost:11434"
+
+    # ---- CLI backend (no LangChain dependency) ----
+    if backend_config.type == "cli":
+        command = shlex.split(backend_config.cli_command or "codex exec")
+        return CLIBackend(
+            command=command,
+            model=backend_config.cli_model_name or "cli",
         )
+
+    # ---- LangChain-based backends ----
+    if backend_config.type == "ollama":
+        chat_model = create_ollama_llm(
+            model=backend_config.ollama_model or "llama3",
+            base_url=backend_config.ollama_url or "http://localhost:11434",
+        )
+        model_name = backend_config.ollama_model or "llama3"
     elif backend_config.type == "openai":
-        return create_openai_chat(backend_config, **kwargs)
+        chat_model = create_openai_chat(backend_config, **kwargs)
+        model_name = backend_config.openai_model or "gpt-4o-mini"
     elif backend_config.type == "openrouter":
-        return create_openrouter_chat(backend_config, **kwargs)
+        chat_model = create_openrouter_chat(backend_config, **kwargs)
+        model_name = backend_config.openrouter_model or "openai/gpt-4o-mini"
     elif backend_config.type == "api":
         raise NotImplementedError("API provider not implemented")
     else:
         raise ValueError(f"Unsupported backend type: {backend_config.type}")
+
+    return LangChainBackend(chat_model, model=model_name)

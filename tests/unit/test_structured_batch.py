@@ -1,37 +1,16 @@
 """Tests for structured batch analyzer."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel
 
 from lantern_cli.llm.structured import (
     BatchInteraction,
     StructuredAnalyzer,
     StructuredAnalysisOutput,
-    create_chain,
     _extract_json,
 )
-
-
-# ---------------------------------------------------------------------------
-# create_chain
-# ---------------------------------------------------------------------------
-
-def test_create_chain_uses_with_structured_output() -> None:
-    llm = MagicMock()
-    llm.with_structured_output.return_value = RunnableLambda(
-        lambda _: {"summary": "ok", "key_insights": [], "language": "en"}
-    )
-    schema = {"type": "object"}
-    prompts = {"system": "sys", "user": "user {file_content}"}
-
-    chain = create_chain(llm=llm, json_schema=schema, prompts=prompts)
-    result = chain.invoke({"file_content": "x", "language": "en"})
-
-    llm.with_structured_output.assert_called_once_with(schema)
-    assert result["summary"] == "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -140,14 +119,14 @@ class TestExtractJson:
 
 
 # ---------------------------------------------------------------------------
-# StructuredAnalyzer.analyze_batch
+# StructuredAnalyzer.analyze_batch (now uses Backend protocol)
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeBatch:
 
     def test_normalizes_outputs(self) -> None:
-        fake_chain = MagicMock()
-        fake_chain.batch.return_value = [
+        mock_backend = MagicMock()
+        mock_backend.batch_invoke_structured.return_value = [
             {
                 "summary": "  summary  ",
                 "key_insights": [" A ", "B"],
@@ -160,14 +139,13 @@ class TestAnalyzeBatch:
             '{"summary":"s2","key_insights":[],"language":"zh-TW"}',
         ]
 
-        with patch("lantern_cli.llm.structured.create_chain", return_value=fake_chain):
-            analyzer = StructuredAnalyzer(llm=MagicMock())
-            interactions = analyzer.analyze_batch(
-                [
-                    {"file_content": "a", "language": "en"},
-                    {"file_content": "b", "language": "zh-TW"},
-                ]
-            )
+        analyzer = StructuredAnalyzer(backend=mock_backend)
+        interactions = analyzer.analyze_batch(
+            [
+                {"file_content": "a", "language": "en"},
+                {"file_content": "b", "language": "zh-TW"},
+            ]
+        )
 
         assert len(interactions) == 2
         assert isinstance(interactions[0], BatchInteraction)
@@ -177,14 +155,13 @@ class TestAnalyzeBatch:
         assert interactions[0].analysis.language == "en"
         assert interactions[1].analysis.language == "zh-TW"
 
-    def test_raises_runtime_error_on_chain_failure(self) -> None:
-        fake_chain = MagicMock()
-        fake_chain.batch.side_effect = Exception("API timeout")
+    def test_raises_runtime_error_on_backend_failure(self) -> None:
+        mock_backend = MagicMock()
+        mock_backend.batch_invoke_structured.side_effect = Exception("API timeout")
 
-        with patch("lantern_cli.llm.structured.create_chain", return_value=fake_chain):
-            analyzer = StructuredAnalyzer(llm=MagicMock())
-            with pytest.raises(RuntimeError, match="Structured batch analysis failed"):
-                analyzer.analyze_batch([{"file_content": "x", "language": "en"}])
+        analyzer = StructuredAnalyzer(backend=mock_backend)
+        with pytest.raises(RuntimeError, match="Structured batch analysis failed"):
+            analyzer.analyze_batch([{"file_content": "x", "language": "en"}])
 
 
 # ---------------------------------------------------------------------------
@@ -194,14 +171,13 @@ class TestAnalyzeBatch:
 class TestAnalyzeSingle:
 
     def test_returns_single_output(self) -> None:
-        fake_chain = MagicMock()
-        fake_chain.batch.return_value = [
+        mock_backend = MagicMock()
+        mock_backend.batch_invoke_structured.return_value = [
             {"summary": "single", "key_insights": ["k"], "language": "en"}
         ]
 
-        with patch("lantern_cli.llm.structured.create_chain", return_value=fake_chain):
-            analyzer = StructuredAnalyzer(llm=MagicMock())
-            result = analyzer.analyze("def f(): pass", "en")
+        analyzer = StructuredAnalyzer(backend=mock_backend)
+        result = analyzer.analyze("def f(): pass", "en")
 
         assert isinstance(result, StructuredAnalysisOutput)
         assert result.summary == "single"

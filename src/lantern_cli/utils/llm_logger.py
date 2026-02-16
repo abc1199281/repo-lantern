@@ -81,12 +81,12 @@ class LLMLogger:
             logger.warning(f"Failed to write LLM log: {exc}")
 
 
-def timed_invoke(llm: Any, prompt: str) -> tuple[Any, float]:
-    """Invoke an LLM and return ``(response, latency_ms)``.
+def timed_invoke(backend: Any, prompt: str) -> tuple[Any, float]:
+    """Invoke a backend and return ``(response, latency_ms)``.
 
     Convenience wrapper that measures wall-clock time.
     """
     t0 = time.perf_counter()
-    response = llm.invoke(prompt)
+    response = backend.invoke(prompt)
     latency_ms = (time.perf_counter() - t0) * 1000
     return response, latency_ms

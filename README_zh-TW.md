@@ -26,27 +26,16 @@
 
 # 為什麼需要 Lantern
 
-理解一個陌生的程式碼庫非常困難。
+理解一個陌生的程式碼庫非常困難。你通常會遇到：
+* 不知道該從哪個檔案開始看起
+* 文件過時或根本不存在
+* 隱藏的系統架構依賴關係
+* 需要閱讀數十個檔案才能理解一個核心概念
 
-你通常會遇到：
-* 不知道該從哪個檔案開始看起。
-* 文件過時或根本不存在。
-* 隱藏的系統架構依賴關係。
-* 需要閱讀數十個檔案才能理解一個核心概念。
+**現代程式碼庫中常有 AI 生成的程式碼能運作卻缺乏文檔**——使理解更困難。
 
-**AI 產生的程式碼問題**
-
-在 2024 年以後，程式碼庫中越來越多 AI 生成的程式碼：
-* 能運作，但沒有人完全理解*為什麼*
-* 缺乏有意義的註解或文檔
-* 讓 Legacy Code 更難理解
-
-大多數 AI 工具幫助你：
-* 寫程式碼 (Write code)。
-* 重構程式碼 (Refactor code)。
-
-**Lantern 的目標截然不同：**
-> Lantern 幫助你「理解」(Understand) 程式碼——無論是人寫的還是 AI 生成的。
+大多數 AI 工具幫助你*寫*或*重構*程式碼。**Lantern 的目標截然不同：**
+> Lantern 幫助你「理解」程式碼——無論是人寫的還是 AI 生成的。
 
 ---
 
@@ -62,10 +51,13 @@
 
 ---
 
-# 核心特色 (Key Features)
+# 設計原則與核心特色
 
 ### 🧠 心理學導向設計
-不僅是文檔生成——**專為人類理解而設計**。區塊化、鷹架效應、母語輸出大幅降低認知負擔。
+**專為人類理解而設計**，採用心理學原則：
+- **區塊化**（米勒定律）：每個分析批次限制在約 3 個相關檔案，防止認知超載
+- **鷹架效應**（Scaffolding）：先生成計畫供人工審查，循序漸進地建立理解
+- **人類優先輸出**：解釋「為什麼」與「如何運作」，優先考量人類閱讀體驗
 
 ### 🔄 雙向分析視角
 **Bottom-up**（逐檔細節）+ **Top-down**（架構總覽）= 從任何角度完整理解。
@@ -128,7 +120,7 @@ Lantern 內部使用 **批次分析** 來控制品質：
 
 # 視覺化流程重建
 
-Lantern 會自動為每個分析的檔案生成 **Mermaid 圖表**，嵌入在 bottom-up 與 top-down 文件中：
+Lantern 會自動為每個分析的檔案生成 **Mermaid 圖表**：
 
 ### 架構圖
 在 `ARCHITECTURE.md` 中顯示模組依賴與關係：
@@ -141,38 +133,9 @@ graph LR
     Models --> Database
 ```
 
-### Sequence Diagram
-在 `GETTING_STARTED.md` 中說明請求/回應流程：
+**Sequence Diagram 與逐檔流程圖**：Lantern 也會生成請求/回應的 Sequence Diagram 與顯示內部邏輯的逐檔流程圖。
 
-```mermaid
-sequenceDiagram
-    User->>API: POST /login
-    API->>Auth: validate()
-    Auth->>DB: check_credentials()
-    DB-->>Auth: user_data
-    Auth-->>API: token
-    API-->>User: 200 OK
-```
-
-### 每個檔案的流程圖
-每個檔案的文件都包含自訂流程圖，顯示其內部邏輯。
-
-**無需手動繪製圖表**——Lantern 的 AI 分析程式碼結構並自動生成這些圖表。
-
----
-
-# 核心概念
-
-Lantern 的設計基於心理學原則：
-
-### 區塊化 (Chunking - 米勒定律)
-我們嚴格限制每個分析批次僅包含約 3 個相關檔案，以防止大腦產生資訊過載。
-
-### 鷹架效應 (Scaffolding)
-透過先行生成計畫並允許人工審查，我們為理解複雜系統搭建了穩固的階梯。
-
-### 人類優先輸出 (Human-First Output)
-最終產出是專為人類閱讀設計，而非機器消耗，重點在於解釋「為什麼」與「如何運作」，而不僅僅是「做了什麼」。
+**無需手動工作**——圖表透過分析程式碼結構自動生成。
 
 ---
 
@@ -180,47 +143,12 @@ Lantern 的設計基於心理學原則：
 
 ## 前置需求
 
-Lantern 支援三種後端選項：
+Lantern 支援多種後端選項。詳細設定說明請見[後端設定](#後端設定)：
 
-### 選項 A：本地模型（免費、隱私）
-
-安裝 [Ollama](https://ollama.ai) 並拉取模型：
-
-```bash
-# 安裝 Ollama（參見 https://ollama.ai 查看你的平台）
-# 然後拉取推薦模型：
-ollama pull qwen2.5:14b
-```
-
-**最適合**：離線工作、敏感程式碼庫、零 API 成本
-
-### 選項 B：OpenAI API（生產環境、推薦）⭐
-
-取得 [OpenAI API 金鑰](https://platform.openai.com/api-keys)並設定：
-
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-**最適合**：生產環境使用、成本效益高、穩定可靠
-- **gpt-4o-mini**：$0.15/1M 輸入 tokens，$0.60/1M 輸出 tokens（快速且便宜）
-- **gpt-4o**：$2.50/1M 輸入 tokens，$10/1M 輸出 tokens（更高品質）
-
-### 選項 C：OpenRouter（多模型存取）
-
-取得 [OpenRouter API 金鑰](https://openrouter.ai/keys)並設定：
-
-```bash
-export OPENROUTER_API_KEY="sk-or-v1-..."
-```
-
-**最適合**：存取多個供應商（Claude、Gemini 等）
-
-| 後端 | 成本 | 隱私 | 品質 | 速度 |
-| :--- | :--- | :--- | :--- | :--- |
-| **Ollama** | 免費 | 100% 本地 | 良好 | 中等 |
-| **OpenAI** | $0.15-$10/1M tokens | 雲端 API | 優秀 | 快速 |
-| **OpenRouter** | 依模型而定 | 雲端 API | 優秀 | 快速 |
+- **OpenAI**（推薦）- 成本效益高、適合生產環境
+- **Ollama**（免費且隱私）- 在本地執行，無 API 呼叫
+- **OpenRouter** - 存取多個提供商（Claude、Gemini 等）
+- **CLI Tool** - 利用代理能力（檔案工具、程式碼執行）
 
 ## 安裝
 
@@ -317,6 +245,41 @@ openrouter_model = "openai/gpt-4o-mini"  # 或 anthropic/claude-sonnet-4 等
 設定你的 API 金鑰：
 ```bash
 export OPENROUTER_API_KEY="sk-or-v1-..."
+```
+
+### CLI Tool（代理型工作流）🤖
+```toml
+[backend]
+type = "cli"
+cli_command = "codex exec"  # 或 "llm -m gpt-4o-mini"、"claude" 等
+cli_model_name = "cli"
+```
+
+**運作方式**：
+- Lantern 偵測到 CLI 後端時，自動切換到**代理型工作流**
+- 提示詞指示代理直接使用檔案工具編寫 Markdown 檔案
+- 代理利用其原生能力（程式碼執行、檔案操作等）
+- 無需 JSON 解析——代理直接編寫文檔檔案
+
+**支援的 CLI 工具**：
+- `codex exec` - OpenAI Codex 搭配代理能力
+- `llm -m <model>` - Simon Willison 的 LLM 工具
+- `claude` - Anthropic Claude CLI
+- 任何支援 stdin 與 stdout 的自訂 CLI
+
+**範例工作流**：
+```bash
+# 安裝 CLI 工具（範例：llm）
+pip install llm
+
+# 設定 Lantern 使用它
+echo '[backend]
+type = "cli"
+cli_command = "llm -m gpt-4o-mini"
+cli_model_name = "gpt-4o-mini"' > .lantern/lantern.toml
+
+# 執行分析
+lantern run
 ```
 
 ### 成本估算

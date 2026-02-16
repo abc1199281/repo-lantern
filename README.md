@@ -26,26 +26,15 @@ Understand codebases faster with AI-guided architecture scans, planned learning 
 
 # Why Lantern exists
 
-Understanding a new codebase is hard.
+Understanding a new codebase is hard. You face:
+* Not knowing which file to start with
+* Outdated or missing documentation
+* Hidden architectural dependencies
+* Needing to read dozens of files to understand one concept
 
-You usually face:
-* Not knowing which file to start with.
-* Outdated or non-existent documentation.
-* Hidden architectural dependencies.
-* Needing to read dozens of files to understand one concept.
+**Modern codebases often contain AI-generated code that works but lacks documentation**—making comprehension even harder.
 
-**The AI Code Problem**
-
-In 2024+, codebases are increasingly filled with AI-generated code that:
-* Works, but nobody fully understands *why*
-* Lacks meaningful comments or documentation
-* Makes legacy code comprehension even harder
-
-Most AI tools help you:
-* Write code.
-* Refactor code.
-
-**Lantern's goal is different:**
+Most AI tools help you *write* or *refactor* code. **Lantern's goal is different:**
 > Lantern helps you **understand** code—whether written by humans or AI.
 
 ---
@@ -62,16 +51,19 @@ Most AI tools help you:
 
 ---
 
-# Key Features
+# Core Design & Features
 
 ### 🧠 Psychology-Driven Design
-Not just documentation—**designed for human comprehension**. Chunking, scaffolding, and native language output reduce cognitive load.
+**Designed for human comprehension**, not machines. Lantern uses psychological principles:
+- **Chunking** (Miller's Law): Analyzes batches of ~3 related files to prevent cognitive overload
+- **Scaffolding**: Generates a plan first for human review, building understanding step-by-step
+- **Human-First Output**: Explains "Why" and "How", focusing on comprehension over data
 
 ### 🔄 Dual-Perspective Analysis
 **Bottom-up** (file-by-file details) + **Top-down** (architecture overview) = complete understanding from any angle.
 
 ### 🔌 Flexible Backends
-Choose between local privacy (Ollama) or cloud power (OpenRouter). Swap backends without changing your workflow.
+Choose between local privacy (Ollama), cloud power (OpenRouter/OpenAI), or agent-based workflows (CLI tools). Lantern automatically detects backend type and uses the appropriate analysis workflow.
 
 ### ✏️ Human-in-the-Loop
 Review and edit `lantern_plan.md` before execution. You control what gets analyzed and how.
@@ -129,10 +121,10 @@ You don't need to manage this—just run `lantern run` and let it work.
 
 # Visual Flow Reconstruction
 
-Lantern automatically generates **Mermaid diagrams** for every analyzed file, embedded in both bottom-up and top-down documentation:
+Lantern automatically generates **Mermaid diagrams** for every analyzed file:
 
 ### Architecture Diagrams
-Show module dependencies and relationships in `ARCHITECTURE.md`:
+Show module dependencies in `ARCHITECTURE.md`:
 
 ```mermaid
 graph LR
@@ -142,38 +134,9 @@ graph LR
     Models --> Database
 ```
 
-### Sequence Diagrams
-Illustrate request/response flows in `GETTING_STARTED.md`:
+**Sequence Diagrams & Per-File Flows**: Lantern also generates request/response sequence diagrams and per-file flow diagrams showing internal logic.
 
-```mermaid
-sequenceDiagram
-    User->>API: POST /login
-    API->>Auth: validate()
-    Auth->>DB: check_credentials()
-    DB-->>Auth: user_data
-    Auth-->>API: token
-    API-->>User: 200 OK
-```
-
-### Per-File Flow Diagrams
-Each file's documentation includes a custom flow diagram showing its internal logic.
-
-**No manual diagramming needed**—Lantern's AI analyzes code structure and generates these automatically.
-
----
-
-# Key Ideas
-
-Lantern is built on psychological design principles:
-
-### Chunking (Miller's Law)
-We strictly limit each analysis batch to ~3 related files to prevent cognitive information overload.
-
-### Scaffolding
-By generating a plan first and allowing for human review, we build a steady ladder for understanding complex systems.
-
-### Human-First Output
-Final outputs are designed for human reading, not machine consumption, focusing on "Why" and "How" rather than just "What".
+**No manual work needed**—diagrams are generated automatically by analyzing your code structure.
 
 ---
 
@@ -181,47 +144,12 @@ Final outputs are designed for human reading, not machine consumption, focusing 
 
 ## Prerequisites
 
-Lantern supports three backend options:
+Lantern supports multiple backend options. See [Backend Configuration](#backend-configuration) for detailed setup instructions:
 
-### Option A: Local Model (Free, Private)
-
-Install [Ollama](https://ollama.ai) and pull a model:
-
-```bash
-# Install Ollama (see https://ollama.ai for your platform)
-# Then pull a recommended model:
-ollama pull qwen2.5:14b
-```
-
-**Best for**: Offline work, sensitive codebases, zero API costs
-
-### Option B: OpenAI API (Production, Recommended) ⭐
-
-Get an [OpenAI API key](https://platform.openai.com/api-keys) and set it:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-**Best for**: Production use, cost-effective, reliable
-- **gpt-4o-mini**: $0.15/1M input tokens, $0.60/1M output tokens (fast & cheap)
-- **gpt-4o**: $2.50/1M input tokens, $10/1M output tokens (higher quality)
-
-### Option C: OpenRouter (Multi-Model Access)
-
-Get an [OpenRouter API key](https://openrouter.ai/keys) and set it:
-
-```bash
-export OPENROUTER_API_KEY="sk-or-v1-..."
-```
-
-**Best for**: Access to multiple providers (Claude, Gemini, etc.)
-
-| Backend | Cost | Privacy | Quality | Speed |
-| :--- | :--- | :--- | :--- | :--- |
-| **Ollama** | Free | 100% Local | Good | Medium |
-| **OpenAI** | $0.15-$10/1M tokens | Cloud API | Excellent | Fast |
-| **OpenRouter** | Varies by model | Cloud API | Excellent | Fast |
+- **OpenAI** (Recommended) - Cost-effective, production-ready
+- **Ollama** (Free & Private) - Run locally without API calls
+- **OpenRouter** - Access multiple providers (Claude, Gemini, etc.)
+- **CLI Tool** - Leverage agent capabilities (file tools, code execution)
 
 ## Installation
 
@@ -318,6 +246,41 @@ openrouter_model = "openai/gpt-4o-mini"  # or anthropic/claude-sonnet-4, etc.
 Set your API key:
 ```bash
 export OPENROUTER_API_KEY="sk-or-v1-..."
+```
+
+### CLI Tool (Agent-Based Workflow) 🤖
+```toml
+[backend]
+type = "cli"
+cli_command = "codex exec"  # or "llm -m gpt-4o-mini", "claude", etc.
+cli_model_name = "cli"
+```
+
+**How it works**:
+- Lantern detects CLI backends and automatically switches to **agent-based workflow**
+- Prompts instruct the agent to write Markdown files directly using file tools
+- Agents leverage their native capabilities (code execution, file operations, etc.)
+- No JSON parsing required - agents write documentation files directly
+
+**Supported CLI tools**:
+- `codex exec` - OpenAI Codex with agent capabilities
+- `llm -m <model>` - Simon Willison's LLM tool
+- `claude` - Anthropic Claude CLI
+- Any custom CLI that accepts stdin and outputs to stdout
+
+**Example workflow**:
+```bash
+# Install a CLI tool (example: llm)
+pip install llm
+
+# Configure Lantern to use it
+echo '[backend]
+type = "cli"
+cli_command = "llm -m gpt-4o-mini"
+cli_model_name = "gpt-4o-mini"' > .lantern/lantern.toml
+
+# Run analysis
+lantern run
 ```
 
 ### Cost Estimation

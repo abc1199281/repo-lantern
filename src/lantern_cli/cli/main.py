@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from lantern_cli.config.loader import load_config
-from lantern_cli.llm.factory import create_llm
+from lantern_cli.llm.factory import create_backend
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.core.architect import Architect
 from lantern_cli.core.state_manager import StateManager
@@ -155,11 +155,11 @@ def run(
     console.print(f"Repository: {repo_path}")
     console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
 
-    # 2. Initialize LLM
+    # 2. Initialize Backend
     try:
-        llm = create_llm(config)
+        backend = create_backend(config)
     except Exception as e:
-        console.print(f"[bold red]Error initializing LLM:[/bold red] {e}")
+        console.print(f"[bold red]Error initializing LLM backend:[/bold red] {e}")
         raise typer.Exit(code=1)
 
     with Progress(
@@ -194,21 +194,11 @@ def run(
 
     # 5. Cost Estimation
     # Determine model name for cost tracking based on configured backend
-    is_local = False
-    if config.backend.type == "openai":
-        model_name = config.backend.openai_model or "gpt-4o-mini"
-    elif config.backend.type == "openrouter":
-        model_name = config.backend.openrouter_model or "openai/gpt-4o-mini"
-    elif config.backend.type == "ollama":
-        model_name = config.backend.ollama_model or "llama3"
-        is_local = True
-    else:
-        # Fallback for unknown backend type
-        model_name = "unknown-model"
-    
+    model_name = backend.model_name
+    is_local = config.backend.type == "ollama"
+
     # Initialize state manager (needed for pending batches)
-    # Pass LLM for MemoryManager compression
-    state_manager = StateManager(repo_path, llm=llm)
+    state_manager = StateManager(repo_path, backend=backend)
     
     cost_tracker = CostTracker(model_name, is_local=is_local)
     pending_batches = state_manager.get_pending_batches(plan)
@@ -280,12 +270,12 @@ def run(
             task_batch = progress.add_task(f"Processing {len(pending_batches)} batches...", total=len(pending_batches))
             
             runner = Runner(
-                repo_path, 
-                llm, 
-                state_manager, 
+                repo_path,
+                backend,
+                state_manager,
                 language=config.language,
                 model_name=model_name,
-                is_local=is_local, 
+                is_local=is_local,
                 output_dir=config.output_dir
             )
             
@@ -306,7 +296,12 @@ def run(
         
             # 6. Synthesize Docs
             task_synth = progress.add_task("Synthesizing documentation...", total=None)
-            synthesizer = Synthesizer(repo_path, language=config.language, output_dir=config.output_dir)
+            synthesizer = Synthesizer(
+                repo_path,
+                language=config.language,
+                output_dir=config.output_dir,
+                backend=backend
+            )
             synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
 
