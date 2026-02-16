@@ -21,9 +21,9 @@ class FilterConfig(BaseModel):
 class BackendConfig(BaseModel):
     """Backend configuration for LLM."""
 
-    type: Literal["api", "ollama", "openai", "openrouter", "cli"] = Field(
+    type: Literal["api", "ollama", "openai", "openrouter", "openai_sdk", "cli"] = Field(
         default="ollama",
-        description="Backend type: api, ollama, openai, openrouter, or cli",
+        description="Backend type: api, ollama, openai, openrouter, openai_sdk, or cli",
     )
 
     # CLI backend options
@@ -72,6 +72,20 @@ class BackendConfig(BaseModel):
     openai_api_key_env: str | None = Field(
         default="OPENAI_API_KEY",
         description="Environment variable name containing OpenAI API key",
+    )
+
+    # OpenAI SDK (openai-agents) backend options
+    openai_sdk_model: str | None = Field(
+        default="gpt-4o-mini",
+        description="Model name for OpenAI Agents SDK (e.g., gpt-4o-mini, gpt-4o)",
+    )
+    openai_sdk_base_url: str | None = Field(
+        default=None,
+        description="Custom base URL for OpenAI-compatible API (e.g., https://openrouter.ai/api/v1)",
+    )
+    openai_sdk_api_key_env: str | None = Field(
+        default="OPENAI_API_KEY",
+        description="Environment variable name containing API key for OpenAI SDK backend",
     )
 
     # OpenRouter backend options
