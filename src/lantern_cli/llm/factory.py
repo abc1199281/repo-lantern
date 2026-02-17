@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from lantern_cli.config.models import LanternConfig
 
 
-def create_backend(config: "LanternConfig", **kwargs: Any) -> Backend:
+def create_backend(config: LanternConfig, **kwargs: Any) -> Backend:
     """Create a Backend instance from configuration.
 
     Dispatches to provider-specific factory based on ``config.backend.type``.

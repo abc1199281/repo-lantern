@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lantern_cli.llm.backend import LLMResponse
 from lantern_cli.core.synthesis_tools import (
     identify_entry_points,
     prepare_classes_summary,
@@ -14,6 +13,7 @@ from lantern_cli.core.synthesis_tools import (
     prepare_functions_summary,
     prepare_summaries,
 )
+from lantern_cli.llm.backend import LLMResponse
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -308,9 +308,7 @@ class TestAgenticSynthesizer:
         assert "```mermaid" in arch
         assert "cli_py --> db_py" in arch
 
-    def test_llm_called_six_times(
-        self, tmp_path: Path, sense_dir: Path, plan_file: Path
-    ) -> None:
+    def test_llm_called_six_times(self, tmp_path: Path, sense_dir: Path, plan_file: Path) -> None:
         """The graph has 6 nodes, each invoking the LLM once."""
         from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
@@ -353,14 +351,16 @@ class TestAgenticSynthesizer:
         from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
         # Return distinct content for each of the 6 LLM calls
-        llm = _make_backend_mock_sequential([
-            "PATTERNS: Factory pattern found in server.py",  # identify_patterns
-            "COMPARISON: cli.py and server.py are entry points",  # cross_compare
-            "Overview document body",  # generate_overview
-            "Architecture document body",  # generate_architecture
-            "Getting started document body",  # generate_getting_started
-            "Concepts document body",  # generate_concepts
-        ])
+        llm = _make_backend_mock_sequential(
+            [
+                "PATTERNS: Factory pattern found in server.py",  # identify_patterns
+                "COMPARISON: cli.py and server.py are entry points",  # cross_compare
+                "Overview document body",  # generate_overview
+                "Architecture document body",  # generate_architecture
+                "Getting started document body",  # generate_getting_started
+                "Concepts document body",  # generate_concepts
+            ]
+        )
         synth = AgenticSynthesizer(tmp_path, llm, language="en")
         synth.generate_top_down_docs()
 
@@ -392,9 +392,7 @@ class TestAgenticSynthesizer:
 
         sense_dir = tmp_path / "custom_out" / "sense"
         sense_dir.mkdir(parents=True)
-        (sense_dir / "batch_0001.sense").write_text(
-            json.dumps(SAMPLE_RECORDS, ensure_ascii=False)
-        )
+        (sense_dir / "batch_0001.sense").write_text(json.dumps(SAMPLE_RECORDS, ensure_ascii=False))
 
         llm = _make_backend_mock("Content.")
         synth = AgenticSynthesizer(tmp_path, llm, language="en", output_dir="custom_out")
@@ -429,9 +427,7 @@ class TestAgenticSynthesizer:
         synth = AgenticSynthesizer(tmp_path, llm)
         assert synth._load_mermaid_from_plan() == ""
 
-    def test_doc_truncation(
-        self, tmp_path: Path, sense_dir: Path, plan_file: Path
-    ) -> None:
+    def test_doc_truncation(self, tmp_path: Path, sense_dir: Path, plan_file: Path) -> None:
         """Very long LLM output should be truncated."""
         from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 

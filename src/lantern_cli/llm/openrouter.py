@@ -14,6 +14,7 @@ from typing import Any
 
 try:
     from langchain_openai import ChatOpenAI
+
     _CHAT_OPENAI_IMPORT_ERROR = None
 except ImportError as exc:  # pragma: no cover
     ChatOpenAI = None

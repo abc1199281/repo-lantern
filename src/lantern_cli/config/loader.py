@@ -113,7 +113,7 @@ def _resolve_cli_overrides(
         Dictionary compatible with ConfigLoader.load overrides
     """
     overrides: dict[str, Any] = {"lantern": {}, "backend": {}}
-    
+
     # Basic Lantern Config overrides
     if output is not None:
         overrides["lantern"]["output_dir"] = output
@@ -138,10 +138,9 @@ def load_config(
         Loaded LanternConfig.
     """
     loader = ConfigLoader(project_config_path=repo_path / ".lantern" / "lantern.toml")
-    
+
     # 1. Resolve overrides
     overrides = _resolve_cli_overrides(output, lang)
-    
+
     # 2. Load with overrides
     return loader.load(overrides)
-

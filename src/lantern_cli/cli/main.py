@@ -1,7 +1,9 @@
 """Lantern CLI - Main entry point."""
 
-import typer
 import shutil
+from pathlib import Path
+
+import typer
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -13,16 +15,13 @@ from rich.progress import (
 )
 from rich.text import Text
 
-from pathlib import Path
-from typing import Optional
-
 from lantern_cli.config.loader import load_config
+from lantern_cli.core.architect import Architect
+from lantern_cli.core.runner import Runner
+from lantern_cli.core.state_manager import StateManager
+from lantern_cli.core.synthesizer import Synthesizer
 from lantern_cli.llm.factory import create_backend
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
-from lantern_cli.core.architect import Architect
-from lantern_cli.core.state_manager import StateManager
-from lantern_cli.core.runner import Runner
-from lantern_cli.core.synthesizer import Synthesizer
 from lantern_cli.utils.cost_tracker import CostTracker
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
@@ -34,6 +33,7 @@ def _load_default_config() -> str:
         return DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
     except OSError as exc:
         raise RuntimeError(f"Unable to read default config at {DEFAULT_CONFIG_PATH}") from exc
+
 
 app = typer.Typer(
     name="lantern",
@@ -52,10 +52,13 @@ class FlexibleTaskProgressColumn(TaskProgressColumn):
             return Text("...", style="progress.percentage")
         return super().render(task)
 
+
 @app.command()
 def init(
     repo: str = typer.Option(".", help="Repository path or URL"),
-    overwrite: bool = typer.Option(False, "--overwrite", "-f", help="Force re-initialization and overwrite existing config"),
+    overwrite: bool = typer.Option(
+        False, "--overwrite", "-f", help="Force re-initialization and overwrite existing config"
+    ),
 ) -> None:
     """Initialize Lantern for a repository."""
     repo_path = Path(repo).resolve()
@@ -63,7 +66,9 @@ def init(
 
     if lantern_dir.exists():
         if overwrite:
-            console.print(f"[yellow]Overwriting existing Lantern configuration in {repo_path}...[/yellow]")
+            console.print(
+                f"[yellow]Overwriting existing Lantern configuration in {repo_path}...[/yellow]"
+            )
             shutil.rmtree(lantern_dir)
         else:
             console.print(f"[yellow]Lantern is already initialized in {repo_path}[/yellow]")
@@ -85,10 +90,11 @@ def init(
         console.print(f"[bold red]Failed to initialize:[/bold red] {e}")
         raise typer.Exit(code=1)
 
+
 @app.command()
 def plan(
     repo: str = typer.Option(".", help="Repository path"),
-    output: Optional[str] = typer.Option(None, help="Output directory"),
+    output: str | None = typer.Option(None, help="Output directory"),
 ) -> None:
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
@@ -129,7 +135,7 @@ def plan(
 
         progress.update(task_plan, total=1, completed=1)
 
-    console.print(f"[bold green]Plan generated successfully![/bold green]")
+    console.print("[bold green]Plan generated successfully![/bold green]")
     console.print(f"Plan file: {plan_path}")
     console.print("Run 'lantern run' to execute this plan.")
 
@@ -137,8 +143,8 @@ def plan(
 @app.command()
 def run(
     repo: str = typer.Option(".", help="Repository path"),
-    output: Optional[str] = typer.Option(None, help="Output directory"),
-    lang: Optional[str] = typer.Option(None, help="Output language (en/zh-TW)"),
+    output: str | None = typer.Option(None, help="Output directory"),
+    lang: str | None = typer.Option(None, help="Output language (en/zh-TW)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
     synthesis_mode: str = typer.Option(
         "batch",
@@ -155,7 +161,7 @@ def run(
         "--workflow",
         help="Use new LangGraph workflow orchestration (Phase 3) instead of manual orchestration",
     ),
-    resume_thread: Optional[str] = typer.Option(
+    resume_thread: str | None = typer.Option(
         None,
         "--resume",
         help="Resume execution from checkpoint with given thread ID",
@@ -171,11 +177,11 @@ def run(
         lang=lang,
     )
 
-    console.print(f"[bold green]Lantern Analysis[/bold green]")
+    console.print("[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
     console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
     if use_workflow:
-        console.print(f"[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
+        console.print("[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
 
     # 2. Initialize Backend
     try:
@@ -206,7 +212,7 @@ def run(
             final_state = executor.execute_sync(thread_id=resume_thread)
 
             # Report results
-            console.print(f"[bold green]Analysis Complete![/bold green]")
+            console.print("[bold green]Analysis Complete![/bold green]")
             console.print(f"Documentation available in: {repo_path / config.output_dir}")
 
             if final_state.get("documents"):
@@ -220,11 +226,15 @@ def run(
             raise typer.Exit(code=0)
 
         except ImportError:
-            console.print("[bold yellow]langgraph not installed. Falling back to manual orchestration.[/bold yellow]")
+            console.print(
+                "[bold yellow]langgraph not installed. Falling back to manual orchestration.[/bold yellow]"
+            )
             console.print("[dim]Install with: pip install langgraph[/dim]")
             use_workflow = False
         except Exception as e:
-            console.print(f"[bold yellow]Workflow execution failed: {e}. Falling back to manual orchestration.[/bold yellow]")
+            console.print(
+                f"[bold yellow]Workflow execution failed: {e}. Falling back to manual orchestration.[/bold yellow]"
+            )
             use_workflow = False
 
     with Progress(
@@ -249,9 +259,7 @@ def run(
             try:
                 from lantern_cli.core.agentic_planner import AgenticPlanner
 
-                agentic_planner = AgenticPlanner(
-                    repo_path, backend, language=config.language
-                )
+                agentic_planner = AgenticPlanner(repo_path, backend, language=config.language)
                 plan = agentic_planner.generate_enhanced_plan(
                     file_list=list(graph.dependencies.keys()),
                     dependencies=graph.dependencies,
@@ -306,7 +314,7 @@ def run(
         est_result = cost_tracker.estimate_batch_cost(
             files=batch.files,
             context="",  # Simplified for estimation
-            prompt="Analyze these files and provide insights."
+            prompt="Analyze these files and provide insights.",
         )
         if est_result:
             est_tokens, est_cost = est_result
@@ -327,20 +335,26 @@ def run(
 
     if pricing_available:
         if is_local:
-            console.print(f"   Pricing Source: [green]Local (Free)[/green]")
+            console.print("   Pricing Source: [green]Local (Free)[/green]")
             console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
-            console.print(f"   Estimated Cost: [bold green]$0.0000 (Free)[/bold green]")
+            console.print("   Estimated Cost: [bold green]$0.0000 (Free)[/bold green]")
         else:
-            console.print(f"   Pricing Source: [green]Online (Live)[/green]")
+            console.print("   Pricing Source: [green]Online (Live)[/green]")
             console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
-            console.print(f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]")
+            console.print(
+                f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]"
+            )
     else:
         if config.backend.type == "cli":
-            console.print(f"   Pricing Source: [yellow]CLI Tool[/yellow]")
-            console.print("   Estimated Cost: [bold yellow]CLI estimate not available[/bold yellow]")
+            console.print("   Pricing Source: [yellow]CLI Tool[/yellow]")
+            console.print(
+                "   Estimated Cost: [bold yellow]CLI estimate not available[/bold yellow]"
+            )
         else:
-            console.print(f"   Pricing Source: [red]Offline[/red]")
-            console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
+            console.print("   Pricing Source: [red]Offline[/red]")
+            console.print(
+                "   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]"
+            )
 
     # Confirmation prompt (skip if --yes flag or no pending batches)
     if pending_batches and not assume_yes:
@@ -352,7 +366,7 @@ def run(
 
     # 6. Runner Execution
     if not pending_batches:
-            console.print("[yellow]All batches completed. Skipping execution.[/yellow]")
+        console.print("[yellow]All batches completed. Skipping execution.[/yellow]")
     else:
         with Progress(
             SpinnerColumn(),
@@ -362,8 +376,12 @@ def run(
             TimeRemainingColumn(),
             console=console,
         ) as progress:
-            task_runner = progress.add_task("Running analysis batches...", total=len(plan.phases)) # Rough progress
-            task_batch = progress.add_task(f"Processing {len(pending_batches)} batches...", total=len(pending_batches))
+            task_runner = progress.add_task(
+                "Running analysis batches...", total=len(plan.phases)
+            )  # Rough progress
+            task_batch = progress.add_task(
+                f"Processing {len(pending_batches)} batches...", total=len(pending_batches)
+            )
 
             runner = Runner(
                 repo_path,
@@ -372,14 +390,19 @@ def run(
                 language=config.language,
                 model_name=model_name,
                 is_local=is_local,
-                output_dir=config.output_dir
+                output_dir=config.output_dir,
             )
 
             for batch in pending_batches:
-                progress.update(task_batch, description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...")
+                progress.update(
+                    task_batch,
+                    description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...",
+                )
 
                 # Construct prompt with optional batch hint
-                language_instruction = f" Please respond in {config.language}." if config.language != "en" else ""
+                language_instruction = (
+                    f" Please respond in {config.language}." if config.language != "en" else ""
+                )
                 hint_instruction = f"\n\nAnalysis guidance: {batch.hint}" if batch.hint else ""
                 prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights.{language_instruction}{hint_instruction}"
 
@@ -389,7 +412,7 @@ def run(
                     # Continue or break based on policy? For MVP, continue/retry logic is in Runner state
 
                 progress.advance(task_batch)
-                progress.advance(task_runner) # Advance phase/runner progress roughly
+                progress.advance(task_runner)  # Advance phase/runner progress roughly
 
             # 6. Synthesize Docs
             if synthesis_mode == "agentic":
@@ -410,8 +433,10 @@ def run(
                     )
                     console.print("[dim]Install with: pip install langgraph[/dim]")
                     synthesizer = Synthesizer(
-                        repo_path, language=config.language, output_dir=config.output_dir,
-                        backend=backend
+                        repo_path,
+                        language=config.language,
+                        output_dir=config.output_dir,
+                        backend=backend,
                     )
                     synthesizer.generate_top_down_docs()
                 except Exception as e:
@@ -420,20 +445,24 @@ def run(
                         f"Falling back to batch synthesis.[/bold yellow]"
                     )
                     synthesizer = Synthesizer(
-                        repo_path, language=config.language, output_dir=config.output_dir,
-                        backend=backend
+                        repo_path,
+                        language=config.language,
+                        output_dir=config.output_dir,
+                        backend=backend,
                     )
                     synthesizer.generate_top_down_docs()
             else:
                 task_synth = progress.add_task("Synthesizing documentation...", total=None)
                 synthesizer = Synthesizer(
-                    repo_path, language=config.language, output_dir=config.output_dir,
-                    backend=backend
+                    repo_path,
+                    language=config.language,
+                    output_dir=config.output_dir,
+                    backend=backend,
                 )
                 synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
 
-    console.print(f"[bold green]Analysis Complete![/bold green]")
+    console.print("[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
 
     # Show final cost report if batches were processed

@@ -169,7 +169,9 @@ def identify_entry_points(records: list[dict[str, Any]]) -> str:
 
         functions = analysis.get("functions", [])
         # Check only the filename, not directory components
-        filename_lower = file_path.rsplit("/", 1)[-1].lower() if "/" in file_path else file_path.lower()
+        filename_lower = (
+            file_path.rsplit("/", 1)[-1].lower() if "/" in file_path else file_path.lower()
+        )
 
         is_entry = any(kw in filename_lower for kw in entry_keywords)
         has_main = any("main" in f.lower() for f in functions)

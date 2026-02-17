@@ -9,26 +9,20 @@ Tests cover:
 - Error handling
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any
 
 # Import workflow components
 from lantern_cli.core.workflow import (
-    LanternWorkflowState,
     LanternCheckpointConfig,
+    LanternWorkflowExecutor,
+    LanternWorkflowState,
+    _deserialize_plan,
+    _serialize_plan,
     build_lantern_workflow,
-    static_analysis_node,
-    planning_node,
-    human_review_node,
-    synthesis_node,
-    quality_gate_node,
     router_human_review,
     router_quality_gate,
-    LanternWorkflowExecutor,
-    _serialize_plan,
-    _deserialize_plan,
 )
 
 
@@ -39,22 +33,43 @@ class TestLanternWorkflowState:
         """Test that LanternWorkflowState has all required fields."""
         required_fields = {
             # Input parameters
-            "repo_path", "config", "language", "synthesis_mode", "planning_mode", "assume_yes",
+            "repo_path",
+            "config",
+            "language",
+            "synthesis_mode",
+            "planning_mode",
+            "assume_yes",
             # Static analysis
-            "dependency_graph", "reverse_dependencies", "file_list", "layers", "mermaid_graph",
+            "dependency_graph",
+            "reverse_dependencies",
+            "file_list",
+            "layers",
+            "mermaid_graph",
             # Planning
-            "plan", "plan_approved", "plan_rejected",
+            "plan",
+            "plan_approved",
+            "plan_rejected",
             # Execution
-            "pending_batches", "completed_batches", "failed_batches", "sense_records",
-            "global_summary", "batch_errors",
+            "pending_batches",
+            "completed_batches",
+            "failed_batches",
+            "sense_records",
+            "global_summary",
+            "batch_errors",
             # Synthesis
-            "documents", "synthesis_quality_score",
+            "documents",
+            "synthesis_quality_score",
             # Quality
-            "quality_score", "quality_ok", "quality_issues",
+            "quality_score",
+            "quality_ok",
+            "quality_issues",
             # Cost
-            "total_cost", "estimated_cost",
+            "total_cost",
+            "estimated_cost",
             # Control
-            "iteration_count", "needs_reanalysis", "output_dir",
+            "iteration_count",
+            "needs_reanalysis",
+            "output_dir",
         }
 
         annotations = LanternWorkflowState.__annotations__
@@ -117,6 +132,7 @@ class TestCheckpointConfig:
 
         # Should be MemorySaver or similar in-memory implementation
         from langgraph.checkpoint.memory import MemorySaver
+
         assert isinstance(saver, MemorySaver)
 
     def test_disabled_checkpointing(self):
@@ -125,6 +141,7 @@ class TestCheckpointConfig:
         saver = config.get_saver()
 
         from langgraph.checkpoint.memory import MemorySaver
+
         assert isinstance(saver, MemorySaver)
 
 
@@ -133,7 +150,7 @@ class TestPlanSerialization:
 
     def test_serialize_plan(self):
         """Test plan serialization."""
-        from lantern_cli.core.architect import Plan, Phase, Batch
+        from lantern_cli.core.architect import Batch, Phase, Plan
 
         plan = Plan(
             phases=[
@@ -182,7 +199,7 @@ class TestPlanSerialization:
 
     def test_serialize_deserialize_roundtrip(self):
         """Test that serialization is reversible."""
-        from lantern_cli.core.architect import Plan, Phase, Batch
+        from lantern_cli.core.architect import Batch, Phase, Plan
 
         original = Plan(
             phases=[
@@ -319,6 +336,7 @@ class TestRouters:
         }
 
         from langgraph.graph import END
+
         result = router_quality_gate(state)
         assert result == END
 
@@ -400,14 +418,16 @@ class TestWorkflowExecutor:
         mock_config.backend.type = "ollama"
         mock_config.backend.api_provider = "local"
         mock_config.filter = {}
-        mock_config.model_dump = MagicMock(return_value={
-            "language": "en",
-            "output_dir": ".lantern/docs",
-            "backend": {
-                "type": "ollama",
-                "api_provider": "local",
+        mock_config.model_dump = MagicMock(
+            return_value={
+                "language": "en",
+                "output_dir": ".lantern/docs",
+                "backend": {
+                    "type": "ollama",
+                    "api_provider": "local",
+                },
             }
-        })
+        )
         return mock_config
 
     @pytest.fixture

@@ -55,9 +55,7 @@ def prepare_file_tree(file_list: list[str], max_chars: int = 4000) -> str:
     return result
 
 
-def prepare_dependency_summary(
-    dependencies: dict[str, set[str]], max_chars: int = 4000
-) -> str:
+def prepare_dependency_summary(dependencies: dict[str, set[str]], max_chars: int = 4000) -> str:
     """Format dependency graph as readable text summary.
 
     Args:
@@ -72,9 +70,7 @@ def prepare_dependency_summary(
 
     lines: list[str] = []
     # Sort by number of dependencies (most connected first)
-    sorted_deps = sorted(
-        dependencies.items(), key=lambda x: len(x[1]), reverse=True
-    )
+    sorted_deps = sorted(dependencies.items(), key=lambda x: len(x[1]), reverse=True)
 
     for source, targets in sorted_deps:
         if not targets:
@@ -213,7 +209,9 @@ def sample_key_files(
             file_lines = content.splitlines()
             if len(file_lines) > max_lines_per_file:
                 sampled = "\n".join(file_lines[:max_lines_per_file])
-                lines.append(f"```\n{sampled}\n... ({len(file_lines) - max_lines_per_file} more lines)\n```")
+                lines.append(
+                    f"```\n{sampled}\n... ({len(file_lines) - max_lines_per_file} more lines)\n```"
+                )
             else:
                 lines.append(f"```\n{content}\n```")
         except OSError as exc:

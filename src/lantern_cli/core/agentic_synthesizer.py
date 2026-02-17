@@ -25,7 +25,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -38,7 +38,7 @@ from lantern_cli.core.synthesis_tools import (
 )
 
 if TYPE_CHECKING:
-    from lantern_cli.llm.backend import Backend
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ def _load_prompts() -> dict[str, dict[str, str]]:
 # ---------------------------------------------------------------------------
 # State definition
 # ---------------------------------------------------------------------------
+
 
 class SynthesisState(TypedDict):
     """Typed state flowing through the synthesis graph."""
@@ -85,6 +86,7 @@ class SynthesisState(TypedDict):
 # ---------------------------------------------------------------------------
 # LLM invocation helper
 # ---------------------------------------------------------------------------
+
 
 def _invoke_backend(backend: Any, system: str, user: str) -> str:
     """Invoke the Backend with a combined system + user prompt.
@@ -117,6 +119,7 @@ def _invoke_backend(backend: Any, system: str, user: str) -> str:
 # ---------------------------------------------------------------------------
 # Each factory returns a node function closed over the LLM and prompts.
 # Node functions accept the full state and return a partial dict to merge.
+
 
 def _make_identify_patterns(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the identify_patterns node."""
@@ -261,6 +264,7 @@ def _make_generate_concepts(backend: Any, prompts: dict[str, dict[str, str]]) ->
 # Graph builder
 # ---------------------------------------------------------------------------
 
+
 def build_synthesis_graph(backend: Any) -> Any:
     """Build and compile the synthesis StateGraph.
 
@@ -302,6 +306,7 @@ def build_synthesis_graph(backend: Any) -> Any:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 class AgenticSynthesizer:
     """LangGraph-based synthesizer for intelligent top-down documentation.
 
@@ -315,7 +320,7 @@ class AgenticSynthesizer:
         root_path: Path,
         backend: Any,
         language: str = "en",
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
     ) -> None:
         """Initialize AgenticSynthesizer.
 
@@ -348,7 +353,7 @@ class AgenticSynthesizer:
 
         for sense_file in sorted(self.sense_dir.glob("*.sense")):
             try:
-                with open(sense_file, "r", encoding="utf-8") as f:
+                with open(sense_file, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, list):
                     records.extend(data)

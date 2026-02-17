@@ -8,13 +8,13 @@ Tests cover:
 - Serialization/deserialization for checkpointing
 """
 
-import pytest
 from datetime import datetime
 
+import pytest
+
 from lantern_cli.core.context_manager import (
-    StructuredAnalysisResult,
     EnhancedContextManager,
-    FileAnalysisMetadata,
+    StructuredAnalysisResult,
     prepare_batch_context,
 )
 
@@ -60,9 +60,7 @@ class TestEnhancedContextManager:
     @pytest.fixture
     def manager(self, dependency_graph):
         """Create a context manager with sample dependency graph."""
-        return EnhancedContextManager(
-            dependency_graph=dependency_graph, max_context_length=2000
-        )
+        return EnhancedContextManager(dependency_graph=dependency_graph, max_context_length=2000)
 
     def test_manager_initialization(self, manager, dependency_graph):
         """Test manager initializes correctly."""
@@ -166,9 +164,7 @@ class TestEnhancedContextManager:
 
     def test_find_relevant_files_quality_filtering(self, manager):
         """Test that low-quality analyses are filtered out."""
-        manager.store_analysis(
-            "src/base.py", "Base", [], 1, quality_score=0.4  # Below threshold
-        )
+        manager.store_analysis("src/base.py", "Base", [], 1, quality_score=0.4)  # Below threshold
         manager.store_analysis(
             "src/module.py", "Module", [], 1, quality_score=0.85  # Above threshold
         )
@@ -196,14 +192,12 @@ class TestEnhancedContextManager:
             batch_id=1,
         )
 
-        context = manager.get_relevant_context(
-            target_files=["src/main.py"], include_depth=2
-        )
+        context = manager.get_relevant_context(target_files=["src/main.py"], include_depth=2)
 
         # Context should contain information about dependencies
         assert len(context) > 0
         # Should mention at least one of the analyzed files
-        assert ("src/base.py" in context or "src/module.py" in context)
+        assert "src/base.py" in context or "src/module.py" in context
 
     def test_context_truncation(self, manager):
         """Test that context is truncated to max length."""
@@ -225,9 +219,7 @@ class TestEnhancedContextManager:
             **{f"src/file{i}.py": [] for i in range(5)},
         }
 
-        context = manager.get_relevant_context(
-            target_files=["src/main.py"], include_depth=1
-        )
+        context = manager.get_relevant_context(target_files=["src/main.py"], include_depth=1)
 
         # Context should be truncated
         assert len(context) <= 600  # max + truncation marker
@@ -247,20 +239,14 @@ class TestEnhancedContextManager:
     def test_serialization_deserialization(self, manager):
         """Test serializing and deserializing context manager state."""
         # Store some analyses
-        manager.store_analysis(
-            "src/base.py", "Base class", ["Pattern1"], 1, quality_score=0.9
-        )
-        manager.store_analysis(
-            "src/module.py", "Module", ["Pattern2"], 2, quality_score=0.85
-        )
+        manager.store_analysis("src/base.py", "Base class", ["Pattern1"], 1, quality_score=0.9)
+        manager.store_analysis("src/module.py", "Module", ["Pattern2"], 2, quality_score=0.85)
 
         # Serialize
         data = manager.to_dict()
 
         # Deserialize with same dependency graph
-        restored = EnhancedContextManager.from_dict(
-            data, dependency_graph=manager.dependency_graph
-        )
+        restored = EnhancedContextManager.from_dict(data, dependency_graph=manager.dependency_graph)
 
         # Verify restored state
         assert len(restored.file_analyses) == 2

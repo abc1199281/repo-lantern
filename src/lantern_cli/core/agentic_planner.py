@@ -26,7 +26,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -39,7 +39,7 @@ from lantern_cli.core.planning_tools import (
 )
 
 if TYPE_CHECKING:
-    from lantern_cli.llm.backend import Backend
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -216,9 +216,7 @@ def _invoke_backend(backend: Any, system: str, user: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _make_analyze_structure(
-    backend: Any, prompts: dict[str, dict[str, str]]
-) -> Any:
+def _make_analyze_structure(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the analyze_structure node."""
 
     def analyze_structure(state: PlanningState) -> dict[str, str]:
@@ -239,9 +237,7 @@ def _make_analyze_structure(
     return analyze_structure
 
 
-def _make_identify_patterns(
-    backend: Any, prompts: dict[str, dict[str, str]]
-) -> Any:
+def _make_identify_patterns(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the identify_patterns node."""
 
     def identify_patterns(state: PlanningState) -> dict[str, str]:
@@ -261,9 +257,7 @@ def _make_identify_patterns(
     return identify_patterns
 
 
-def _make_semantic_grouping(
-    backend: Any, prompts: dict[str, dict[str, str]]
-) -> Any:
+def _make_semantic_grouping(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the semantic_grouping node."""
 
     def semantic_grouping(state: PlanningState) -> dict[str, str]:
@@ -285,9 +279,7 @@ def _make_semantic_grouping(
     return semantic_grouping
 
 
-def _make_generate_hints(
-    backend: Any, prompts: dict[str, dict[str, str]]
-) -> Any:
+def _make_generate_hints(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the generate_hints node."""
 
     def generate_hints(state: PlanningState) -> dict[str, str]:
@@ -425,9 +417,7 @@ class AgenticPlanner:
         file_tree = prepare_file_tree(file_list)
         dep_summary = prepare_dependency_summary(dependencies)
         layer_summary = prepare_layer_summary(layers)
-        sampled = sample_key_files(
-            file_list, dependencies, reverse_dependencies, self.root_path
-        )
+        sampled = sample_key_files(file_list, dependencies, reverse_dependencies, self.root_path)
         file_list_formatted = "\n".join(f"- {f}" for f in sorted(file_list))
 
         initial_state: PlanningState = {
@@ -448,9 +438,7 @@ class AgenticPlanner:
         result = self.compiled_graph.invoke(initial_state)
         logger.info("Agentic planning completed.")
 
-        return self._build_plan(
-            result, file_list, layers, mermaid_graph, batch_size
-        )
+        return self._build_plan(result, file_list, layers, mermaid_graph, batch_size)
 
     def _build_plan(
         self,
@@ -535,13 +523,15 @@ class AgenticPlanner:
 
             # Start new phase if layer jumps significantly
             if avg_layer - current_phase_layer > 0.5 and current_phase_batches:
-                phases.append(Phase(
-                    id=phase_id,
-                    batches=current_phase_batches,
-                    learning_objectives=self._generate_objectives(
-                        current_phase_batches, result.get("patterns_analysis", "")
-                    ),
-                ))
+                phases.append(
+                    Phase(
+                        id=phase_id,
+                        batches=current_phase_batches,
+                        learning_objectives=self._generate_objectives(
+                            current_phase_batches, result.get("patterns_analysis", "")
+                        ),
+                    )
+                )
                 phase_id += 1
                 current_phase_batches = []
 
@@ -550,13 +540,15 @@ class AgenticPlanner:
 
         # Flush remaining batches
         if current_phase_batches:
-            phases.append(Phase(
-                id=phase_id,
-                batches=current_phase_batches,
-                learning_objectives=self._generate_objectives(
-                    current_phase_batches, result.get("patterns_analysis", "")
-                ),
-            ))
+            phases.append(
+                Phase(
+                    id=phase_id,
+                    batches=current_phase_batches,
+                    learning_objectives=self._generate_objectives(
+                        current_phase_batches, result.get("patterns_analysis", "")
+                    ),
+                )
+            )
 
         # Calculate confidence based on parsing success
         confidence = 1.0
@@ -572,9 +564,7 @@ class AgenticPlanner:
         )
 
     @staticmethod
-    def _generate_objectives(
-        batches: list[Batch], patterns_analysis: str
-    ) -> list[str]:
+    def _generate_objectives(batches: list[Batch], patterns_analysis: str) -> list[str]:
         """Generate learning objectives for a phase from its batches.
 
         Uses batch hints and pattern analysis to create meaningful objectives.
@@ -596,9 +586,7 @@ class AgenticPlanner:
 # ---------------------------------------------------------------------------
 
 
-def _enforce_batch_size(
-    groups: list[list[str]], batch_size: int
-) -> list[list[str]]:
+def _enforce_batch_size(groups: list[list[str]], batch_size: int) -> list[list[str]]:
     """Split groups that exceed batch_size into smaller groups."""
     result: list[list[str]] = []
     for group in groups:

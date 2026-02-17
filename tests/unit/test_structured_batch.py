@@ -3,19 +3,18 @@
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic import BaseModel
 
 from lantern_cli.llm.structured import (
     BatchInteraction,
-    StructuredAnalyzer,
     StructuredAnalysisOutput,
+    StructuredAnalyzer,
     _extract_json,
 )
-
 
 # ---------------------------------------------------------------------------
 # StructuredAnalysisOutput normalisation
 # ---------------------------------------------------------------------------
+
 
 class TestStructuredAnalysisOutput:
     """Test Pydantic model normalisation / defaults."""
@@ -57,6 +56,7 @@ class TestStructuredAnalysisOutput:
 # StructuredAnalyzer._to_payload
 # ---------------------------------------------------------------------------
 
+
 class TestToPayload:
 
     def test_dict_passthrough(self) -> None:
@@ -82,6 +82,7 @@ class TestToPayload:
 # StructuredAnalyzer._to_text
 # ---------------------------------------------------------------------------
 
+
 class TestToText:
 
     def test_string_passthrough(self) -> None:
@@ -104,6 +105,7 @@ class TestToText:
 # _extract_json helper
 # ---------------------------------------------------------------------------
 
+
 class TestExtractJson:
 
     def test_plain_json(self) -> None:
@@ -121,6 +123,7 @@ class TestExtractJson:
 # ---------------------------------------------------------------------------
 # StructuredAnalyzer.analyze_batch (now uses Backend protocol)
 # ---------------------------------------------------------------------------
+
 
 class TestAnalyzeBatch:
 
@@ -168,6 +171,7 @@ class TestAnalyzeBatch:
 # StructuredAnalyzer.analyze (single-file convenience)
 # ---------------------------------------------------------------------------
 
+
 class TestAnalyzeSingle:
 
     def test_returns_single_output(self) -> None:
@@ -186,6 +190,7 @@ class TestAnalyzeSingle:
 # ---------------------------------------------------------------------------
 # BatchInteraction.to_dict
 # ---------------------------------------------------------------------------
+
 
 def test_batch_interaction_to_dict() -> None:
     analysis = StructuredAnalysisOutput(summary="s", key_insights=["k"], language="en")

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lantern_cli.llm.backend import LLMResponse
 from lantern_cli.core.architect import Batch, Phase, Plan
 from lantern_cli.core.planning_tools import (
     prepare_dependency_summary,
@@ -14,7 +13,7 @@ from lantern_cli.core.planning_tools import (
     prepare_layer_summary,
     sample_key_files,
 )
-
+from lantern_cli.llm.backend import LLMResponse
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -64,22 +63,26 @@ SAMPLE_LAYERS: dict[str, int] = {
 }
 
 # Valid semantic groups JSON that an LLM might return
-VALID_GROUPS_JSON = json.dumps([
-    ["src/models/base.py", "src/models/user.py"],
-    ["src/core/config.py", "src/core/utils.py"],
-    ["src/api/routes.py", "src/api/handlers.py"],
-    ["src/core/main.py"],
-    ["tests/test_main.py"],
-])
+VALID_GROUPS_JSON = json.dumps(
+    [
+        ["src/models/base.py", "src/models/user.py"],
+        ["src/core/config.py", "src/core/utils.py"],
+        ["src/api/routes.py", "src/api/handlers.py"],
+        ["src/core/main.py"],
+        ["tests/test_main.py"],
+    ]
+)
 
 # Valid hints JSON that an LLM might return
-VALID_HINTS_JSON = json.dumps({
-    "0": "Analyze the data model hierarchy. Focus on base class patterns.",
-    "1": "These are utility modules. Identify shared helpers and configuration.",
-    "2": "API layer files. Compare route definitions and handler patterns.",
-    "3": "Main entry point. Trace the startup flow and dependency injection.",
-    "4": "Test file. Verify test coverage patterns.",
-})
+VALID_HINTS_JSON = json.dumps(
+    {
+        "0": "Analyze the data model hierarchy. Focus on base class patterns.",
+        "1": "These are utility modules. Identify shared helpers and configuration.",
+        "2": "API layer files. Compare route definitions and handler patterns.",
+        "3": "Main entry point. Trace the startup flow and dependency injection.",
+        "4": "Test file. Verify test coverage patterns.",
+    }
+)
 
 
 def _make_backend_mock(content: str = "Generated LLM content") -> MagicMock:
@@ -234,9 +237,7 @@ class TestSampleKeyFiles:
         assert count <= 2
 
     def test_empty_file_list(self, project_dir: Path) -> None:
-        result = sample_key_files(
-            [], {}, {}, project_dir
-        )
+        result = sample_key_files([], {}, {}, project_dir)
         assert "No files available" in result
 
     def test_handles_missing_files(self, project_dir: Path) -> None:
@@ -283,16 +284,20 @@ class TestAgenticPlanner:
         """The planner should return a Plan object."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure: CLI tool with API layer",  # analyze_structure
-            "Patterns: MVC architecture",  # identify_patterns
-            VALID_GROUPS_JSON,  # semantic_grouping
-            VALID_HINTS_JSON,  # generate_hints
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure: CLI tool with API layer",  # analyze_structure
+                "Patterns: MVC architecture",  # identify_patterns
+                VALID_GROUPS_JSON,  # semantic_grouping
+                VALID_HINTS_JSON,  # generate_hints
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         assert isinstance(plan, Plan)
@@ -302,16 +307,20 @@ class TestAgenticPlanner:
         """Every file should appear in exactly one batch."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure analysis",
-            "Pattern analysis",
-            VALID_GROUPS_JSON,
-            VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure analysis",
+                "Pattern analysis",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         all_files = set()
@@ -327,16 +336,20 @@ class TestAgenticPlanner:
         """Batches should have hints from the LLM."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure analysis",
-            "Pattern analysis",
-            VALID_GROUPS_JSON,
-            VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure analysis",
+                "Pattern analysis",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         # At least some batches should have hints
@@ -348,16 +361,20 @@ class TestAgenticPlanner:
         """The graph has 4 nodes, each invoking the LLM once."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure analysis",
-            "Pattern analysis",
-            VALID_GROUPS_JSON,
-            VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure analysis",
+                "Pattern analysis",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         assert backend.invoke.call_count == 4
@@ -366,16 +383,20 @@ class TestAgenticPlanner:
         """Later nodes should receive output from earlier nodes."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "STRUCTURE: This is a layered CLI application",
-            "PATTERNS: Factory pattern in handlers, MVC overall",
-            VALID_GROUPS_JSON,
-            VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "STRUCTURE: This is a layered CLI application",
+                "PATTERNS: Factory pattern in handlers, MVC overall",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         # identify_patterns (2nd call) should include structure_analysis
@@ -390,13 +411,20 @@ class TestAgenticPlanner:
         """Language should appear in LLM prompts."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure", "Patterns", VALID_GROUPS_JSON, VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="zh-TW")
         planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         first_prompt = backend.invoke.call_args_list[0][0][0]
@@ -417,13 +445,20 @@ class TestAgenticPlanner:
         """No batch should exceed batch_size."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure", "Patterns", VALID_GROUPS_JSON, VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
             batch_size=3,
         )
 
@@ -435,13 +470,20 @@ class TestAgenticPlanner:
         """Plan.to_markdown() should include batch hints."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure", "Patterns", VALID_GROUPS_JSON, VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         md = plan.to_markdown()
@@ -451,16 +493,20 @@ class TestAgenticPlanner:
         """Invalid JSON from LLM should fall back to layer-based grouping."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure",
-            "Patterns",
-            "This is not valid JSON at all!",  # Invalid groups
-            "{}",  # Empty hints
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                "This is not valid JSON at all!",  # Invalid groups
+                "{}",  # Empty hints
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         # Should still produce a valid plan with all files
@@ -471,16 +517,20 @@ class TestAgenticPlanner:
         """Invalid hints JSON should not crash, just produce batches without hints."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure",
-            "Patterns",
-            VALID_GROUPS_JSON,
-            "Not valid JSON for hints!",  # Invalid hints
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                VALID_GROUPS_JSON,
+                "Not valid JSON for hints!",  # Invalid hints
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         # Plan should still be valid, just without hints
@@ -493,21 +543,27 @@ class TestAgenticPlanner:
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
         # Groups that only cover some files
-        partial_groups = json.dumps([
-            ["src/models/base.py", "src/models/user.py"],
-            ["src/core/main.py"],
-        ])
+        partial_groups = json.dumps(
+            [
+                ["src/models/base.py", "src/models/user.py"],
+                ["src/core/main.py"],
+            ]
+        )
 
-        backend = _make_backend_mock_sequential([
-            "Structure",
-            "Patterns",
-            partial_groups,
-            VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                partial_groups,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         all_files = {f for p in plan.phases for b in p.batches for f in b.files}
@@ -517,13 +573,20 @@ class TestAgenticPlanner:
         """Confidence should be high when parsing succeeds."""
         from lantern_cli.core.agentic_planner import AgenticPlanner
 
-        backend = _make_backend_mock_sequential([
-            "Structure", "Patterns", VALID_GROUPS_JSON, VALID_HINTS_JSON,
-        ])
+        backend = _make_backend_mock_sequential(
+            [
+                "Structure",
+                "Patterns",
+                VALID_GROUPS_JSON,
+                VALID_HINTS_JSON,
+            ]
+        )
         planner = AgenticPlanner(project_dir, backend, language="en")
         plan = planner.generate_enhanced_plan(
-            SAMPLE_FILE_LIST, SAMPLE_DEPENDENCIES,
-            SAMPLE_REVERSE_DEPENDENCIES, SAMPLE_LAYERS,
+            SAMPLE_FILE_LIST,
+            SAMPLE_DEPENDENCIES,
+            SAMPLE_REVERSE_DEPENDENCIES,
+            SAMPLE_LAYERS,
         )
 
         assert plan.confidence_score >= 0.8

@@ -1,5 +1,5 @@
 """Tests for Python static analysis."""
-import tempfile
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -66,16 +66,19 @@ class TestPythonAnalyzer:
     def test_non_existent_file(self, analyzer: PythonAnalyzer) -> None:
         """Test handling of non-existent file."""
         import uuid
+
         file_path = Path(f"/tmp/nonexistent_{uuid.uuid4()}.py")
         imports = analyzer.analyze_imports(file_path)
         assert imports == []
 
     @patch("ast.parse")
-    def test_generic_exception(self, mock_parse: MagicMock, analyzer: PythonAnalyzer, tmp_path: Path) -> None:
+    def test_generic_exception(
+        self, mock_parse: MagicMock, analyzer: PythonAnalyzer, tmp_path: Path
+    ) -> None:
         """Test handling of generic exception during parsing."""
         file_path = tmp_path / "test.py"
         file_path.write_text("import os")
-        
+
         mock_parse.side_effect = Exception("Generic error")
         imports = analyzer.analyze_imports(file_path)
-        assert imports == [] 
+        assert imports == []

@@ -7,10 +7,11 @@ Architecture:
 - Delegates compression to MemoryManager
 - Supports both structured (LangChain) and agent-based (CLI) workflows
 """
+
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.state_manager import StateManager
@@ -41,7 +42,7 @@ class Runner:
         language: str = "en",
         model_name: str = "gemini-1.5-flash",
         is_local: bool = False,
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
     ) -> None:
         """Initialize Runner.
 
@@ -81,9 +82,7 @@ class Runner:
 
             # 1a. Estimate cost for this batch
             est_result = self.cost_tracker.estimate_batch_cost(
-                files=batch.files,
-                context=context,
-                prompt=prompt
+                files=batch.files, context=context, prompt=prompt
             )
 
             if est_result:
@@ -92,7 +91,9 @@ class Runner:
                     f"Batch {batch.id}: Estimated {estimated_tokens} tokens, ${estimated_cost:.4f}"
                 )
             else:
-                logger.debug(f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)")
+                logger.debug(
+                    f"Batch {batch.id}: Cost estimation unavailable (offline/pricing error)"
+                )
 
             # 2. Generate Bottom-up Markdown & save .sense file using StructuredAnalyzer
             # File reading is handled inside _generate_bottom_up_doc per-file
@@ -115,7 +116,7 @@ class Runner:
             # 4. Update State
             self.state_manager.update_batch_status(batch.id, success=True)
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to analyze batch {batch.id}: {e}")
             self.state_manager.update_batch_status(batch.id, success=False)
@@ -206,7 +207,7 @@ class Runner:
                 file_content = ""
             batch_data.append({"file_content": file_content, "language": self.language})
 
-        structured_results: list[Optional[StructuredAnalysisOutput]] = [None] * len(batch.files)
+        structured_results: list[StructuredAnalysisOutput | None] = [None] * len(batch.files)
         sense_records: list[dict[str, Any]] = []
         interactions: list[BatchInteraction] = []
         try:
@@ -219,7 +220,12 @@ class Runner:
                 break
             structured_results[idx] = interaction.analysis
             sense_records.append(
-                {"batch": batch.id, "file_index": idx, "file_path": batch.files[idx], **interaction.to_dict()}
+                {
+                    "batch": batch.id,
+                    "file_index": idx,
+                    "file_path": batch.files[idx],
+                    **interaction.to_dict(),
+                }
             )
 
         if any(item is None for item in structured_results):
@@ -276,7 +282,9 @@ class Runner:
 
             parsed = structured_results[idx]
             if parsed is None:
-                logger.warning(f"No structured analysis for {rel_path}, skipping markdown generation")
+                logger.warning(
+                    f"No structured analysis for {rel_path}, skipping markdown generation"
+                )
                 md_content = (
                     f"# {rel_path.name}\n\n"
                     f"> **Original File**: `{rel_path}`\n"
@@ -285,7 +293,11 @@ class Runner:
                 )
             else:
                 md_content = self._render_structured_markdown(
-                    rel_path=rel_path, batch_id=batch.id, index=idx + 1, num_files=num_files, parsed=parsed
+                    rel_path=rel_path,
+                    batch_id=batch.id,
+                    index=idx + 1,
+                    num_files=num_files,
+                    parsed=parsed,
                 )
 
             with open(out_path, "w", encoding="utf-8") as f:
@@ -403,7 +415,7 @@ class Runner:
         """Prepare context from global summary."""
         summary = self.state_manager.state.global_summary
         if len(summary) > self.MAX_CONTEXT_LENGTH:
-            return summary[:self.MAX_CONTEXT_LENGTH] # Should be pre-truncated but safe guard
+            return summary[: self.MAX_CONTEXT_LENGTH]  # Should be pre-truncated but safe guard
         return summary
 
     def get_cost_report(self) -> str:

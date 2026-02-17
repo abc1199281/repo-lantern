@@ -1,6 +1,7 @@
 """File filtering logic using pathspec."""
+
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pathspec
 
@@ -45,7 +46,7 @@ class FileFilter:
         gitignore_path = self.root_path / ".gitignore"
         if gitignore_path.exists():
             try:
-                with open(gitignore_path, "r") as f:
+                with open(gitignore_path) as f:
                     return pathspec.PathSpec.from_lines("gitignore", f)
             except Exception:
                 pass
@@ -53,16 +54,16 @@ class FileFilter:
 
     def should_ignore(self, file_path: Path) -> bool:
         """Check if a file should be ignored.
-        
+
         Priority:
         1. Config Include (Force include) -> Returns False
         2. Config Exclude -> Returns True
         3. Default Exclude -> Returns True
         4. .gitignore -> Returns True
-        
+
         Args:
             file_path: Path to the file (absolute or relative to root).
-            
+
         Returns:
             True if file should be ignored, False otherwise.
         """

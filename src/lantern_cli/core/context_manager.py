@@ -11,11 +11,9 @@ Key improvements:
 - Support for querying previous analysis results
 """
 
-from typing import TypedDict, Optional, Dict, List, Set, Any
-from pathlib import Path
-from dataclasses import dataclass, asdict, field
 import logging
-import json
+from dataclasses import asdict, dataclass, field
+from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -27,27 +25,29 @@ class StructuredAnalysisResult(TypedDict):
     Replaces the old compressed summary approach with detailed,
     queryable analysis information.
     """
+
     file_path: str
-    summary: str              # File-level summary
-    key_concepts: List[str]   # Key concepts and patterns
-    design_patterns: List[str]  # Design patterns found
-    dependencies: List[str]   # Files this file depends on
-    dependents: List[str]     # Files that depend on this file
-    relationships: List[Dict[str, Any]]  # Cross-file relationships
-    quality_score: float      # Analysis quality (0.0-1.0)
-    analysis_depth: str       # "shallow", "medium", "deep"
-    timestamp: str            # When this was analyzed
-    batch_id: int            # Which batch analyzed this file
+    summary: str  # File-level summary
+    key_concepts: list[str]  # Key concepts and patterns
+    design_patterns: list[str]  # Design patterns found
+    dependencies: list[str]  # Files this file depends on
+    dependents: list[str]  # Files that depend on this file
+    relationships: list[dict[str, Any]]  # Cross-file relationships
+    quality_score: float  # Analysis quality (0.0-1.0)
+    analysis_depth: str  # "shallow", "medium", "deep"
+    timestamp: str  # When this was analyzed
+    batch_id: int  # Which batch analyzed this file
 
 
 @dataclass
 class FileAnalysisMetadata:
     """Metadata about analyzed files for quick lookup."""
+
     file_path: str
     analyzed: bool = False
-    batch_id: Optional[int] = None
+    batch_id: int | None = None
     quality_score: float = 0.0
-    dependencies: List[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
 
 
 class EnhancedContextManager:
@@ -61,7 +61,7 @@ class EnhancedContextManager:
 
     def __init__(
         self,
-        dependency_graph: Optional[Dict[str, List[str]]] = None,
+        dependency_graph: dict[str, list[str]] | None = None,
         max_context_length: int = 6000,
     ):
         """
@@ -75,23 +75,23 @@ class EnhancedContextManager:
         self.max_context_length = max_context_length
 
         # Storage for structured analysis results
-        self.file_analyses: Dict[str, StructuredAnalysisResult] = {}
+        self.file_analyses: dict[str, StructuredAnalysisResult] = {}
 
         # Quick lookup metadata
-        self.file_metadata: Dict[str, FileAnalysisMetadata] = {}
+        self.file_metadata: dict[str, FileAnalysisMetadata] = {}
 
         # Track analysis order
-        self.analysis_order: List[str] = []
+        self.analysis_order: list[str] = []
 
     def store_analysis(
         self,
         file_path: str,
         summary: str,
-        key_concepts: List[str],
+        key_concepts: list[str],
         batch_id: int,
         quality_score: float = 0.8,
-        design_patterns: Optional[List[str]] = None,
-        relationships: Optional[List[Dict[str, Any]]] = None,
+        design_patterns: list[str] | None = None,
+        relationships: list[dict[str, Any]] | None = None,
         analysis_depth: str = "medium",
     ) -> None:
         """
@@ -142,7 +142,7 @@ class EnhancedContextManager:
 
     def get_relevant_context(
         self,
-        target_files: List[str],
+        target_files: list[str],
         include_depth: int = 1,
         min_quality: float = 0.5,
     ) -> str:
@@ -163,9 +163,7 @@ class EnhancedContextManager:
             Formatted context string (truncated to max_context_length)
         """
         # Find all relevant files
-        relevant_files = self._find_relevant_files(
-            target_files, include_depth, min_quality
-        )
+        relevant_files = self._find_relevant_files(target_files, include_depth, min_quality)
 
         if not relevant_files:
             logger.debug(f"No relevant previous analyses for {target_files}")
@@ -180,27 +178,23 @@ class EnhancedContextManager:
         for file_path in sorted_files:
             if file_path in self.file_analyses:
                 analysis = self.file_analyses[file_path]
-                context_parts.append(
-                    self._format_analysis_for_context(file_path, analysis)
-                )
+                context_parts.append(self._format_analysis_for_context(file_path, analysis))
 
         # Combine and truncate
         full_context = "\n\n".join(context_parts)
 
         if len(full_context) > self.max_context_length:
-            logger.info(
-                f"Context truncated: {len(full_context)} → {self.max_context_length}"
-            )
+            logger.info(f"Context truncated: {len(full_context)} → {self.max_context_length}")
             full_context = full_context[: self.max_context_length] + "\n... (truncated)"
 
         return full_context
 
     def _find_relevant_files(
         self,
-        target_files: List[str],
+        target_files: list[str],
         include_depth: int,
         min_quality: float,
-    ) -> Set[str]:
+    ) -> set[str]:
         """
         Find all files relevant to analyzing target files.
 
@@ -211,7 +205,7 @@ class EnhancedContextManager:
         """
         relevant = set()
 
-        def add_dependencies(files: List[str], depth: int) -> None:
+        def add_dependencies(files: list[str], depth: int) -> None:
             if depth <= 0:
                 return
 
@@ -241,9 +235,7 @@ class EnhancedContextManager:
 
         return relevant
 
-    def _sort_by_dependency_order(
-        self, files: Set[str], target_files: List[str]
-    ) -> List[str]:
+    def _sort_by_dependency_order(self, files: set[str], target_files: list[str]) -> list[str]:
         """
         Sort files by dependency order (dependencies first).
 
@@ -255,11 +247,9 @@ class EnhancedContextManager:
         while remaining:
             # Find files with no dependencies in remaining set
             available = [
-                f for f in remaining
-                if not any(
-                    dep in remaining for dep in
-                    self.dependency_graph.get(f, [])
-                )
+                f
+                for f in remaining
+                if not any(dep in remaining for dep in self.dependency_graph.get(f, []))
             ]
 
             if not available:
@@ -297,32 +287,30 @@ class EnhancedContextManager:
 
         # Add design patterns
         if analysis["design_patterns"]:
-            parts.append(
-                f"**Patterns**: {', '.join(analysis['design_patterns'][:3])}"
-            )
+            parts.append(f"**Patterns**: {', '.join(analysis['design_patterns'][:3])}")
 
         # Add quality info
-        parts.append(f"(Quality: {analysis['quality_score']:.1f}, Depth: {analysis['analysis_depth']})")
+        parts.append(
+            f"(Quality: {analysis['quality_score']:.1f}, Depth: {analysis['analysis_depth']})"
+        )
 
         return "\n".join(parts)
 
-    def get_analysis(self, file_path: str) -> Optional[StructuredAnalysisResult]:
+    def get_analysis(self, file_path: str) -> StructuredAnalysisResult | None:
         """Get stored analysis for a specific file."""
         return self.file_analyses.get(file_path)
 
-    def get_all_analyses(self) -> Dict[str, StructuredAnalysisResult]:
+    def get_all_analyses(self) -> dict[str, StructuredAnalysisResult]:
         """Get all stored analyses."""
         return self.file_analyses.copy()
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get statistics about stored analyses."""
         total_files = len(self.file_analyses)
         if total_files == 0:
             return {"total_files": 0, "avg_quality": 0.0}
 
-        quality_scores = [
-            analysis["quality_score"] for analysis in self.file_analyses.values()
-        ]
+        quality_scores = [analysis["quality_score"] for analysis in self.file_analyses.values()]
         avg_quality = sum(quality_scores) / len(quality_scores)
 
         depth_counts = {}
@@ -339,7 +327,7 @@ class EnhancedContextManager:
             ),
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize context manager state for checkpointing."""
         return {
             "file_analyses": self.file_analyses,
@@ -350,8 +338,8 @@ class EnhancedContextManager:
     @classmethod
     def from_dict(
         cls,
-        data: Dict[str, Any],
-        dependency_graph: Optional[Dict[str, List[str]]] = None,
+        data: dict[str, Any],
+        dependency_graph: dict[str, list[str]] | None = None,
         max_context_length: int = 6000,
     ) -> "EnhancedContextManager":
         """Deserialize context manager state from checkpoint."""
@@ -373,8 +361,8 @@ class EnhancedContextManager:
 
 def prepare_batch_context(
     context_manager: EnhancedContextManager,
-    batch_files: List[str],
-    dependency_graph: Dict[str, List[str]],
+    batch_files: list[str],
+    dependency_graph: dict[str, list[str]],
     include_depth: int = 2,
     min_quality: float = 0.6,
 ) -> str:
@@ -398,8 +386,6 @@ def prepare_batch_context(
         context_manager.dependency_graph = dependency_graph
 
     # Get relevant context
-    context = context_manager.get_relevant_context(
-        batch_files, include_depth, min_quality
-    )
+    context = context_manager.get_relevant_context(batch_files, include_depth, min_quality)
 
     return context

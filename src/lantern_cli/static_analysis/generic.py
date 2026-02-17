@@ -1,4 +1,5 @@
 """Generic static analysis module using regex and optional ripgrep."""
+
 import re
 import shutil
 import subprocess
@@ -37,14 +38,14 @@ class GenericAnalyzer:
             imports.update(re.findall(r"^\s*import\s+([\w\.]+)", content, re.MULTILINE))
             # from x import y
             imports.update(re.findall(r"^\s*from\s+([\w\.]+)\s+import", content, re.MULTILINE))
-        
+
         elif language.lower() in ("javascript", "typescript", "js", "ts"):
             # import x from 'y'
             # import { x } from 'y'
             # import 'y'
             matches = re.findall(r"import\s+(?:.*from\s+)?['\"]([^'\"]+)['\"]", content)
             imports.update(matches)
-            
+
             # const x = require('y')
             matches_require = re.findall(r"require\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", content)
             imports.update(matches_require)
@@ -79,7 +80,9 @@ class GenericAnalyzer:
             for file_path in directory.rglob("*"):
                 if file_path.is_file():
                     try:
-                        for i, line in enumerate(file_path.read_text(errors="ignore").splitlines(), 1):
+                        for i, line in enumerate(
+                            file_path.read_text(errors="ignore").splitlines(), 1
+                        ):
                             if regex.search(line):
                                 matches.append(f"{file_path}:{i}:{line}")
                     except Exception:

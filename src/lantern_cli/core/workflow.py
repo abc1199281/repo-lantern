@@ -8,26 +8,22 @@ This module implements Phase 3 of the LangGraph Subagent evaluation:
 - Conditional routing based on quality scores and user approval
 """
 
-from typing import TypedDict, Annotated, Optional, Dict, List, Any, TYPE_CHECKING
+import logging
+from dataclasses import dataclass
 from operator import add
 from pathlib import Path
-from dataclasses import dataclass, asdict
-import json
-import logging
+from typing import TYPE_CHECKING, Annotated, Any, Optional, TypedDict
 
-from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.types import Send
+from langgraph.graph import END, START, StateGraph
 
-from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.core.architect import Architect, Plan
-from lantern_cli.core.state_manager import StateManager, ExecutionState
 from lantern_cli.core.runner import Runner
+from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.synthesizer import Synthesizer
-from lantern_cli.utils.cost_tracker import CostTracker
+from lantern_cli.static_analysis import DependencyGraph, FileFilter
 
 if TYPE_CHECKING:
-    from lantern_cli.config.loader import Config
     from lantern_cli.llm.backend import Backend
 
 logger = logging.getLogger(__name__)
@@ -44,9 +40,10 @@ class LanternWorkflowState(TypedDict):
     - Cost tracking
     - Enhanced context management (Phase 4)
     """
+
     # Input parameters
     repo_path: str
-    config: Dict[str, Any]  # Serializable config dict
+    config: dict[str, Any]  # Serializable config dict
     language: str
     synthesis_mode: str
     planning_mode: str
@@ -54,37 +51,37 @@ class LanternWorkflowState(TypedDict):
     output_dir: str  # Output directory for documentation
 
     # Static analysis results
-    dependency_graph: Dict[str, List[str]]  # file -> [dependencies]
-    reverse_dependencies: Dict[str, List[str]]  # file -> [dependents]
-    file_list: List[str]
-    layers: List[List[str]]  # Dependency layers
+    dependency_graph: dict[str, list[str]]  # file -> [dependencies]
+    reverse_dependencies: dict[str, list[str]]  # file -> [dependents]
+    file_list: list[str]
+    layers: list[list[str]]  # Dependency layers
     mermaid_graph: str
 
     # Planning results
-    plan: Optional[Dict[str, Any]]  # Serializable Plan representation
+    plan: dict[str, Any] | None  # Serializable Plan representation
     plan_approved: bool
     plan_rejected: bool
 
     # Batch execution state
-    pending_batches: List[Dict[str, Any]]  # Serializable Batch representation
-    completed_batches: List[int]  # Batch IDs
-    failed_batches: List[int]  # Batch IDs
-    sense_records: Annotated[List[Dict[str, Any]], add]  # Auto-merge new records
+    pending_batches: list[dict[str, Any]]  # Serializable Batch representation
+    completed_batches: list[int]  # Batch IDs
+    failed_batches: list[int]  # Batch IDs
+    sense_records: Annotated[list[dict[str, Any]], add]  # Auto-merge new records
     global_summary: str
-    batch_errors: Dict[int, str]  # batch_id -> error message
+    batch_errors: dict[int, str]  # batch_id -> error message
 
     # Phase 4: Enhanced Context Management
-    structured_analyses: Dict[str, Dict[str, Any]]  # file_path -> analysis result
-    context_manager_state: Dict[str, Any]  # Serialized context manager state
+    structured_analyses: dict[str, dict[str, Any]]  # file_path -> analysis result
+    context_manager_state: dict[str, Any]  # Serialized context manager state
 
     # Synthesis results
-    documents: Dict[str, str]  # filename -> content
+    documents: dict[str, str]  # filename -> content
     synthesis_quality_score: float
 
     # Quality gates
     quality_score: float
     quality_ok: bool
-    quality_issues: List[str]
+    quality_issues: list[str]
 
     # Cost tracking
     total_cost: float
@@ -98,18 +95,21 @@ class LanternWorkflowState(TypedDict):
 @dataclass
 class LanternCheckpointConfig:
     """Configuration for LangGraph checkpointer."""
+
     enable_checkpointing: bool = True
-    checkpoint_dir: Optional[Path] = None
+    checkpoint_dir: Path | None = None
 
     def get_saver(self):
         """Get the appropriate saver (in-memory or file-based)."""
         if self.enable_checkpointing and self.checkpoint_dir:
             try:
                 from langgraph_checkpoint.sqlite import SqliteSaver
+
                 return SqliteSaver(str(self.checkpoint_dir / "checkpoints.db"))
             except ImportError:
                 try:
                     from langgraph.checkpoint.sqlite import SqliteSaver
+
                     return SqliteSaver(str(self.checkpoint_dir / "checkpoints.db"))
                 except ImportError:
                     # Fallback to memory saver
@@ -119,7 +119,7 @@ class LanternCheckpointConfig:
             return MemorySaver()
 
 
-def _serialize_plan(plan: Plan) -> Dict[str, Any]:
+def _serialize_plan(plan: Plan) -> dict[str, Any]:
     """Convert Plan object to serializable dict."""
     if not plan:
         return None
@@ -128,16 +128,20 @@ def _serialize_plan(plan: Plan) -> Dict[str, Any]:
     for phase in plan.phases:
         batches = []
         for batch in phase.batches:
-            batches.append({
-                "id": batch.id,
-                "files": batch.files,
-                "hint": batch.hint,
-            })
-        phases.append({
-            "id": phase.id,
-            "batches": batches,
-            "learning_objectives": phase.learning_objectives,
-        })
+            batches.append(
+                {
+                    "id": batch.id,
+                    "files": batch.files,
+                    "hint": batch.hint,
+                }
+            )
+        phases.append(
+            {
+                "id": phase.id,
+                "batches": batches,
+                "learning_objectives": phase.learning_objectives,
+            }
+        )
 
     return {
         "phases": phases,
@@ -146,27 +150,31 @@ def _serialize_plan(plan: Plan) -> Dict[str, Any]:
     }
 
 
-def _deserialize_plan(plan_dict: Dict[str, Any]) -> Plan:
+def _deserialize_plan(plan_dict: dict[str, Any]) -> Plan:
     """Reconstruct Plan object from serialized dict."""
     if not plan_dict:
         return None
 
-    from lantern_cli.core.architect import Phase, Batch
+    from lantern_cli.core.architect import Batch, Phase
 
     phases = []
     for phase_dict in plan_dict.get("phases", []):
         batches = []
         for batch_dict in phase_dict.get("batches", []):
-            batches.append(Batch(
-                id=batch_dict["id"],
-                files=batch_dict["files"],
-                hint=batch_dict.get("hint", ""),
-            ))
-        phases.append(Phase(
-            id=phase_dict["id"],
-            batches=batches,
-            learning_objectives=phase_dict.get("learning_objectives", []),
-        ))
+            batches.append(
+                Batch(
+                    id=batch_dict["id"],
+                    files=batch_dict["files"],
+                    hint=batch_dict.get("hint", ""),
+                )
+            )
+        phases.append(
+            Phase(
+                id=phase_dict["id"],
+                batches=batches,
+                learning_objectives=phase_dict.get("learning_objectives", []),
+            )
+        )
 
     return Plan(
         phases=phases,
@@ -179,7 +187,8 @@ def _deserialize_plan(plan_dict: Dict[str, Any]) -> Plan:
 # Node Implementations
 # ============================================================================
 
-def static_analysis_node(state: LanternWorkflowState) -> Dict[str, Any]:
+
+def static_analysis_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     Node 1: Static Analysis
     - Build dependency graph
@@ -193,6 +202,7 @@ def static_analysis_node(state: LanternWorkflowState) -> Dict[str, Any]:
 
     # Load config object
     from lantern_cli.config.loader import Config
+
     config = Config(**config_dict)
 
     # Build dependency graph
@@ -215,7 +225,7 @@ def static_analysis_node(state: LanternWorkflowState) -> Dict[str, Any]:
     }
 
 
-def planning_node(state: LanternWorkflowState) -> Dict[str, Any]:
+def planning_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     Node 2: Planning
     - Generate analysis plan
@@ -224,13 +234,12 @@ def planning_node(state: LanternWorkflowState) -> Dict[str, Any]:
     logger.info(f"Starting planning (mode: {state['planning_mode']})...")
 
     repo_path = Path(state["repo_path"])
-    planning_mode = state["planning_mode"]
+    state["planning_mode"]
 
     # Use static planning by default (agentic would require backend)
     architect = Architect(repo_path, None)  # Will be reconstructed with graph
 
     # Reconstruct graph from state
-    from lantern_cli.static_analysis import DependencyGraph
 
     # Note: In production, we'd pass the actual DependencyGraph
     # For now, create a minimal plan
@@ -243,11 +252,13 @@ def planning_node(state: LanternWorkflowState) -> Dict[str, Any]:
     # Serialize batches
     batches = []
     for batch in pending_batches:
-        batches.append({
-            "id": batch.id,
-            "files": batch.files,
-            "hint": batch.hint,
-        })
+        batches.append(
+            {
+                "id": batch.id,
+                "files": batch.files,
+                "hint": batch.hint,
+            }
+        )
 
     return {
         "plan": _serialize_plan(plan),
@@ -257,7 +268,7 @@ def planning_node(state: LanternWorkflowState) -> Dict[str, Any]:
     }
 
 
-def human_review_node(state: LanternWorkflowState) -> Dict[str, Any]:
+def human_review_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     Node 3: Human Review (with interrupt)
     - Allow human to review and approve the plan
@@ -273,7 +284,9 @@ def human_review_node(state: LanternWorkflowState) -> Dict[str, Any]:
     }
 
 
-def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend"] = None, runner: Optional[Runner] = None) -> Dict[str, Any]:
+def batch_execution_node(
+    state: LanternWorkflowState, backend: Optional["Backend"] = None, runner: Runner | None = None
+) -> dict[str, Any]:
     """
     Node 4: Batch Execution
     - Process pending batches
@@ -290,7 +303,7 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
         StructuredAnalysisResult,
     )
 
-    repo_path = Path(state["repo_path"])
+    Path(state["repo_path"])
     pending_batches = state["pending_batches"]
     language = state.get("language", "en")
     dependency_graph = state.get("dependency_graph", {})
@@ -333,11 +346,7 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
                 )
 
                 # Construct prompt with intelligent context
-                language_instruction = (
-                    f" Please respond in {language}."
-                    if language != "en"
-                    else ""
-                )
+                language_instruction = f" Please respond in {language}." if language != "en" else ""
                 hint_instruction = (
                     f"\n\nAnalysis guidance: {batch_dict.get('hint', '')}"
                     if batch_dict.get("hint")
@@ -432,7 +441,9 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
     }
 
 
-def synthesis_node(state: LanternWorkflowState, backend: Optional["Backend"] = None) -> Dict[str, Any]:
+def synthesis_node(
+    state: LanternWorkflowState, backend: Optional["Backend"] = None
+) -> dict[str, Any]:
     """
     Node 5: Synthesis
     - Generate documentation
@@ -444,7 +455,7 @@ def synthesis_node(state: LanternWorkflowState, backend: Optional["Backend"] = N
 
     repo_path = Path(state["repo_path"])
     synthesis_mode = state["synthesis_mode"]
-    config_dict = state["config"]
+    state["config"]
     language = state.get("language", "en")
 
     documents = {}
@@ -457,7 +468,10 @@ def synthesis_node(state: LanternWorkflowState, backend: Optional["Backend"] = N
                     from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
                     agentic_synth = AgenticSynthesizer(
-                        repo_path, backend, language=language, output_dir=state.get("output_dir", ".lantern/docs")
+                        repo_path,
+                        backend,
+                        language=language,
+                        output_dir=state.get("output_dir", ".lantern/docs"),
                     )
                     agentic_synth.generate_top_down_docs()
                     quality_score = 0.85  # Agentic synthesis typically scores higher
@@ -467,8 +481,10 @@ def synthesis_node(state: LanternWorkflowState, backend: Optional["Backend"] = N
 
             if synthesis_mode == "batch":
                 synth = Synthesizer(
-                    repo_path, language=language, output_dir=state.get("output_dir", ".lantern/docs"),
-                    backend=backend
+                    repo_path,
+                    language=language,
+                    output_dir=state.get("output_dir", ".lantern/docs"),
+                    backend=backend,
                 )
                 synth.generate_top_down_docs()
 
@@ -501,7 +517,7 @@ def synthesis_node(state: LanternWorkflowState, backend: Optional["Backend"] = N
     }
 
 
-def quality_gate_node(state: LanternWorkflowState) -> Dict[str, Any]:
+def quality_gate_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     Node 6: Quality Gate
     - Evaluate synthesis quality
@@ -524,7 +540,7 @@ def quality_gate_node(state: LanternWorkflowState) -> Dict[str, Any]:
     }
 
 
-def refine_node(state: LanternWorkflowState) -> Dict[str, Any]:
+def refine_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     Node 7: Refine (optional, only if quality check fails)
     - Refine documentation based on quality feedback
@@ -543,6 +559,7 @@ def refine_node(state: LanternWorkflowState) -> Dict[str, Any]:
 # ============================================================================
 # Router Functions (for conditional edges)
 # ============================================================================
+
 
 def router_human_review(state: LanternWorkflowState) -> str:
     """
@@ -581,10 +598,11 @@ def router_quality_gate(state: LanternWorkflowState) -> str:
 # Workflow Builder
 # ============================================================================
 
+
 def build_lantern_workflow(
-    checkpoint_config: Optional[LanternCheckpointConfig] = None,
+    checkpoint_config: LanternCheckpointConfig | None = None,
     backend: Optional["Backend"] = None,
-    repo_path: Optional[Path] = None,
+    repo_path: Path | None = None,
 ) -> StateGraph:
     """
     Build the complete Lantern workflow StateGraph.
@@ -601,37 +619,38 @@ def build_lantern_workflow(
         checkpoint_config = LanternCheckpointConfig(enable_checkpointing=False)
 
     # Create wrapper nodes that have access to context
-    def static_analysis_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def static_analysis_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return static_analysis_node(state)
 
-    def planning_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def planning_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return planning_node(state)
 
-    def human_review_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def human_review_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return human_review_node(state)
 
-    def batch_execution_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def batch_execution_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         # Create runner if we have backend and repo_path
         runner = None
         if backend and repo_path:
             state_mgr = StateManager(repo_path, backend=backend)
             runner = Runner(
-                repo_path, backend,
+                repo_path,
+                backend,
                 state_mgr,
                 language=state.get("language", "en"),
-                model_name=backend.model_name if hasattr(backend, 'model_name') else "unknown",
-                is_local=getattr(backend, 'type', '') == 'ollama',
+                model_name=backend.model_name if hasattr(backend, "model_name") else "unknown",
+                is_local=getattr(backend, "type", "") == "ollama",
                 output_dir=state.get("output_dir", ".lantern/docs"),
             )
         return batch_execution_node(state, backend=backend, runner=runner)
 
-    def synthesis_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def synthesis_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return synthesis_node(state, backend=backend)
 
-    def quality_gate_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def quality_gate_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return quality_gate_node(state)
 
-    def refine_wrapper(state: LanternWorkflowState) -> Dict[str, Any]:
+    def refine_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return refine_node(state)
 
     # Create graph
@@ -659,7 +678,7 @@ def build_lantern_workflow(
             "planning": "planning",
             "batch_execution": "batch_execution",
             "human_review": "human_review",
-        }
+        },
     )
 
     # Linear flow after approval
@@ -673,7 +692,7 @@ def build_lantern_workflow(
         {
             "refine": "refine",
             END: END,
-        }
+        },
     )
 
     # Refine loops back to quality_gate
@@ -689,6 +708,7 @@ def build_lantern_workflow(
 # ============================================================================
 # Workflow Executor
 # ============================================================================
+
 
 class LanternWorkflowExecutor:
     """
@@ -742,11 +762,11 @@ class LanternWorkflowExecutor:
         """Initialize the initial state for workflow execution."""
         # Convert config to dict
         config_dict = {}
-        if hasattr(self.config, 'model_dump'):  # Pydantic v2
+        if hasattr(self.config, "model_dump"):  # Pydantic v2
             config_dict = self.config.model_dump()
-        elif hasattr(self.config, 'dict'):  # Pydantic v1
+        elif hasattr(self.config, "dict"):  # Pydantic v1
             config_dict = self.config.dict()
-        elif hasattr(self.config, '__dict__'):
+        elif hasattr(self.config, "__dict__"):
             config_dict = vars(self.config).copy()
         else:
             config_dict = dict(self.config) if isinstance(self.config, dict) else {}
@@ -759,19 +779,16 @@ class LanternWorkflowExecutor:
             "synthesis_mode": self.synthesis_mode,
             "planning_mode": self.planning_mode,
             "assume_yes": self.assume_yes,
-
             # Analysis results (to be filled by nodes)
             "dependency_graph": {},
             "reverse_dependencies": {},
             "file_list": [],
             "layers": [],
             "mermaid_graph": "",
-
             # Plan (to be filled)
             "plan": None,
             "plan_approved": False,
             "plan_rejected": False,
-
             # Batch execution
             "pending_batches": [],
             "completed_batches": [],
@@ -779,33 +796,27 @@ class LanternWorkflowExecutor:
             "sense_records": [],
             "global_summary": "",
             "batch_errors": {},
-
             # Phase 4: Enhanced Context Management
             "structured_analyses": {},
             "context_manager_state": {},
-
             # Synthesis results
             "documents": {},
             "synthesis_quality_score": 0.0,
-
             # Quality
             "quality_score": 0.0,
             "quality_ok": False,
             "quality_issues": [],
-
             # Cost
             "total_cost": 0.0,
             "estimated_cost": 0.0,
-
             # Workflow control
             "iteration_count": 0,
             "needs_reanalysis": False,
-
             # Output directory
             "output_dir": self.output_dir,
         }
 
-    async def execute(self, thread_id: Optional[str] = None) -> LanternWorkflowState:
+    async def execute(self, thread_id: str | None = None) -> LanternWorkflowState:
         """
         Execute the workflow.
 
@@ -824,7 +835,7 @@ class LanternWorkflowExecutor:
 
         return final_state
 
-    def execute_sync(self, thread_id: Optional[str] = None) -> LanternWorkflowState:
+    def execute_sync(self, thread_id: str | None = None) -> LanternWorkflowState:
         """
         Synchronously execute the workflow.
 
@@ -848,7 +859,8 @@ class LanternWorkflowExecutor:
 # Visualization & Debugging
 # ============================================================================
 
-def visualize_workflow(workflow: StateGraph, output_path: Optional[Path] = None) -> str:
+
+def visualize_workflow(workflow: StateGraph, output_path: Path | None = None) -> str:
     """
     Generate and optionally save a Mermaid diagram of the workflow.
 
