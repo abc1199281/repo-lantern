@@ -17,7 +17,7 @@ documentation because:
 Usage:
     from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
-    synth = AgenticSynthesizer(root_path, llm, language="en")
+    synth = AgenticSynthesizer(root_path, backend, language="en")
     synth.generate_top_down_docs()
 """
 
@@ -25,9 +25,8 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Optional, TypedDict
 
-from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 
 from lantern_cli.core.synthesis_tools import (
@@ -37,6 +36,9 @@ from lantern_cli.core.synthesis_tools import (
     prepare_functions_summary,
     prepare_summaries,
 )
+
+if TYPE_CHECKING:
+    from lantern_cli.llm.backend import Backend
 
 logger = logging.getLogger(__name__)
 
@@ -84,30 +86,30 @@ class SynthesisState(TypedDict):
 # LLM invocation helper
 # ---------------------------------------------------------------------------
 
-def _invoke_llm(llm: Any, system: str, user: str) -> str:
-    """Invoke the LLM with a system + user message pair.
+def _invoke_backend(backend: Any, system: str, user: str) -> str:
+    """Invoke the Backend with a combined system + user prompt.
+
+    Combines the system and user messages into a single prompt string
+    compatible with the Backend.invoke(str) protocol.
 
     Args:
-        llm: LangChain ChatModel instance.
-        system: System message content.
-        user: User message content.
+        backend: Backend instance (implements Backend protocol).
+        system: System instruction content.
+        user: User request content.
 
     Returns:
         Extracted text from the LLM response.
 
     Raises:
-        RuntimeError: If the LLM call fails.
+        RuntimeError: If the backend call fails.
     """
-    messages = [SystemMessage(content=system), HumanMessage(content=user)]
+    prompt = f"[System]\n{system}\n\n[User]\n{user}"
     try:
-        response = llm.invoke(messages)
+        response = backend.invoke(prompt)
     except Exception as exc:
-        raise RuntimeError(f"LLM invocation failed in synthesis: {exc}") from exc
+        raise RuntimeError(f"Backend invocation failed in synthesis: {exc}") from exc
 
-    content = getattr(response, "content", response)
-    if isinstance(content, list):
-        content = "\n".join(str(item) for item in content if item)
-    return str(content).strip()
+    return response.content
 
 
 # ---------------------------------------------------------------------------
@@ -116,15 +118,15 @@ def _invoke_llm(llm: Any, system: str, user: str) -> str:
 # Each factory returns a node function closed over the LLM and prompts.
 # Node functions accept the full state and return a partial dict to merge.
 
-def _make_identify_patterns(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
+def _make_identify_patterns(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the identify_patterns node."""
 
     def identify_patterns(state: SynthesisState) -> dict[str, str]:
         lang = state["language"]
         summaries = prepare_summaries(state["sense_records"])
         cfg = prompts["identify_patterns"]
-        result = _invoke_llm(
-            llm,
+        result = _invoke_backend(
+            backend,
             cfg["system"].format(language=lang),
             cfg["user"].format(summaries=summaries, language=lang),
         )
@@ -133,15 +135,15 @@ def _make_identify_patterns(llm: Any, prompts: dict[str, dict[str, str]]) -> Any
     return identify_patterns
 
 
-def _make_cross_compare(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
+def _make_cross_compare(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the cross_compare node."""
 
     def cross_compare(state: SynthesisState) -> dict[str, str]:
         lang = state["language"]
         summaries = prepare_summaries(state["sense_records"])
         cfg = prompts["cross_compare"]
-        result = _invoke_llm(
-            llm,
+        result = _invoke_backend(
+            backend,
             cfg["system"].format(language=lang),
             cfg["user"].format(
                 patterns_analysis=state["patterns_analysis"],
@@ -154,15 +156,15 @@ def _make_cross_compare(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
     return cross_compare
 
 
-def _make_generate_overview(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
+def _make_generate_overview(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the generate_overview node."""
 
     def generate_overview(state: SynthesisState) -> dict[str, str]:
         lang = state["language"]
         summaries = prepare_summaries(state["sense_records"])
         cfg = prompts["generate_overview"]
-        body = _invoke_llm(
-            llm,
+        body = _invoke_backend(
+            backend,
             cfg["system"].format(language=lang),
             cfg["user"].format(
                 patterns_analysis=state["patterns_analysis"],
@@ -177,7 +179,7 @@ def _make_generate_overview(llm: Any, prompts: dict[str, dict[str, str]]) -> Any
     return generate_overview
 
 
-def _make_generate_architecture(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
+def _make_generate_architecture(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the generate_architecture node."""
 
     def generate_architecture(state: SynthesisState) -> dict[str, str]:
@@ -185,8 +187,8 @@ def _make_generate_architecture(llm: Any, prompts: dict[str, dict[str, str]]) ->
         file_details = prepare_file_details(state["sense_records"])
         dep_mermaid = state.get("dependency_mermaid", "") or "No dependency graph available"
         cfg = prompts["generate_architecture"]
-        body = _invoke_llm(
-            llm,
+        body = _invoke_backend(
+            backend,
             cfg["system"].format(language=lang),
             cfg["user"].format(
                 patterns_analysis=state["patterns_analysis"],
@@ -206,7 +208,7 @@ def _make_generate_architecture(llm: Any, prompts: dict[str, dict[str, str]]) ->
     return generate_architecture
 
 
-def _make_generate_getting_started(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
+def _make_generate_getting_started(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the generate_getting_started node."""
 
     def generate_getting_started(state: SynthesisState) -> dict[str, str]:
@@ -215,8 +217,8 @@ def _make_generate_getting_started(llm: Any, prompts: dict[str, dict[str, str]])
         entry_points = identify_entry_points(state["sense_records"])
         overview_summary = state.get("overview_doc", "")[:2000]
         cfg = prompts["generate_getting_started"]
-        body = _invoke_llm(
-            llm,
+        body = _invoke_backend(
+            backend,
             cfg["system"].format(language=lang),
             cfg["user"].format(
                 overview_summary=overview_summary,
@@ -232,15 +234,15 @@ def _make_generate_getting_started(llm: Any, prompts: dict[str, dict[str, str]])
     return generate_getting_started
 
 
-def _make_generate_concepts(llm: Any, prompts: dict[str, dict[str, str]]) -> Any:
+def _make_generate_concepts(backend: Any, prompts: dict[str, dict[str, str]]) -> Any:
     """Create the generate_concepts node."""
 
     def generate_concepts(state: SynthesisState) -> dict[str, str]:
         lang = state["language"]
         classes_summary = prepare_classes_summary(state["sense_records"])
         cfg = prompts["generate_concepts"]
-        body = _invoke_llm(
-            llm,
+        body = _invoke_backend(
+            backend,
             cfg["system"].format(language=lang),
             cfg["user"].format(
                 patterns_analysis=state["patterns_analysis"],
@@ -259,7 +261,7 @@ def _make_generate_concepts(llm: Any, prompts: dict[str, dict[str, str]]) -> Any
 # Graph builder
 # ---------------------------------------------------------------------------
 
-def build_synthesis_graph(llm: Any) -> Any:
+def build_synthesis_graph(backend: Any) -> Any:
     """Build and compile the synthesis StateGraph.
 
     Graph topology::
@@ -269,7 +271,7 @@ def build_synthesis_graph(llm: Any) -> Any:
              → generate_concepts → END
 
     Args:
-        llm: LangChain ChatModel instance.
+        backend: Backend instance (implements Backend protocol).
 
     Returns:
         Compiled LangGraph runnable.
@@ -278,12 +280,12 @@ def build_synthesis_graph(llm: Any) -> Any:
 
     graph = StateGraph(SynthesisState)
 
-    graph.add_node("identify_patterns", _make_identify_patterns(llm, prompts))
-    graph.add_node("cross_compare", _make_cross_compare(llm, prompts))
-    graph.add_node("generate_overview", _make_generate_overview(llm, prompts))
-    graph.add_node("generate_architecture", _make_generate_architecture(llm, prompts))
-    graph.add_node("generate_getting_started", _make_generate_getting_started(llm, prompts))
-    graph.add_node("generate_concepts", _make_generate_concepts(llm, prompts))
+    graph.add_node("identify_patterns", _make_identify_patterns(backend, prompts))
+    graph.add_node("cross_compare", _make_cross_compare(backend, prompts))
+    graph.add_node("generate_overview", _make_generate_overview(backend, prompts))
+    graph.add_node("generate_architecture", _make_generate_architecture(backend, prompts))
+    graph.add_node("generate_getting_started", _make_generate_getting_started(backend, prompts))
+    graph.add_node("generate_concepts", _make_generate_concepts(backend, prompts))
 
     graph.add_edge(START, "identify_patterns")
     graph.add_edge("identify_patterns", "cross_compare")
@@ -311,7 +313,7 @@ class AgenticSynthesizer:
     def __init__(
         self,
         root_path: Path,
-        llm: Any,
+        backend: Any,
         language: str = "en",
         output_dir: Optional[str] = None,
     ) -> None:
@@ -319,18 +321,18 @@ class AgenticSynthesizer:
 
         Args:
             root_path: Project root path.
-            llm: LangChain ChatModel instance.
+            backend: Backend instance (implements Backend protocol).
             language: Output language code (default: en).
             output_dir: Base output directory (default: .lantern).
         """
         self.root_path = root_path
-        self.llm = llm
+        self.backend = backend
         self.language = language
         base_out = output_dir or ".lantern"
         self.base_output_dir = root_path / base_out
         self.sense_dir = self.base_output_dir / "sense"
         self.output_dir = self.base_output_dir / "output" / language / "top_down"
-        self.compiled_graph = build_synthesis_graph(llm)
+        self.compiled_graph = build_synthesis_graph(backend)
 
     # -- Data loading (mirrors Synthesizer for compatibility) ----------------
 

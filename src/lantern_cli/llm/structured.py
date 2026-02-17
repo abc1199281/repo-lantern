@@ -1,8 +1,11 @@
-"""LangChain structured analyzer for bottom-up documentation.
+"""Structured analyzer for bottom-up documentation.
+
+Uses the ``Backend`` protocol for LLM calls instead of LangChain directly.
+The LangChain-specific chain logic now lives in ``LangChainBackend``.
 
 Usage example:
-    llm = backend.get_llm()
-    analyzer = StructuredAnalyzer(llm)
+    backend = create_backend(config)
+    analyzer = StructuredAnalyzer(backend)
     outputs = analyzer.analyze_batch(
         [{"file_content": "def add(a, b): return a + b", "language": "zh-TW"}]
     )
@@ -13,11 +16,12 @@ Usage example:
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel, Field, root_validator
+
+if TYPE_CHECKING:
+    from lantern_cli.llm.backend import Backend
 
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "template" / "bottom_up"
@@ -26,37 +30,6 @@ TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "template" / "bottom_up"
 def _load_json(name: str) -> dict[str, Any]:
     with open(TEMPLATE_DIR / name, encoding="utf-8") as f:
         return json.load(f)
-
-
-def create_chain(llm: Any, json_schema: dict[str, Any], prompts: dict[str, str]) -> Any:
-    """Create a structured-output LangChain chain.
-
-    The chain enforces `json_schema` through `with_structured_output` and accepts
-    inputs with `file_content` and `language`.
-    """
-    prompt = ChatPromptTemplate.from_messages(
-        [("system", prompts["system"]), ("user", prompts["user"]) ]
-    )
-
-    # Apply structured output schema to the LLM.
-    # This forces the model to return JSON matching the schema.
-    structured_llm = llm.with_structured_output(json_schema)
-
-    # Wrap into a Runnable that accepts a simple dict input like
-    # {"file_content": ..., "language": ...} and converts it into a
-    # PromptValue expected by the structured LLM. This ensures callers can
-    # call `chain.invoke(dict)` or `chain.batch(list[dict])` without having
-    # to construct PromptValue objects themselves.
-    def _runner(inp: Any) -> Any:
-        # If caller already provided a PromptValue or string, pass through.
-        if not isinstance(inp, dict):
-            return structured_llm.invoke(inp)
-
-        # Format a PromptValue from the dict using the ChatPromptTemplate
-        prompt_value = prompt.format_prompt(**inp)
-        return structured_llm.invoke(prompt_value)
-
-    return RunnableLambda(lambda x: _runner(x))
 
 
 def _extract_json(raw: str) -> str:
@@ -168,21 +141,21 @@ class StructuredAnalyzer:
       - `language`: target language code (e.g. `en`, `zh-TW`)
 
     Output contract:
-    - Returns `list[StructuredAnalysisOutput]` in the same order as input.
+    - Returns `list[BatchInteraction]` in the same order as input.
     - Each field is normalized to template limits:
       - summary <= 4000 chars
       - flow <= 2000 chars
       - key_insights <= 8, others <= 5
 
     Error handling:
-    - Raises `RuntimeError` when chain invocation fails.
+    - Raises `RuntimeError` when backend invocation fails.
     - Raises `ValueError` when model output cannot be parsed to JSON/object.
     """
 
-    def __init__(self, llm: Any) -> None:
+    def __init__(self, backend: "Backend") -> None:
         self.schema = _load_json("schema.json")
-        prompts = _load_json("prompts.json")
-        self.chain = create_chain(llm=llm, json_schema=self.schema, prompts=prompts)
+        self.prompts = _load_json("prompts.json")
+        self.backend = backend
 
     @staticmethod
     def _to_payload(response: Any) -> dict[str, Any]:
@@ -211,10 +184,12 @@ class StructuredAnalyzer:
             parsed.language = language
         return parsed
 
-    def analyze_batch(self, items: list[dict[str, str]]) -> list[StructuredAnalysisOutput]:
-        """Run structured analysis in batch with `chain.batch(items)`."""
+    def analyze_batch(self, items: list[dict[str, str]]) -> list[BatchInteraction]:
+        """Run structured analysis in batch via the backend."""
         try:
-            responses = self.chain.batch(items)
+            responses = self.backend.batch_invoke_structured(
+                items, self.schema, self.prompts,
+            )
         except Exception as exc:
             raise RuntimeError(f"Structured batch analysis failed: {exc}") from exc
 

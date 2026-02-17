@@ -4,7 +4,10 @@ import logging
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from lantern_cli.llm.backend import Backend
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +18,24 @@ _SKIP_PATTERNS = ["未提供", "無法分析", "無法進行", "not provided", "
 class Synthesizer:
     """Synthesizes analysis results into top-down documentation."""
 
-    def __init__(self, root_path: Path, language: str = "en", output_dir: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        root_path: Path,
+        language: str = "en",
+        output_dir: Optional[str] = None,
+        backend: Optional["Backend"] = None,
+    ) -> None:
         """Initialize Synthesizer.
 
         Args:
             root_path: Project root path.
             language: Output language code (default: en).
+            output_dir: Optional custom output directory name.
+            backend: Optional Backend instance for agent-based synthesis.
         """
         self.root_path = root_path
         self.language = language
+        self.backend = backend
         base_out = output_dir or ".lantern"
         self.base_output_dir = root_path / base_out
         self.sense_dir = self.base_output_dir / "sense"
@@ -74,7 +86,25 @@ class Synthesizer:
         return grouped
 
     def generate_top_down_docs(self) -> None:
-        """Generate top-down documentation files."""
+        """Generate top-down documentation files.
+
+        Detects backend type and uses appropriate workflow:
+        - CLIBackend: Agent-based synthesis
+        - Others: Structured template-based synthesis
+        """
+        # Import here to avoid circular dependency
+        from lantern_cli.llm.backends.cli_backend import CLIBackend
+
+        # Detect backend type and route to appropriate workflow
+        if self.backend and isinstance(self.backend, CLIBackend):
+            logger.info("Using agent-based workflow for top-down synthesis")
+            return self._generate_top_down_agent()
+        else:
+            logger.info("Using structured workflow for top-down synthesis")
+            return self._generate_top_down_structured()
+
+    def _generate_top_down_structured(self) -> None:
+        """Generate top-down docs using structured template-based approach."""
         records = self.load_sense_files()
         if not records:
             logger.warning("No analysis results found to synthesize.")
@@ -289,3 +319,38 @@ class Synthesizer:
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
+
+    def _generate_top_down_agent(self) -> None:
+        """Generate top-down docs using agent-based synthesis."""
+        from lantern_cli.llm.agent_analyzer import AgentAnalyzer
+
+        if not self.backend:
+            logger.error("Agent-based synthesis requires a backend")
+            return
+
+        analyzer = AgentAnalyzer(self.backend)
+
+        bottom_up_dir = self.base_output_dir / "output" / self.language / "bottom_up"
+        plan_path = self.base_output_dir / "lantern_plan.md"
+
+        if not bottom_up_dir.exists():
+            logger.warning(f"Bottom-up directory not found: {bottom_up_dir}")
+            return
+
+        # Let agent generate all top-down documents
+        results = analyzer.synthesize_top_down(
+            sense_dir=self.sense_dir,
+            bottom_up_dir=bottom_up_dir,
+            output_dir=self.output_dir,
+            plan_path=plan_path,
+            language=self.language,
+        )
+
+        # Log results
+        for filename, result in results.get("top_down_synthesis", {}).items():
+            status = result.get("status", "unknown")
+            if status == "success":
+                logger.info(f"✓ Agent generated {filename}")
+            else:
+                error = result.get("error", "Unknown error")
+                logger.warning(f"✗ Agent failed for {filename}: {error}")

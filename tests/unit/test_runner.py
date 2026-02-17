@@ -12,8 +12,9 @@ import pytest
 
 from lantern_cli.core.architect import Batch
 from lantern_cli.core.runner import Runner
+from lantern_cli.llm.backend import LLMResponse
 from lantern_cli.llm.structured import BatchInteraction, StructuredAnalysisOutput
-from tests.fixtures import LLMMockFactory, StateManagerMockFactory
+from tests.fixtures import BackendMockFactory, StateManagerMockFactory
 
 
 @pytest.fixture
@@ -21,7 +22,7 @@ def runner(mock_llm: MagicMock, mock_state_manager: MagicMock, tmp_path: Path) -
     """Create a Runner instance for testing."""
     return Runner(
         root_path=tmp_path,
-        llm=mock_llm,
+        backend=mock_llm,
         state_manager=mock_state_manager,
     )
 
@@ -93,7 +94,7 @@ class TestResponseExtraction:
 
     def test_extract_string_content(self, runner: Runner) -> None:
         """Test extracting simple string content."""
-        response = MagicMock(content="Test summary")
+        response = LLMResponse(content="Test summary")
         result = runner._extract_response_content(response)
         assert result == "Test summary"
 
@@ -111,7 +112,7 @@ class TestResponseExtraction:
 
     def test_extract_fails_on_empty_content(self, runner: Runner) -> None:
         """Test extraction failure on empty content."""
-        response = MagicMock(content="")
+        response = LLMResponse(content="")
         with pytest.raises(ValueError, match="empty"):
             runner._extract_response_content(response)
 
@@ -136,12 +137,12 @@ class TestBottomUpDocGeneration:
         file_a.write_text("def a():\n    pass\n", encoding="utf-8")
         file_b.write_text("def b():\n    pass\n", encoding="utf-8")
 
-        llm = LLMMockFactory.create_batch(
+        backend = BackendMockFactory.create_batch(
             ["# a.py", "# b.py"],
             has_metadata=True,
         )
         state_manager = StateManagerMockFactory.create()
-        runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
+        runner = Runner(root_path=tmp_path, backend=backend, state_manager=state_manager)
 
         batch = Batch(id=2, files=[str(file_a), str(file_b)])
 
@@ -186,9 +187,9 @@ class TestBottomUpDocGeneration:
         file_a.parent.mkdir(parents=True, exist_ok=True)
         file_a.write_text("def a():\n    pass\n", encoding="utf-8")
 
-        llm = LLMMockFactory.create_batch(["# a.py"], has_metadata=True)
+        backend = BackendMockFactory.create_batch(["# a.py"], has_metadata=True)
         state_manager = StateManagerMockFactory.create()
-        runner = Runner(root_path=tmp_path, llm=llm, state_manager=state_manager)
+        runner = Runner(root_path=tmp_path, backend=backend, state_manager=state_manager)
 
         batch = Batch(id=3, files=[str(file_a)])
 

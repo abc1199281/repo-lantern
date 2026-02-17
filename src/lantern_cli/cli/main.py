@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 from lantern_cli.config.loader import load_config
-from lantern_cli.llm.factory import create_llm
+from lantern_cli.llm.factory import create_backend
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.core.architect import Architect
 from lantern_cli.core.state_manager import StateManager
@@ -46,7 +46,7 @@ console = Console()
 
 class FlexibleTaskProgressColumn(TaskProgressColumn):
     """Progress column that shows '...' for indeterminate tasks."""
-    
+
     def render(self, task) -> Text:
         if task.total is None:
             return Text("...", style="progress.percentage")
@@ -60,7 +60,7 @@ def init(
     """Initialize Lantern for a repository."""
     repo_path = Path(repo).resolve()
     lantern_dir = repo_path / ".lantern"
-    
+
     if lantern_dir.exists():
         if overwrite:
             console.print(f"[yellow]Overwriting existing Lantern configuration in {repo_path}...[/yellow]")
@@ -76,11 +76,11 @@ def init(
         config_content = _load_default_config()
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
-            
+
         console.print(f"[green]Initialized Lantern in {lantern_dir}[/green]")
         console.print(f"[green]Content is as follows: {config_content}[/green]")
         console.print(f"Configuration created at: {config_path}")
-        
+
     except Exception as e:
         console.print(f"[bold red]Failed to initialize:[/bold red] {e}")
         raise typer.Exit(code=1)
@@ -92,7 +92,7 @@ def plan(
 ) -> None:
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
-    
+
     # 0. Load Configuration (for filters)
     config = load_config(repo_path, output=output)
 
@@ -118,17 +118,17 @@ def plan(
         task_plan = progress.add_task("Architecting analysis plan...", total=None)
         architect = Architect(repo_path, graph)
         plan = architect.generate_plan()
-        
+
         # Save plan
         output_path = repo_path / output_dir
         output_path.mkdir(parents=True, exist_ok=True)
         plan_path = output_path / "lantern_plan.md"
-        
+
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan.to_markdown())
-            
+
         progress.update(task_plan, total=1, completed=1)
-        
+
     console.print(f"[bold green]Plan generated successfully![/bold green]")
     console.print(f"Plan file: {plan_path}")
     console.print("Run 'lantern run' to execute this plan.")
@@ -148,7 +148,7 @@ def run(
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
-    
+
     # 1. Load Configuration
     config = load_config(
         repo_path,
@@ -160,11 +160,11 @@ def run(
     console.print(f"Repository: {repo_path}")
     console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
 
-    # 2. Initialize LLM
+    # 2. Initialize Backend
     try:
-        llm = create_llm(config)
+        backend = create_backend(config)
     except Exception as e:
-        console.print(f"[bold red]Error initializing LLM:[/bold red] {e}")
+        console.print(f"[bold red]Error initializing LLM backend:[/bold red] {e}")
         raise typer.Exit(code=1)
 
     with Progress(
@@ -175,7 +175,7 @@ def run(
         TimeRemainingColumn(),
         console=console,
     ) as progress:
-        
+
         # 3. Static Analysis
         task_static = progress.add_task("Building dependency graph...", total=None)
         file_filter = FileFilter(repo_path, config.filter)
@@ -187,42 +187,31 @@ def run(
         task_plan = progress.add_task("Architecting analysis plan...", total=None)
         architect = Architect(repo_path, graph)
         plan = architect.generate_plan()
-        
+
         # Save plan
         plan_path = repo_path / config.output_dir / "lantern_plan.md"
         plan_path.parent.mkdir(parents=True, exist_ok=True)
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan.to_markdown())
-            
+
         progress.update(task_plan, total=1, completed=1)
         console.print(f"Plan generated: {plan_path}")
 
     # 5. Cost Estimation
-    # Determine model name for cost tracking based on configured backend
-    is_local = False
-    if config.backend.type == "openai":
-        model_name = config.backend.openai_model or "gpt-4o-mini"
-    elif config.backend.type == "openrouter":
-        model_name = config.backend.openrouter_model or "openai/gpt-4o-mini"
-    elif config.backend.type == "ollama":
-        model_name = config.backend.ollama_model or "llama3"
-        is_local = True
-    else:
-        # Fallback for unknown backend type
-        model_name = "unknown-model"
-    
+    model_name = backend.model_name
+    is_local = config.backend.type == "ollama"
+
     # Initialize state manager (needed for pending batches)
-    # Pass LLM for MemoryManager compression
-    state_manager = StateManager(repo_path, llm=llm)
-    
+    state_manager = StateManager(repo_path, backend=backend)
+
     cost_tracker = CostTracker(model_name, is_local=is_local)
     pending_batches = state_manager.get_pending_batches(plan)
-    
+
     # Estimate total cost
     total_estimated_tokens = 0
     total_estimated_cost = 0.0
     pricing_available = True
-    
+
     for batch in pending_batches:
         est_result = cost_tracker.estimate_batch_cost(
             files=batch.files,
@@ -236,7 +225,7 @@ def run(
         else:
             pricing_available = False
             break
-    
+
     # Display cost estimate
     console.print("\n[bold cyan]📊 Analysis Plan Summary[/bold cyan]")
     console.print(f"   Total Phases: {len(plan.phases)}")
@@ -244,7 +233,7 @@ def run(
     console.print(f"   Pending Batches: {len(pending_batches)}")
     console.print(f"   Model: {model_name}")
     console.print(f"   Synthesis Mode: {synthesis_mode}")
-    
+
     if pricing_available:
         if is_local:
             console.print(f"   Pricing Source: [green]Local (Free)[/green]")
@@ -261,7 +250,7 @@ def run(
         else:
             console.print(f"   Pricing Source: [red]Offline[/red]")
             console.print("   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]")
-    
+
     # Confirmation prompt (skip if --yes flag or no pending batches)
     if pending_batches and not assume_yes:
         console.print("")
@@ -284,32 +273,32 @@ def run(
         ) as progress:
             task_runner = progress.add_task("Running analysis batches...", total=len(plan.phases)) # Rough progress
             task_batch = progress.add_task(f"Processing {len(pending_batches)} batches...", total=len(pending_batches))
-            
+
             runner = Runner(
-                repo_path, 
-                llm, 
-                state_manager, 
+                repo_path,
+                backend,
+                state_manager,
                 language=config.language,
                 model_name=model_name,
-                is_local=is_local, 
+                is_local=is_local,
                 output_dir=config.output_dir
             )
-            
+
             for batch in pending_batches:
                 progress.update(task_batch, description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...")
-                
+
                 # Construct prompt (MVP: simple prompt)
                 language_instruction = f" Please respond in {config.language}." if config.language != "en" else ""
                 prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights.{language_instruction}"
-                
+
                 success = runner.run_batch(batch, prompt)
                 if not success:
                     console.print(f"[bold red]Batch {batch.id} failed.[/bold red]")
                     # Continue or break based on policy? For MVP, continue/retry logic is in Runner state
-                
+
                 progress.advance(task_batch)
                 progress.advance(task_runner) # Advance phase/runner progress roughly
-        
+
             # 6. Synthesize Docs
             if synthesis_mode == "agentic":
                 task_synth = progress.add_task(
@@ -319,7 +308,7 @@ def run(
                     from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
                     agentic_synth = AgenticSynthesizer(
-                        repo_path, llm, language=config.language, output_dir=config.output_dir
+                        repo_path, backend, language=config.language, output_dir=config.output_dir
                     )
                     agentic_synth.generate_top_down_docs()
                 except ImportError:
@@ -329,7 +318,8 @@ def run(
                     )
                     console.print("[dim]Install with: pip install langgraph[/dim]")
                     synthesizer = Synthesizer(
-                        repo_path, language=config.language, output_dir=config.output_dir
+                        repo_path, language=config.language, output_dir=config.output_dir,
+                        backend=backend
                     )
                     synthesizer.generate_top_down_docs()
                 except Exception as e:
@@ -338,20 +328,22 @@ def run(
                         f"Falling back to batch synthesis.[/bold yellow]"
                     )
                     synthesizer = Synthesizer(
-                        repo_path, language=config.language, output_dir=config.output_dir
+                        repo_path, language=config.language, output_dir=config.output_dir,
+                        backend=backend
                     )
                     synthesizer.generate_top_down_docs()
             else:
                 task_synth = progress.add_task("Synthesizing documentation...", total=None)
                 synthesizer = Synthesizer(
-                    repo_path, language=config.language, output_dir=config.output_dir
+                    repo_path, language=config.language, output_dir=config.output_dir,
+                    backend=backend
                 )
                 synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
 
     console.print(f"[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
-    
+
     # Show final cost report if batches were processed
     if pending_batches:
         console.print("")
