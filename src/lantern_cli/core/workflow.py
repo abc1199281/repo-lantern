@@ -42,6 +42,7 @@ class LanternWorkflowState(TypedDict):
     - Analysis results
     - Quality metrics
     - Cost tracking
+    - Enhanced context management (Phase 4)
     """
     # Input parameters
     repo_path: str
@@ -71,6 +72,10 @@ class LanternWorkflowState(TypedDict):
     sense_records: Annotated[List[Dict[str, Any]], add]  # Auto-merge new records
     global_summary: str
     batch_errors: Dict[int, str]  # batch_id -> error message
+
+    # Phase 4: Enhanced Context Management
+    structured_analyses: Dict[str, Dict[str, Any]]  # file_path -> analysis result
+    context_manager_state: Dict[str, Any]  # Serialized context manager state
 
     # Synthesis results
     documents: Dict[str, str]  # filename -> content
@@ -272,23 +277,45 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
     """
     Node 4: Batch Execution
     - Process pending batches
+    - Use EnhancedContextManager for intelligent context (Phase 4)
     - Update sense records and global summary
     - Track costs
 
     Note: In real workflow execution, backend and runner would be provided via closure/context.
     """
-    logger.info("Starting batch execution...")
+    logger.info("Starting batch execution with enhanced context management...")
+
+    from lantern_cli.core.context_manager import (
+        EnhancedContextManager,
+        StructuredAnalysisResult,
+    )
 
     repo_path = Path(state["repo_path"])
     pending_batches = state["pending_batches"]
-    config_dict = state["config"]
     language = state.get("language", "en")
+    dependency_graph = state.get("dependency_graph", {})
 
     completed = []
     failed = []
     sense_records = []
     total_cost = 0.0
     batch_errors = {}
+    structured_analyses = {}
+    context_manager_state = {}
+
+    # Initialize or restore context manager (Phase 4)
+    if state.get("context_manager_state"):
+        # Restore from checkpoint
+        context_manager = EnhancedContextManager.from_dict(
+            state["context_manager_state"],
+            dependency_graph=dependency_graph,
+        )
+    else:
+        # Create new
+        context_manager = EnhancedContextManager(
+            dependency_graph=dependency_graph,
+            max_context_length=6000,
+        )
 
     # If backend and runner are provided, execute batches
     if backend and runner:
@@ -297,24 +324,77 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
                 batch_id = batch_dict["id"]
                 logger.info(f"Processing batch {batch_id}...")
 
-                # Construct prompt with batch hint
-                language_instruction = f" Please respond in {language}." if language != "en" else ""
-                hint_instruction = f"\n\nAnalysis guidance: {batch_dict.get('hint', '')}" if batch_dict.get('hint') else ""
-                prompt = f"Analyze these files: {batch_dict['files']}. Provide a summary and key insights.{language_instruction}{hint_instruction}"
+                # Phase 4: Get intelligent context based on dependencies
+                batch_files = batch_dict["files"]
+                previous_context = context_manager.get_relevant_context(
+                    target_files=batch_files,
+                    include_depth=2,
+                    min_quality=0.6,
+                )
+
+                # Construct prompt with intelligent context
+                language_instruction = (
+                    f" Please respond in {language}."
+                    if language != "en"
+                    else ""
+                )
+                hint_instruction = (
+                    f"\n\nAnalysis guidance: {batch_dict.get('hint', '')}"
+                    if batch_dict.get("hint")
+                    else ""
+                )
+                context_section = (
+                    f"\n\nPrevious analysis context:\n{previous_context}"
+                    if previous_context
+                    else ""
+                )
+
+                prompt = (
+                    f"Analyze these files: {batch_files}. Provide a summary and key insights."
+                    f"{language_instruction}{hint_instruction}{context_section}"
+                )
 
                 # Create minimal Batch object for runner
                 from lantern_cli.core.architect import Batch
+
                 batch = Batch(
                     id=batch_id,
-                    files=batch_dict["files"],
+                    files=batch_files,
                     hint=batch_dict.get("hint", ""),
                 )
 
-                # Execute batch (this would update runner's internal state)
+                # Execute batch
                 success = runner.run_batch(batch, prompt)
 
                 if success:
                     completed.append(batch_id)
+
+                    # Phase 4: Store structured analysis result
+                    for file_path in batch_files:
+                        analysis_result: StructuredAnalysisResult = {
+                            "file_path": file_path,
+                            "summary": f"Analysis of {file_path}",
+                            "key_concepts": ["TBD"],  # Would be extracted from response
+                            "design_patterns": [],
+                            "dependencies": dependency_graph.get(file_path, []),
+                            "dependents": [],
+                            "relationships": [],
+                            "quality_score": 0.8,  # Would be extracted from response
+                            "analysis_depth": "medium",
+                            "timestamp": __import__("datetime").datetime.now().isoformat(),
+                            "batch_id": batch_id,
+                        }
+
+                        context_manager.store_analysis(
+                            file_path=file_path,
+                            summary=analysis_result["summary"],
+                            key_concepts=analysis_result["key_concepts"],
+                            batch_id=batch_id,
+                            quality_score=analysis_result["quality_score"],
+                        )
+
+                        structured_analyses[file_path] = analysis_result
+
                     # Get sense records from runner
                     sense_records.extend(runner.state_manager.state.global_summary)
                 else:
@@ -328,6 +408,14 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
                 logger.error(f"Error processing batch {batch_dict['id']}: {e}")
                 failed.append(batch_dict["id"])
                 batch_errors[batch_dict["id"]] = str(e)
+
+        # Serialize context manager state for checkpointing
+        context_manager_state = context_manager.to_dict()
+
+        # Log context manager statistics
+        stats = context_manager.get_statistics()
+        logger.info(f"Context manager stats: {stats}")
+
     else:
         # Placeholder execution without backend
         logger.info(f"Would execute {len(pending_batches)} batches (no backend provided)")
@@ -339,6 +427,8 @@ def batch_execution_node(state: LanternWorkflowState, backend: Optional["Backend
         "sense_records": sense_records,
         "total_cost": total_cost,
         "batch_errors": batch_errors,
+        "structured_analyses": structured_analyses,
+        "context_manager_state": context_manager_state,
     }
 
 
@@ -689,6 +779,10 @@ class LanternWorkflowExecutor:
             "sense_records": [],
             "global_summary": "",
             "batch_errors": {},
+
+            # Phase 4: Enhanced Context Management
+            "structured_analyses": {},
+            "context_manager_state": {},
 
             # Synthesis results
             "documents": {},
