@@ -150,6 +150,16 @@ def run(
         "--planning-mode",
         help="Planning mode: 'static' (topological, fast) or 'agentic' (LLM-enhanced, smarter grouping)",
     ),
+    use_workflow: bool = typer.Option(
+        False,
+        "--workflow",
+        help="Use new LangGraph workflow orchestration (Phase 3) instead of manual orchestration",
+    ),
+    resume_thread: Optional[str] = typer.Option(
+        None,
+        "--resume",
+        help="Resume execution from checkpoint with given thread ID",
+    ),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
@@ -164,6 +174,8 @@ def run(
     console.print(f"[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
     console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
+    if use_workflow:
+        console.print(f"[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
 
     # 2. Initialize Backend
     try:
@@ -171,6 +183,49 @@ def run(
     except Exception as e:
         console.print(f"[bold red]Error initializing LLM backend:[/bold red] {e}")
         raise typer.Exit(code=1)
+
+    # 2.5. Execute with new LangGraph workflow if --workflow flag is set
+    if use_workflow:
+        try:
+            from lantern_cli.core.workflow import LanternWorkflowExecutor
+
+            executor = LanternWorkflowExecutor(
+                repo_path=repo_path,
+                backend=backend,
+                config=config,
+                language=config.language,
+                synthesis_mode=synthesis_mode,
+                planning_mode=planning_mode,
+                assume_yes=assume_yes,
+                output_dir=config.output_dir,
+            )
+
+            console.print("[cyan]Executing workflow...[/cyan]")
+
+            # Execute workflow synchronously
+            final_state = executor.execute_sync(thread_id=resume_thread)
+
+            # Report results
+            console.print(f"[bold green]Analysis Complete![/bold green]")
+            console.print(f"Documentation available in: {repo_path / config.output_dir}")
+
+            if final_state.get("documents"):
+                console.print(f"\nGenerated {len(final_state['documents'])} documents:")
+                for doc_name in final_state["documents"].keys():
+                    console.print(f"  - {doc_name}")
+
+            if final_state.get("total_cost", 0) > 0:
+                console.print(f"\nTotal cost: ${final_state['total_cost']:.4f}")
+
+            raise typer.Exit(code=0)
+
+        except ImportError:
+            console.print("[bold yellow]langgraph not installed. Falling back to manual orchestration.[/bold yellow]")
+            console.print("[dim]Install with: pip install langgraph[/dim]")
+            use_workflow = False
+        except Exception as e:
+            console.print(f"[bold yellow]Workflow execution failed: {e}. Falling back to manual orchestration.[/bold yellow]")
+            use_workflow = False
 
     with Progress(
         SpinnerColumn(),

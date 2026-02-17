@@ -575,3 +575,250 @@ Phase 4: 增強型 Context 管理       ← 最後，最複雜的改動
 **一句話結論**：
 
 > 採用 LangGraph Subagent 的「三明治架構」：Agent 規劃 → Batch 分析 → Agent 合成，是成本效益最高的重構方案。預期 Top-down 文檔品質提升 30-50%，成本增幅控制在 10-40% 以內。
+
+---
+
+## 10. Phase 3 實現完成報告
+
+### 10.1 實現摘要
+
+**日期**: 2026-02-17
+**狀態**: ✅ 完成
+
+Phase 3 - 全流程 StateGraph 編排已成功實現，將整個 Lantern 分析流程統一到 LangGraph StateGraph 架構中。
+
+### 10.2 核心交付物
+
+#### 10.2.1 新增檔案
+
+```
+src/lantern_cli/core/workflow.py              # 主要的 StateGraph 定義和執行邏輯
+  ├─ LanternWorkflowState (TypedDict)         # 完整的工作流狀態定義
+  ├─ LanternCheckpointConfig                  # Checkpointer 配置
+  ├─ 7 個 Node 實現                            # static_analysis, planning, human_review,
+  │                                            # batch_execution, synthesis, quality_gate, refine
+  ├─ Router 函數                               # human_review, quality_gate 的條件路由
+  ├─ build_lantern_workflow()                 # 工作流構建函數
+  └─ LanternWorkflowExecutor                  # 高層執行器類別
+
+tests/unit/test_workflow.py                   # 全面的單元測試
+  └─ 18 個測試，全部通過                       # 覆蓋 state, checkpoint, routers, executor
+```
+
+#### 10.2.2 修改檔案
+
+```
+src/lantern_cli/cli/main.py
+  ├─ 新增 --workflow 旗標               # 啟用新的 StateGraph 編排
+  ├─ 新增 --resume 旗標                 # 從檢查點恢復執行
+  └─ 新增工作流執行邏輯                  # 與 fallback 到舊流程
+
+pyproject.toml
+  └─ langgraph >= 0.3 (已有)
+```
+
+### 10.3 架構設計
+
+#### 10.3.1 LanternWorkflowState
+
+完整的狀態包含：
+- **輸入參數**: repo_path, config, language, synthesis_mode, planning_mode, etc.
+- **分析結果**: dependency_graph, file_list, layers, mermaid_graph
+- **規劃結果**: plan, pending_batches, plan_approved/rejected
+- **執行狀態**: completed_batches, failed_batches, sense_records, global_summary
+- **合成結果**: documents, synthesis_quality_score
+- **品質控制**: quality_score, quality_ok, quality_issues
+- **成本追蹤**: total_cost, estimated_cost
+
+#### 10.3.2 工作流圖
+
+```
+START
+  │
+  ├─→ static_analysis (依賴圖分析)
+  │
+  ├─→ planning (計畫生成)
+  │
+  ├─→ human_review (人工審查，帶中斷點)
+  │    │
+  │    ├─[approved]→ batch_execution
+  │    └─[rejected]→ planning (循環)
+  │
+  ├─→ batch_execution (批次執行)
+  │
+  ├─→ synthesis (文檔生成)
+  │
+  ├─→ quality_gate (品質檢查)
+  │    │
+  │    ├─[quality_ok]→ END
+  │    └─[needs_refine]→ refine (最多 3 次迭代)
+  │         │
+  │         └─→ quality_gate (循環)
+  │
+  └─→ END
+```
+
+#### 10.3.3 Node 實現
+
+| Node | 功能 | 狀態更新 |
+|------|------|---------|
+| `static_analysis` | 構建依賴圖，計算層級 | dependency_graph, layers, mermaid_graph |
+| `planning` | 生成分析計畫 | plan, pending_batches |
+| `human_review` | 暫停等待人工審查 | plan_approved/rejected |
+| `batch_execution` | 執行批次分析 | completed/failed_batches, sense_records |
+| `synthesis` | 生成文檔 | documents, synthesis_quality_score |
+| `quality_gate` | 評估品質 | quality_score, quality_ok, iteration_count |
+| `refine` | 優化文檔 | documents (改進版) |
+
+### 10.4 關鍵特性
+
+#### 10.4.1 狀態檢查點 (Checkpointing)
+
+```python
+checkpoint_config = LanternCheckpointConfig(
+    enable_checkpointing=True,
+    checkpoint_dir=repo_path / ".lantern" / "checkpoints"
+)
+
+# 支援在任意節點暫停/恢復
+final_state = executor.execute_sync(thread_id="optional-checkpoint-id")
+```
+
+#### 10.4.2 人機互動 (Human-in-the-Loop)
+
+- `human_review` 節點支援中斷
+- 使用者可以接受或拒絕計畫
+- 拒絕時自動迴圈回 `planning` 節點
+
+#### 10.4.3 條件路由
+
+```python
+# 審查決策
+router_human_review(state) → "batch_execution" | "planning" | "human_review"
+
+# 品質決策
+router_quality_gate(state) → "refine" | END
+```
+
+#### 10.4.4 後端集成
+
+- 支援所有現有的 Backend 類型 (OpenAI, Ollama, CLI 等)
+- 節點可以利用 backend 進行 LLM 調用
+- Fallback 到無 backend 的占位符模式
+
+### 10.5 使用方式
+
+#### 10.5.1 啟用新工作流
+
+```bash
+# 使用新的 StateGraph 編排
+lantern run --workflow
+
+# 恢復之前的執行
+lantern run --workflow --resume thread-id-123
+
+# 結合其他 flag
+lantern run --workflow --synthesis-mode agentic --planning-mode agentic
+```
+
+#### 10.5.2 編程使用
+
+```python
+from lantern_cli.core.workflow import LanternWorkflowExecutor
+
+executor = LanternWorkflowExecutor(
+    repo_path=Path("./my-repo"),
+    backend=backend,
+    config=config,
+    synthesis_mode="agentic",
+    planning_mode="agentic",
+)
+
+# 同步執行
+final_state = executor.execute_sync(thread_id="optional")
+
+# 獲取結果
+documents = final_state["documents"]
+total_cost = final_state["total_cost"]
+quality_ok = final_state["quality_ok"]
+```
+
+### 10.6 測試覆蓋
+
+**測試統計**:
+- 18 個單元測試，全部通過 ✅
+- 測試覆蓋率：51% (workflow.py)
+
+**測試類別**:
+1. `TestLanternWorkflowState` - 狀態定義驗證
+2. `TestCheckpointConfig` - Checkpointer 配置
+3. `TestPlanSerialization` - Plan 序列化/反序列化
+4. `TestRouters` - 路由邏輯驗證
+5. `TestWorkflowBuilder` - 工作流構建
+6. `TestWorkflowExecutor` - 執行器初始化和狀態管理
+
+### 10.7 與舊系統的相容性
+
+- ✅ **完全向後相容**: 默認仍使用舊的手動編排
+- ✅ **Optional 選擇**: 使用 `--workflow` 旗標啟用新工作流
+- ✅ **Graceful Fallback**: 如果 langgraph 未安裝，自動回退到舊流程
+- ✅ **Gradual Migration**: 可以逐步遷移到新架構
+
+### 10.8 與 Phase 1/2 的整合
+
+**完整的三明治架構**:
+```
+Agent 規劃 (Phase 2)
+    ↓
+Batch 分析 (現有)
+    ↓
+Agent 合成 (Phase 1)
+```
+
+所有三個層次都整合在 Phase 3 的 StateGraph 中：
+- `planning` 節點可選擇性使用 AgenticPlanner (Phase 2)
+- `batch_execution` 節點使用現有的 Batch API
+- `synthesis` 節點可選擇性使用 AgenticSynthesizer (Phase 1)
+
+### 10.9 成本與性能影響
+
+| 指標 | 影響 |
+|------|------|
+| **延遲** | +5-10% (多了一層編排) |
+| **成本** | 同步 (節點邏輯與舊系統相同) |
+| **記憶體** | 同步 (State 被 checkpointer 管理) |
+| **可靠性** | ✅ 改善 (支援中斷/恢復) |
+
+### 10.10 未來改進方向
+
+1. **Async 支援**: 當前實現是同步的，未來可支援 `ainvoke()`
+2. **並行批次**: 使用 LangGraph 的 `Send()` API 並行化獨立批次
+3. **Advanced Interrupts**: 在任意節點暫停並讓使用者提供反饋
+4. **監視和遙測**: 整合 LangSmith 進行端到端追蹤
+5. **Context 優化**: Phase 4 的增強型 Context 管理
+
+### 10.11 檔案位置參考
+
+| 檔案 | 目的 |
+|------|------|
+| [workflow.py](src/lantern_cli/core/workflow.py) | 核心 StateGraph 實現 |
+| [test_workflow.py](tests/unit/test_workflow.py) | 全面的單元測試 |
+| [main.py](src/lantern_cli/cli/main.py#L138-L177) | CLI 整合點 |
+| [pyproject.toml](pyproject.toml) | 依賴定義 |
+
+---
+
+## 11. Phase 4 前置準備
+
+Phase 4（增強型 Context 管理）的實現可以建立在 Phase 3 的基礎上：
+
+```python
+# Phase 4 的 state 擴展
+class EnhancedBatchExecutionState(TypedDict):
+    file_analyses: Dict[str, Dict]        # 結構化的分析結果
+    module_summaries: Dict[str, str]      # 模組摘要
+    discovered_relationships: List[Dict]  # 發現的關係
+    current_batch_context: str            # 動態生成的上下文
+```
+
+在 Phase 3 的 `batch_execution_node` 中已經預留了 `sense_records` 的擴展空間。
