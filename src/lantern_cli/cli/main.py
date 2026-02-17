@@ -145,6 +145,11 @@ def run(
         "--synthesis-mode",
         help="Synthesis mode: 'batch' (rule-based, fast) or 'agentic' (LLM-powered, higher quality)",
     ),
+    planning_mode: str = typer.Option(
+        "static",
+        "--planning-mode",
+        help="Planning mode: 'static' (topological, fast) or 'agentic' (LLM-enhanced, smarter grouping)",
+    ),
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
@@ -184,9 +189,39 @@ def run(
         progress.update(task_static, total=1, completed=1)
 
         # 4. Architect Plan
-        task_plan = progress.add_task("Architecting analysis plan...", total=None)
-        architect = Architect(repo_path, graph)
-        plan = architect.generate_plan()
+        if planning_mode == "agentic":
+            task_plan = progress.add_task("Architecting analysis plan (agentic)...", total=None)
+            try:
+                from lantern_cli.core.agentic_planner import AgenticPlanner
+
+                agentic_planner = AgenticPlanner(
+                    repo_path, backend, language=config.language
+                )
+                plan = agentic_planner.generate_enhanced_plan(
+                    file_list=list(graph.dependencies.keys()),
+                    dependencies=graph.dependencies,
+                    reverse_dependencies=graph.reverse_dependencies,
+                    layers=graph.calculate_layers(),
+                    mermaid_graph=Architect(repo_path, graph).generate_mermaid_graph(),
+                )
+            except ImportError:
+                console.print(
+                    "[bold yellow]langgraph not installed. "
+                    "Falling back to static planning.[/bold yellow]"
+                )
+                architect = Architect(repo_path, graph)
+                plan = architect.generate_plan()
+            except Exception as e:
+                console.print(
+                    f"[bold yellow]Agentic planning failed: {e}. "
+                    f"Falling back to static planning.[/bold yellow]"
+                )
+                architect = Architect(repo_path, graph)
+                plan = architect.generate_plan()
+        else:
+            task_plan = progress.add_task("Architecting analysis plan...", total=None)
+            architect = Architect(repo_path, graph)
+            plan = architect.generate_plan()
 
         # Save plan
         plan_path = repo_path / config.output_dir / "lantern_plan.md"
@@ -232,6 +267,7 @@ def run(
     console.print(f"   Total Batches: {len([b for p in plan.phases for b in p.batches])}")
     console.print(f"   Pending Batches: {len(pending_batches)}")
     console.print(f"   Model: {model_name}")
+    console.print(f"   Planning Mode: {planning_mode}")
     console.print(f"   Synthesis Mode: {synthesis_mode}")
 
     if pricing_available:
@@ -287,9 +323,10 @@ def run(
             for batch in pending_batches:
                 progress.update(task_batch, description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...")
 
-                # Construct prompt (MVP: simple prompt)
+                # Construct prompt with optional batch hint
                 language_instruction = f" Please respond in {config.language}." if config.language != "en" else ""
-                prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights.{language_instruction}"
+                hint_instruction = f"\n\nAnalysis guidance: {batch.hint}" if batch.hint else ""
+                prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights.{language_instruction}{hint_instruction}"
 
                 success = runner.run_batch(batch, prompt)
                 if not success:

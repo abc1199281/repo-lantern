@@ -12,6 +12,7 @@ class Batch:
     """A batch of files to analyze together."""
     id: int
     files: List[str]
+    hint: str = ""
 
 
 @dataclass
@@ -50,7 +51,8 @@ class Plan:
             md.append("\n### Execution Batches")
             for batch in phase.batches:
                 files_str = ", ".join(batch.files)
-                md.append(f"- [ ] Batch {batch.id}: `{files_str}`")
+                hint_suffix = f"\n  - *Hint: {batch.hint}*" if batch.hint else ""
+                md.append(f"- [ ] Batch {batch.id}: `{files_str}`{hint_suffix}")
             md.append("")
             
         return "\n".join(md)
