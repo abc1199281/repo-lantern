@@ -149,12 +149,12 @@ def run(
     synthesis_mode: str = typer.Option(
         "batch",
         "--synthesis-mode",
-        help="Synthesis mode: 'batch' (rule-based, fast) or 'agentic' (LLM-powered, higher quality)",
+        help="Synthesis mode: 'batch' (rule-based) or 'agentic' (LLM-powered)",
     ),
     planning_mode: str = typer.Option(
         "static",
         "--planning-mode",
-        help="Planning mode: 'static' (topological, fast) or 'agentic' (LLM-enhanced, smarter grouping)",
+        help="Planning mode: 'static' (topological) or 'agentic' (LLM-enhanced)",
     ),
     use_workflow: bool = typer.Option(
         False,
@@ -227,13 +227,15 @@ def run(
 
         except ImportError:
             console.print(
-                "[bold yellow]langgraph not installed. Falling back to manual orchestration.[/bold yellow]"
+                "[bold yellow]langgraph not installed. "
+                "Falling back to manual orchestration.[/bold yellow]"
             )
             console.print("[dim]Install with: pip install langgraph[/dim]")
             use_workflow = False
         except Exception as e:
             console.print(
-                f"[bold yellow]Workflow execution failed: {e}. Falling back to manual orchestration.[/bold yellow]"
+                f"[bold yellow]Workflow execution failed: {e}. "
+                "Falling back to manual orchestration.[/bold yellow]"
             )
             use_workflow = False
 
@@ -404,12 +406,16 @@ def run(
                     f" Please respond in {config.language}." if config.language != "en" else ""
                 )
                 hint_instruction = f"\n\nAnalysis guidance: {batch.hint}" if batch.hint else ""
-                prompt = f"Analyze these files: {batch.files}. Provide a summary and key insights.{language_instruction}{hint_instruction}"
+                prompt = (
+                    f"Analyze these files: {batch.files}. "
+                    f"Provide a summary and key insights."
+                    f"{language_instruction}{hint_instruction}"
+                )
 
                 success = runner.run_batch(batch, prompt)
                 if not success:
                     console.print(f"[bold red]Batch {batch.id} failed.[/bold red]")
-                    # Continue or break based on policy? For MVP, continue/retry logic is in Runner state
+                    # For MVP, continue on failure; retry logic is in Runner
 
                 progress.advance(task_batch)
                 progress.advance(task_runner)  # Advance phase/runner progress roughly

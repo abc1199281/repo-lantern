@@ -58,7 +58,7 @@ class Runner:
         self.backend = backend
         self.state_manager = state_manager
         self.language = language
-        # Base output dir is configurable (from lantern.toml or CLI). Default to ".lantern" if unset.
+        # Base output dir from lantern.toml or CLI. Default: ".lantern"
         base_out = output_dir or ".lantern"
         self.base_output_dir = root_path / base_out
         self.sense_dir = self.base_output_dir / "sense"

@@ -79,7 +79,7 @@ class StructuredAnalysisOutput(BaseModel):
     language: str
 
     @root_validator(pre=True)
-    def normalize(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def normalize(cls, values: dict[str, Any]) -> dict[str, Any]:  # noqa: N805
         def trim(items: list[Any], limit: int, item_max: int) -> list[str]:
             cleaned: list[str] = []
             for item in items:

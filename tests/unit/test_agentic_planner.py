@@ -158,7 +158,7 @@ class TestPrepareDependencySummary:
 
     def test_sorted_by_dependency_count(self) -> None:
         result = prepare_dependency_summary(SAMPLE_DEPENDENCIES)
-        lines = [l for l in result.split("\n") if l.startswith("- ")]
+        lines = [line for line in result.split("\n") if line.startswith("- ")]
         # First line should be the file with most dependencies
         if lines:
             assert "src/core/main.py" in lines[0] or "src/api/routes.py" in lines[0]

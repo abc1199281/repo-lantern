@@ -1,13 +1,19 @@
 """Dependency Graph construction and analysis."""
 
+from __future__ import annotations
+
 from collections import defaultdict
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lantern_cli.static_analysis.file_filter import FileFilter
 
 
 class DependencyGraph:
     """Graph structure to represent module dependencies."""
 
-    def __init__(self, root_path: Path, file_filter: "FileFilter") -> None:
+    def __init__(self, root_path: Path, file_filter: FileFilter) -> None:
         """Initialize DependencyGraph.
 
         Args:
@@ -145,7 +151,7 @@ class DependencyGraph:
         all_modules = set(self.dependencies.keys()) | set(self.reverse_dependencies.keys())
 
         # Iterative calculation (simple approach for DAGs)
-        # Limitation: Circular dependencies might cause infinite loop or incorrect levels if not handled.
+        # Limitation: Circular deps might cause infinite loop if not handled.
         # For MVP, we ignore cycles in level calculation or cap iterations.
 
         # Initialize leaves
