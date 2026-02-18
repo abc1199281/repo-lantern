@@ -20,6 +20,7 @@ dependencies = [
     "anthropic>=0.5.0",
     "openai>=1.0.0",
     "langgraph>=0.2.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -49,11 +50,11 @@ addopts = "-v --cov=lantern_cli --cov-report=term-missing"
 
 [tool.black]
 line-length = 100
-target-version = ['py312']
+target-version = ['py310']
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]

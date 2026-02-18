@@ -1,6 +1,14 @@
 """Configuration loader with TOML parsing and priority system."""
 
-import tomllib
+import sys
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib  # type: ignore[no-redef]
 from pathlib import Path
 from typing import Any
 
