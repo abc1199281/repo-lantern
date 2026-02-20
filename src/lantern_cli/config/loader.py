@@ -12,7 +12,7 @@ else:
 from pathlib import Path
 from typing import Any
 
-from lantern_cli.config.models import BackendConfig, FilterConfig, LanternConfig
+from lantern_cli.config.models import BackendConfig, FilterConfig, LangSmithConfig, LanternConfig
 
 
 class ConfigLoader:
@@ -64,6 +64,7 @@ class ConfigLoader:
         lantern_config = config_dict.get("lantern", {})
         filter_config = config_dict.get("filter", {})
         backend_config = config_dict.get("backend", {})
+        langsmith_config = config_dict.get("langsmith", {})
 
         # Build Pydantic models
         return LanternConfig(
@@ -71,6 +72,7 @@ class ConfigLoader:
             output_dir=lantern_config.get("output_dir", ".lantern"),
             filter=FilterConfig(**filter_config),
             backend=BackendConfig(**backend_config),
+            langsmith=LangSmithConfig(**langsmith_config),
         )
 
     def _load_toml(self, path: Path) -> dict[str, Any]:

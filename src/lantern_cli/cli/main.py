@@ -23,6 +23,7 @@ from lantern_cli.core.synthesizer import Synthesizer
 from lantern_cli.llm.factory import create_backend
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.utils.cost_tracker import CostTracker
+from lantern_cli.utils.observability import configure_langsmith
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
 DEFAULT_CONFIG_PATH = TEMPLATE_ROOT / "lantern.toml"
@@ -177,9 +178,16 @@ def run(
         lang=lang,
     )
 
+    # 1.5. Configure LangSmith observability
+    tracing_enabled = configure_langsmith(config.langsmith)
+
     console.print("[bold green]Lantern Analysis[/bold green]")
     console.print(f"Repository: {repo_path}")
     console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
+    if tracing_enabled:
+        console.print(
+            f"[cyan]LangSmith tracing: ON (project={config.langsmith.project})[/cyan]"
+        )
     if use_workflow:
         console.print("[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
 
