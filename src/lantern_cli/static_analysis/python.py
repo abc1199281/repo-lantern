@@ -1,4 +1,5 @@
 """Python static analysis using AST."""
+
 import ast
 from pathlib import Path
 
@@ -36,7 +37,7 @@ class PythonAnalyzer:
                 level = node.level
                 module = node.module or ""
                 prefix = "." * level
-                
+
                 if module:
                     # from .utils import x -> .utils
                     # from os import path -> os

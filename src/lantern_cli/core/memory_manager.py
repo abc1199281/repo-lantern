@@ -1,4 +1,5 @@
 """Memory management for Temporal RAG with intelligent compression."""
+
 import json
 import logging
 from pathlib import Path
@@ -74,13 +75,13 @@ class MemoryManager:
             return {}
 
         try:
-            with open(prompts_file, "r", encoding="utf-8") as f:
+            with open(prompts_file, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.error(f"Failed to load prompts from {prompts_file}: {e}")
             return {}
 
-    def _compress_with_llm(self, long_summary: str) -> Optional[str]:
+    def _compress_with_llm(self, long_summary: str) -> str | None:
         """Compress summary using LLM backend.
 
         Args:
@@ -104,8 +105,7 @@ class MemoryManager:
 
             # Format prompt with parameters
             prompt = prompt_template.format(
-                target_length=self.TARGET_LENGTH,
-                long_summary=long_summary
+                target_length=self.TARGET_LENGTH, long_summary=long_summary
             )
 
             response = self.backend.invoke(prompt)

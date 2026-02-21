@@ -1,4 +1,5 @@
 """C/C++ static analysis."""
+
 import re
 from pathlib import Path
 
@@ -27,9 +28,9 @@ class CppAnalyzer:
 
         # Match #include <header> or #include "header"
         # We want to capture the content inside the quotes or brackets
-        
+
         # Regex for #include <...>
-        system_includes = re.findall(r'^\s*#\s*include\s+<([^>]+)>', content, re.MULTILINE)
+        system_includes = re.findall(r"^\s*#\s*include\s+<([^>]+)>", content, re.MULTILINE)
         includes.update(system_includes)
 
         # Regex for #include "..."

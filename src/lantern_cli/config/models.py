@@ -103,6 +103,27 @@ class BackendConfig(BaseModel):
     )
 
 
+class LangSmithConfig(BaseModel):
+    """LangSmith observability configuration."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable LangSmith tracing",
+    )
+    api_key_env: str = Field(
+        default="LANGCHAIN_API_KEY",
+        description="Environment variable name containing LangSmith API key",
+    )
+    project: str = Field(
+        default="repo-lantern",
+        description="LangSmith project name for grouping traces",
+    )
+    endpoint: str = Field(
+        default="https://api.smith.langchain.com",
+        description="LangSmith API endpoint URL",
+    )
+
+
 class LanternConfig(BaseModel):
     """Main Lantern configuration."""
 
@@ -121,4 +142,8 @@ class LanternConfig(BaseModel):
     backend: BackendConfig = Field(
         default_factory=BackendConfig,
         description="Backend configuration",
+    )
+    langsmith: LangSmithConfig = Field(
+        default_factory=LangSmithConfig,
+        description="LangSmith observability configuration",
     )

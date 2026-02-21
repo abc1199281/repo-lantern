@@ -1,12 +1,19 @@
 """Dependency Graph construction and analysis."""
+
+from __future__ import annotations
+
 from collections import defaultdict
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lantern_cli.static_analysis.file_filter import FileFilter
 
 
 class DependencyGraph:
     """Graph structure to represent module dependencies."""
 
-    def __init__(self, root_path: Path, file_filter: "FileFilter") -> None:
+    def __init__(self, root_path: Path, file_filter: FileFilter) -> None:
         """Initialize DependencyGraph.
 
         Args:
@@ -15,16 +22,16 @@ class DependencyGraph:
         """
         self.root_path = root_path
         self.file_filter = file_filter
-        
+
         # Map: Source -> Set of Targets
         self.dependencies: dict[str, set[str]] = defaultdict(set)
         # Map: Target -> Set of Sources (Reverse graph for some algos)
         self.reverse_dependencies: dict[str, set[str]] = defaultdict(set)
-        
+
         # Lazy import to avoid circular dependency
-        from lantern_cli.static_analysis.python import PythonAnalyzer
         from lantern_cli.static_analysis.cpp import CppAnalyzer
-        
+        from lantern_cli.static_analysis.python import PythonAnalyzer
+
         self.analyzers = {
             "python": PythonAnalyzer(),
             "cpp": CppAnalyzer(),
@@ -35,7 +42,7 @@ class DependencyGraph:
         # 1. Index all files
         module_map: dict[str, str] = {}
         all_files: list[tuple[Path, str]] = []  # (rel_path, type)
-        
+
         # Extensions mapping
         extensions = {
             ".py": "python",
@@ -57,17 +64,17 @@ class DependencyGraph:
                 continue
 
             rel_path = path.relative_to(self.root_path)
-            
+
             file_type = extensions[ext]
             all_files.append((rel_path, file_type))
-            
+
             if file_type == "python":
                 # Simple module name heuristic
                 # src/lantern_cli/main.py -> src.lantern_cli.main
                 module_parts = list(rel_path.parent.parts) + [rel_path.stem]
                 module_name = ".".join(module_parts)
                 module_map[module_name] = str(rel_path)
-                
+
                 # Also support implicit src root if common pattern
                 if module_parts[0] == "src":
                     short_name = ".".join(module_parts[1:])
@@ -82,13 +89,13 @@ class DependencyGraph:
         # 2. Analyze imports and build graph
         for rel_path, file_type in all_files:
             file_path = self.root_path / rel_path
-            
+
             analyzer = self.analyzers.get(file_type)
             if not analyzer:
                 continue
 
             imports = analyzer.analyze_imports(file_path)
-            
+
             source_node = str(rel_path)
             # Ensure node exists in graph even if no deps
             if source_node not in self.dependencies:
@@ -96,22 +103,22 @@ class DependencyGraph:
 
             for imp in imports:
                 target_file = None
-                
+
                 if file_type == "python":
                     # Try to resolve import to a file in our project
                     target_file = module_map.get(imp)
-                    
+
                     # Try sub-modules (e.g. import lantern_cli.core -> lantern_cli/core/__init__.py)
                     if not target_file:
                         target_file = module_map.get(f"{imp}.__init__")
-                
+
                 elif file_type == "cpp":
                     # Direct lookup by filename or path
                     target_file = module_map.get(imp)
-                    
+
                     # If not found, try to resolve relative paths
                     if not target_file:
-                        # Handle "../utils.h" style includes if needed, 
+                        # Handle "../utils.h" style includes if needed,
                         # but simple name matching covers many cases in flat/simple C++ projects
                         pass
 
@@ -130,53 +137,53 @@ class DependencyGraph:
 
     def calculate_layers(self) -> dict[str, int]:
         """Calculate the 'level' of each module.
-        
+
         Level 0: No outgoing dependencies (Leaf nodes).
         Level N: Max level of dependencies + 1.
-        
+
         Returns:
             Dict mapping module name to its level.
         """
         levels: dict[str, int] = {}
         processed = set()
-        
+
         # Modules with no dependencies are level 0
         all_modules = set(self.dependencies.keys()) | set(self.reverse_dependencies.keys())
-        
+
         # Iterative calculation (simple approach for DAGs)
-        # Limitation: Circular dependencies might cause infinite loop or incorrect levels if not handled.
+        # Limitation: Circular deps might cause infinite loop if not handled.
         # For MVP, we ignore cycles in level calculation or cap iterations.
-        
+
         # Initialize leaves
         for module in all_modules:
             if not self.dependencies[module]:
                 levels[module] = 0
                 processed.add(module)
-        
+
         changed = True
         max_iter = len(all_modules) + 2
         iter_count = 0
-        
+
         while changed and iter_count < max_iter:
             changed = False
             iter_count += 1
-            
+
             for module in all_modules:
                 if module in levels:
                     continue
-                
+
                 # Check if all dependencies have levels calculated
                 deps = self.dependencies[module]
                 if all(d in levels for d in deps):
                     max_dep_level = max(levels[d] for d in deps)
                     levels[module] = max_dep_level + 1
                     changed = True
-        
+
         # Assign -1 or max+1 for modules in cycles that couldn't be resolved
         for module in all_modules:
             if module not in levels:
                 levels[module] = -1  # Indication of cycle participation or unresolved
-                
+
         return levels
 
     def detect_cycles(self) -> list[list[str]]:
@@ -205,7 +212,7 @@ class DependencyGraph:
                         idx = path.index(neighbor)
                         cycles.append(path[idx:] + [neighbor])
                     except ValueError:
-                        pass # Should not happen
+                        pass  # Should not happen
 
             recursion_stack.remove(node)
             path.pop()

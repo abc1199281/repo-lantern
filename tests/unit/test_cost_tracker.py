@@ -1,13 +1,12 @@
 """Tests for CostTracker."""
+
 import json
-import tempfile
-from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lantern_cli.utils.cost_tracker import CostTracker, ModelPricing
+from lantern_cli.utils.cost_tracker import CostTracker
 
 
 class TestCostTracker:
@@ -15,14 +14,8 @@ class TestCostTracker:
 
     SAMPLE_PRICING_JSON = {
         "models": {
-            "gemini-1.5-flash": {
-                "input_per_million": 0.075,
-                "output_per_million": 0.30
-            },
-            "claude-sonnet-4": {
-                "input_per_million": 3.0,
-                "output_per_million": 15.0
-            }
+            "gemini-1.5-flash": {"input_per_million": 0.075, "output_per_million": 0.30},
+            "claude-sonnet-4": {"input_per_million": 3.0, "output_per_million": 15.0},
         }
     }
 
@@ -48,10 +41,10 @@ class TestCostTracker:
     def test_pricing_lookup_online(self, mock_urlopen) -> None:
         """Test fetching pricing from online source."""
         tracker = CostTracker("gemini-1.5-flash")
-        
+
         # Verify fetch happened
         mock_urlopen.assert_called_once()
-        
+
         # Verify value
         assert tracker.pricing is not None
         assert tracker.pricing.input_per_million == 0.075
@@ -60,16 +53,16 @@ class TestCostTracker:
     def test_pricing_lookup_offline(self, mock_urlopen_fail) -> None:
         """Test behavior when network is unavailable."""
         tracker = CostTracker("gemini-1.5-flash")
-        
+
         # Verify tried to fetch
         mock_urlopen_fail.assert_called_once()
-        
+
         # Verify pricing is None
         assert tracker.pricing is None
 
     def test_estimate_tokens(self) -> None:
         """Test token estimation."""
-        with patch("urllib.request.urlopen"): # patch to avoid network call
+        with patch("urllib.request.urlopen"):  # patch to avoid network call
             tracker = CostTracker()
         # 100 characters ≈ 25 tokens (1 token = 4 chars)
         text = "a" * 100
@@ -105,7 +98,7 @@ class TestCostTracker:
         result = tracker.estimate_batch_cost(
             files=[str(file1), str(file2)], context=context, prompt=prompt
         )
-        
+
         assert result is not None
         total_tokens, cost = result
 
@@ -119,10 +112,8 @@ class TestCostTracker:
         """Test batch cost estimation returns None when offline."""
         tracker = CostTracker("gemini-1.5-flash")
 
-        result = tracker.estimate_batch_cost(
-            files=["dummy.py"], context="", prompt=""
-        )
-        
+        result = tracker.estimate_batch_cost(files=["dummy.py"], context="", prompt="")
+
         assert result is None
 
     def test_record_usage_and_get_total_cost(self, mock_urlopen) -> None:
@@ -135,7 +126,7 @@ class TestCostTracker:
         total_cost = tracker.get_total_cost()
         # $0.075 (input) + $0.30 (output) = $0.375
         assert 0.37 <= total_cost <= 0.38
-        
+
         # Verify report generation
         report = tracker.get_report()
         assert "gemini-1.5-flash" in report
@@ -144,27 +135,27 @@ class TestCostTracker:
     def test_record_usage_offline(self, mock_urlopen_fail) -> None:
         """Test that usage recording works offline but cost is 0."""
         tracker = CostTracker("gemini-1.5-flash")
-        
+
         tracker.record_usage(input_tokens=1000, output_tokens=1000)
-        
+
         # Usage stats should still update
         assert tracker.usage.input_tokens == 1000
-        
+
         # But cost should be 0.0 because pricing is unknown
         assert tracker.get_total_cost() == 0.0
 
     def test_local_model_free(self, mock_urlopen) -> None:
         """Test that local models are free and don't fetch pricing."""
         tracker = CostTracker("llama3", is_local=True)
-        
+
         # Should not have called urlopen
         mock_urlopen.assert_not_called()
-        
+
         # Pricing should be 0
         assert tracker.pricing is not None
         assert tracker.pricing.input_per_million == 0.0
         assert tracker.pricing.output_per_million == 0.0
-        
+
         # Estimation should be $0
         result = tracker.estimate_batch_cost(["foo.py"], "", "")
         assert result is not None

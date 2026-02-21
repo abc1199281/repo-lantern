@@ -1,10 +1,10 @@
 """Cost tracking and estimation for LLM API usage."""
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, Any
-import urllib.request
+
 import json
 import logging
+import urllib.request
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +42,8 @@ class CostTracker:
         self.model_name = model_name
         self.is_local = is_local
         self.pricing_data: dict[str, ModelPricing] = {}
-        self.pricing: Optional[ModelPricing] = None
-        
+        self.pricing: ModelPricing | None = None
+
         if self.is_local:
             # Local models are free
             self.pricing = ModelPricing(input_per_million=0.0, output_per_million=0.0)
@@ -71,14 +71,14 @@ class CostTracker:
                     for model, price in data.get("models", {}).items():
                         self.pricing_data[model] = ModelPricing(
                             input_per_million=price["input_per_million"],
-                            output_per_million=price["output_per_million"]
+                            output_per_million=price["output_per_million"],
                         )
                     return True
         except Exception as e:
             logger.debug(f"Failed to fetch pricing: {e}")
             return False
 
-    def _get_pricing(self, model_name: str) -> Optional[ModelPricing]:
+    def _get_pricing(self, model_name: str) -> ModelPricing | None:
         """Get pricing for a model.
 
         Args:
@@ -97,8 +97,8 @@ class CostTracker:
                 return self.pricing_data[key]
 
         # Return default from loaded data if possible, or None
-        # User requested "unable to estimate" if network fail, 
-        # but if we have network but unknown model? 
+        # User requested "unable to estimate" if network fail,
+        # but if we have network but unknown model?
         # For now, let's return None to be safe/strict as requested.
         return None
 
@@ -125,7 +125,7 @@ class CostTracker:
             Estimated token count, or 0 if file cannot be read.
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
                 return self.estimate_tokens(content)
         except (OSError, UnicodeDecodeError):
@@ -134,7 +134,7 @@ class CostTracker:
 
     def estimate_batch_cost(
         self, files: list[str], context: str = "", prompt: str = ""
-    ) -> Optional[tuple[int, float]]:
+    ) -> tuple[int, float] | None:
         """Estimate cost for analyzing a batch of files.
 
         Args:
@@ -180,26 +180,26 @@ class CostTracker:
 
     def record_from_usage_metadata(self, response: Any) -> None:
         """Record actual usage from LangChain response's usage_metadata.
-        
+
         LangChain ChatModel responses include usage_metadata with real token counts
         from the provider (e.g., Ollama, Claude, GPT). This provides actual counts
         instead of estimates. For local models, usage_metadata may be absent.
-        
+
         Expected Structure:
             response.usage_metadata = {
                 'input_tokens': int,
                 'output_tokens': int,
                 # other fields vendor-specific
             }
-        
+
         Error Handling:
             - Missing usage_metadata: Logs debug msg, returns gracefully
             - Malformed metadata: Logs warning, falls back to estimate-based tracking
             - Never raises exceptions (safe for production)
-        
+
         Args:
             response: LangChain AIMessage or chat model response object.
-            
+
         Example:
             >>> response = llm.invoke([{"role": "user", "content": "..."}])
             >>> cost_tracker.record_from_usage_metadata(response)
@@ -218,8 +218,7 @@ class CostTracker:
             if input_tokens or output_tokens:
                 self.record_usage(int(input_tokens), int(output_tokens))
                 logger.debug(
-                    f"Recorded usage from metadata: "
-                    f"in={input_tokens}, out={output_tokens}"
+                    f"Recorded usage from metadata: " f"in={input_tokens}, out={output_tokens}"
                 )
             else:
                 logger.debug("No token counts found in usage_metadata")
@@ -238,11 +237,9 @@ class CostTracker:
         """
         if not self.pricing:
             return 0.0
-            
+
         input_cost = (self.usage.input_tokens / 1_000_000) * self.pricing.input_per_million
-        output_cost = (
-            self.usage.output_tokens / 1_000_000
-        ) * self.pricing.output_per_million
+        output_cost = (self.usage.output_tokens / 1_000_000) * self.pricing.output_per_million
         return input_cost + output_cost
 
     def get_report(self) -> str:

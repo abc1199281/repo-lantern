@@ -1,12 +1,13 @@
 """State Manager for Lantern execution."""
-import json
-from dataclasses import dataclass, field, asdict
-from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
 
-from lantern_cli.core.architect import Plan, Batch
-from lantern_cli.core.memory_manager import MemoryManager
+import json
 import logging
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
+
+from lantern_cli.core.architect import Batch, Plan
+from lantern_cli.core.memory_manager import MemoryManager
 
 if TYPE_CHECKING:
     from lantern_cli.llm.backend import Backend
@@ -17,9 +18,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExecutionState:
     """Represents the current state of execution."""
+
     last_batch_id: int = 0
-    completed_batches: List[int] = field(default_factory=list)
-    failed_batches: List[int] = field(default_factory=list)
+    completed_batches: list[int] = field(default_factory=list)
+    failed_batches: list[int] = field(default_factory=list)
     global_summary: str = ""
 
 
@@ -51,14 +53,14 @@ class StateManager:
 
         if self.state_path.exists():
             try:
-                with open(self.state_path, "r", encoding="utf-8") as f:
+                with open(self.state_path, encoding="utf-8") as f:
                     data = json.load(f)
                     return ExecutionState(**data)
             except (json.JSONDecodeError, OSError):
                 # If corrupt, potentially return fresh state or backup
                 # For now, return fresh
                 pass
-        
+
         return ExecutionState()
 
     def save_state(self) -> None:
@@ -80,18 +82,18 @@ class StateManager:
             if batch_id not in self.state.completed_batches:
                 self.state.completed_batches.append(batch_id)
                 self.state.completed_batches.sort()
-            
+
             # Update last_batch_id if this is higher
             if batch_id > self.state.last_batch_id:
                 self.state.last_batch_id = batch_id
-                
+
             # Remove from failed if it was there
             if batch_id in self.state.failed_batches:
                 self.state.failed_batches.remove(batch_id)
         else:
             if batch_id not in self.state.failed_batches:
                 self.state.failed_batches.append(batch_id)
-                
+
         self.save_state()
 
     def update_global_summary(self, new_content: str) -> None:
@@ -116,7 +118,7 @@ class StateManager:
         """
         return batch_id in self.state.completed_batches
 
-    def get_pending_batches(self, plan: Plan) -> List[Batch]:
+    def get_pending_batches(self, plan: Plan) -> list[Batch]:
         """Get list of batches that need to be executed.
 
         Args:

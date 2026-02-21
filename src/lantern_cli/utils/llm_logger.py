@@ -8,7 +8,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class LLMLogger:
         prompt: str,
         response: str,
         response_obj: Any = None,
-        latency_ms: Optional[float] = None,
+        latency_ms: float | None = None,
     ) -> None:
         """Append one interaction record to the JSONL log.
 
@@ -52,8 +52,8 @@ class LLMLogger:
             response_obj: Optional LangChain response object for token extraction.
             latency_ms: Optional latency in milliseconds.
         """
-        input_tokens: Optional[int] = None
-        output_tokens: Optional[int] = None
+        input_tokens: int | None = None
+        output_tokens: int | None = None
 
         if response_obj is not None:
             metadata = getattr(response_obj, "usage_metadata", None)

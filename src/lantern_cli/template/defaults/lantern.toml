@@ -42,3 +42,12 @@ openai_model = "gpt-4o-mini"  # Fast and cheap ($0.15/1M input, $0.60/1M output)
 # type = "cli"
 # cli_command = "codex exec"  # or "llm -m gpt-4o-mini", etc.
 # cli_model_name = "cli"
+
+# LangSmith Observability (optional)
+# Uncomment to enable LangSmith tracing for all LangChain/LangGraph calls.
+# Requires: export LANGCHAIN_API_KEY=<your-langsmith-api-key>
+# [langsmith]
+# enabled = true
+# project = "repo-lantern"            # Project name in LangSmith dashboard
+# # endpoint = "https://api.smith.langchain.com"  # Default endpoint
+# # api_key_env = "LANGCHAIN_API_KEY"             # Env var holding the API key

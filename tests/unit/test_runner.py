@@ -30,9 +30,7 @@ def runner(mock_llm: MagicMock, mock_state_manager: MagicMock, tmp_path: Path) -
 class TestRunBatchLifecycle:
     """Test Runner.run_batch execution lifecycle."""
 
-    def test_run_batch_success(
-        self, runner: Runner, mock_state_manager: MagicMock
-    ) -> None:
+    def test_run_batch_success(self, runner: Runner, mock_state_manager: MagicMock) -> None:
         """Test successful batch execution.
 
         Runner delegates LLM calls to StructuredAnalyzer via _generate_bottom_up_doc,
@@ -67,17 +65,13 @@ class TestRunBatchLifecycle:
         """Test batch failure when doc generation raises."""
         batch = Batch(id=1, files=["file1.py"])
 
-        with patch.object(
-            runner, "_generate_bottom_up_doc", side_effect=OSError("Disk full")
-        ):
+        with patch.object(runner, "_generate_bottom_up_doc", side_effect=OSError("Disk full")):
             success = runner.run_batch(batch, "Prompt")
 
         assert success is False
         mock_state_manager.update_batch_status.assert_called_with(1, success=False)
 
-    def test_prepare_context_truncates(
-        self, runner: Runner, mock_state_manager: MagicMock
-    ) -> None:
+    def test_prepare_context_truncates(self, runner: Runner, mock_state_manager: MagicMock) -> None:
         """Test that context is properly truncated to MAX_CONTEXT_LENGTH."""
         # Test with short summary
         context = runner._prepare_context()

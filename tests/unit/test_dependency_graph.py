@@ -1,4 +1,5 @@
 """Tests for Dependency Graph construction."""
+
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -14,14 +15,14 @@ class TestDependencyGraph:
     @pytest.fixture
     def graph(self) -> DependencyGraph:
         """Create a DependencyGraph instance."""
-        filter_config = FilterConfig()
+        FilterConfig()
         return DependencyGraph(root_path=Path("/tmp"), file_filter=MagicMock())
 
     def test_add_dependency(self, graph: DependencyGraph) -> None:
         """Test adding dependencies."""
         graph.add_dependency("A", "B")
         graph.add_dependency("A", "C")
-        
+
         assert "B" in graph.dependencies["A"]
         assert "C" in graph.dependencies["A"]
 
@@ -30,14 +31,14 @@ class TestDependencyGraph:
         # A -> B -> C
         graph.add_dependency("A", "B")
         graph.add_dependency("B", "C")
-        
+
         layers = graph.calculate_layers()
         # Expected: C (level 0), B (level 1), A (level 2)
         # Or simplistic level calculation:
         # C has 0 deps -> level 0
         # B has 1 dep (C) -> level 1
         # A has 1 dep (B) -> max(level(B)) + 1 = 2
-        
+
         assert layers["C"] == 0
         assert layers["B"] == 1
         assert layers["A"] == 2
@@ -47,7 +48,7 @@ class TestDependencyGraph:
         # A -> B -> A
         graph.add_dependency("A", "B")
         graph.add_dependency("B", "A")
-        
+
         cycles = graph.detect_cycles()
         assert len(cycles) > 0
         # Check that [A, B, A] or [B, A, B] is in cycles
@@ -68,7 +69,7 @@ class TestDependencyGraph:
         graph.add_dependency("A", "C")
         graph.add_dependency("B", "D")
         graph.add_dependency("C", "D")
-        
+
         layers = graph.calculate_layers()
         assert layers["D"] == 0
         assert layers["B"] == 1

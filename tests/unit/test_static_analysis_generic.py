@@ -1,6 +1,5 @@
 """Tests for generic static analysis."""
-import shutil
-import tempfile
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -20,13 +19,11 @@ class TestGenericAnalyzer:
     def test_extract_imports_python_regex(self, analyzer: GenericAnalyzer, tmp_path: Path) -> None:
         """Test extracting Python imports using regex fallback."""
         file_path = tmp_path / "test.py"
-        file_path.write_text(
-            """
+        file_path.write_text("""
 import os
 from pathlib import Path
 import sys as system
-            """
-        )
+            """)
 
         imports = analyzer.extract_imports(file_path, language="python")
         assert "os" in imports
@@ -36,13 +33,11 @@ import sys as system
     def test_extract_imports_js_regex(self, analyzer: GenericAnalyzer, tmp_path: Path) -> None:
         """Test extracting JS/TS imports using regex fallback."""
         file_path = tmp_path / "test.js"
-        file_path.write_text(
-            """
+        file_path.write_text("""
 import { useState } from 'react';
 const fs = require('fs');
 import React from "react";
-            """
-        )
+            """)
 
         imports = analyzer.extract_imports(file_path, language="javascript")
         assert "react" in imports
@@ -54,7 +49,9 @@ import React from "react";
         # We just ensure it returns a boolean without error
         assert isinstance(analyzer._is_ripgrep_available(), bool)
 
-    def test_unsupported_language_returns_empty(self, analyzer: GenericAnalyzer, tmp_path: Path) -> None:
+    def test_unsupported_language_returns_empty(
+        self, analyzer: GenericAnalyzer, tmp_path: Path
+    ) -> None:
         """Test unsupported language returns empty list."""
         file_path = tmp_path / "test.txt"
         file_path.write_text("random content")
@@ -62,20 +59,24 @@ import React from "react";
         assert imports == []
 
     @patch("subprocess.run")
-    def test_ripgrep_extraction(self, mock_run: MagicMock, analyzer: GenericAnalyzer, tmp_path: Path) -> None:
+    def test_ripgrep_extraction(
+        self, mock_run: MagicMock, analyzer: GenericAnalyzer, tmp_path: Path
+    ) -> None:
         """Test extraction using ripgrep (mocked)."""
         # Force generic reuse of ripgrep path logic if needed, but here we mock the call
         file_path = tmp_path / "test.py"
-        
+
         # Simulate rg output
         # Format: file:line:content
-        mock_run.return_value.stdout = f"{file_path}:1:import os\n{file_path}:2:from pathlib import Path"
+        mock_run.return_value.stdout = (
+            f"{file_path}:1:import os\n{file_path}:2:from pathlib import Path"
+        )
         mock_run.return_value.returncode = 0
-        
+
         # Force rg available
         with patch.object(analyzer, "_is_ripgrep_available", return_value=True):
             results = analyzer.grep_imports(tmp_path, "import")
-            
+
         assert len(results) == 2
         assert "import os" in results[0]
         assert "from pathlib import Path" in results[1]
@@ -91,7 +92,7 @@ import React from "react";
         # Force rg unavailable to test fallback
         with patch.object(analyzer, "_is_ripgrep_available", return_value=False):
             results = analyzer.grep_imports(tmp_path, "import")
-        
+
         assert len(results) >= 3
         # Results format: path:line:content
         content_found = [r.split(":", 2)[2] for r in results]
