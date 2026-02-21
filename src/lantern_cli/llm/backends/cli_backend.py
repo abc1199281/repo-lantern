@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shlex
 import subprocess
 from typing import Any
 
@@ -33,7 +32,7 @@ def _extract_json(raw: str) -> str:
 
     # Strip markdown fences
     if text.startswith("```json"):
-        text = text[len("```json"):]
+        text = text[len("```json") :]
         if "```" in text:
             text = text[: text.rfind("```")]
     if text.startswith("{") and text.endswith("}"):
@@ -63,7 +62,7 @@ def _extract_json(raw: str) -> str:
         elif ch == "}" and start is not None:
             depth -= 1
             if depth == 0:
-                return text[start: idx + 1]
+                return text[start : idx + 1]
     raise ValueError("Could not extract JSON object from CLI response")
 
 
@@ -121,9 +120,7 @@ class CLIBackend:
                 f"CLI command failed (exit {exc.returncode}): {stderr[:500]}"
             ) from exc
         except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                f"CLI command timed out after {self._timeout}s"
-            ) from exc
+            raise RuntimeError(f"CLI command timed out after {self._timeout}s") from exc
 
     @staticmethod
     def _zero_usage() -> dict[str, int]:

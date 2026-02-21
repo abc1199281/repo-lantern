@@ -1,11 +1,11 @@
 """Tests for Synthesizer module."""
+
 import json
 from pathlib import Path
 
 import pytest
 
 from lantern_cli.core.synthesizer import Synthesizer
-
 
 SAMPLE_SENSE_RECORDS = [
     {
@@ -117,10 +117,14 @@ class TestSynthesizer:
         sense_dir.mkdir(parents=True)
         (sense_dir / "batch_0001.sense").write_text("not valid json")
         (sense_dir / "batch_0002.sense").write_text(
-            json.dumps([{
-                "file_path": "ok.py",
-                "analysis": {"summary": "OK", "key_insights": []},
-            }])
+            json.dumps(
+                [
+                    {
+                        "file_path": "ok.py",
+                        "analysis": {"summary": "OK", "key_insights": []},
+                    }
+                ]
+            )
         )
 
         synth = Synthesizer(root_path=tmp_path)
@@ -224,13 +228,7 @@ class TestSynthesizer:
         sense_dir.mkdir(parents=True)
 
         # Write a plan with Mermaid
-        plan_content = (
-            "# Plan\n\n"
-            "```mermaid\n"
-            "graph TD\n"
-            "    cli_py --> db_py\n"
-            "```\n"
-        )
+        plan_content = "# Plan\n\n" "```mermaid\n" "graph TD\n" "    cli_py --> db_py\n" "```\n"
         (lantern_dir / "lantern_plan.md").write_text(plan_content)
 
         # Write sense records
@@ -264,7 +262,7 @@ class TestSynthesizer:
                     "classes": [],
                     "flow": "User calls main",
                     "flow_diagram": "graph TD\n    A[User] --> B[main]\n    B --> C[run]",
-                            "references": [],
+                    "references": [],
                     "language": "en",
                 },
             },

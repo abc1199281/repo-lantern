@@ -1,13 +1,12 @@
 """Tests for StateManager."""
-import json
-import os
+
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from lantern_cli.core.architect import Plan, Phase, Batch
-from lantern_cli.core.state_manager import StateManager, ExecutionState
+from lantern_cli.core.architect import Batch, Phase, Plan
+from lantern_cli.core.state_manager import StateManager
 
 
 class TestStateManager:
@@ -34,13 +33,13 @@ class TestStateManager:
         state.last_batch_id = 5
         state.completed_batches = [1, 2, 3, 4, 5]
         state.global_summary = "Summary so far"
-        
+
         state_manager.save_state()
-        
+
         # Reload
         new_manager = StateManager(state_manager.root_path)
         loaded_state = new_manager.load_state()
-        
+
         assert loaded_state.last_batch_id == 5
         assert loaded_state.completed_batches == [1, 2, 3, 4, 5]
         assert loaded_state.global_summary == "Summary so far"
@@ -48,10 +47,10 @@ class TestStateManager:
     def test_update_batch_completion(self, state_manager: StateManager) -> None:
         """Test updating batch status."""
         state_manager.update_batch_status(batch_id=1, success=True)
-        
+
         assert state_manager.state.last_batch_id == 1
         assert 1 in state_manager.state.completed_batches
-        
+
         # Update with next batch
         state_manager.update_batch_status(batch_id=2, success=True)
         assert state_manager.state.last_batch_id == 2
@@ -60,17 +59,17 @@ class TestStateManager:
     def test_update_global_summary(self, state_manager: StateManager) -> None:
         """Test updating global summary uses MemoryManager."""
         # Mock MemoryManager on the instance
-        with patch.object(state_manager.memory_manager, 'update_summary') as mock_update:
+        with patch.object(state_manager.memory_manager, "update_summary") as mock_update:
             mock_update.return_value = "Compressed Summary"
-            
+
             state_manager.update_global_summary("New batch content")
-            
+
             # Verify MemoryManager was called with current state and new content
             mock_update.assert_called_with("", "New batch content")
-            
+
             # Verify state was updated with result from MemoryManager
             assert state_manager.state.global_summary == "Compressed Summary"
-            
+
             # Verify persistence
             # Note: We can't easily verify persistence with the mock in place for a new instance,
             # but we can verify save_state was called if we mocked it, or check the file.
@@ -88,17 +87,14 @@ class TestStateManager:
         batch1 = Batch(id=1, files=["a"])
         batch2 = Batch(id=2, files=["b"])
         batch3 = Batch(id=3, files=["c"])
-        
-        plan = Plan(phases=[
-            Phase(id=1, batches=[batch1, batch2]),
-            Phase(id=2, batches=[batch3])
-        ])
-        
+
+        plan = Plan(phases=[Phase(id=1, batches=[batch1, batch2]), Phase(id=2, batches=[batch3])])
+
         # Mark batch 1 as complete
         state_manager.update_batch_status(1, True)
-        
+
         pending = state_manager.get_pending_batches(plan)
-        
+
         assert len(pending) == 2
         assert pending[0].id == 2
         assert pending[1].id == 3

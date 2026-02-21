@@ -79,7 +79,7 @@ class StructuredAnalysisOutput(BaseModel):
     language: str
 
     @root_validator(pre=True)
-    def normalize(cls, values: dict[str, Any]) -> dict[str, Any]:
+    def normalize(cls, values: dict[str, Any]) -> dict[str, Any]:  # noqa: N805
         def trim(items: list[Any], limit: int, item_max: int) -> list[str]:
             cleaned: list[str] = []
             for item in items:
@@ -188,7 +188,9 @@ class StructuredAnalyzer:
         """Run structured analysis in batch via the backend."""
         try:
             responses = self.backend.batch_invoke_structured(
-                items, self.schema, self.prompts,
+                items,
+                self.schema,
+                self.prompts,
             )
         except Exception as exc:
             raise RuntimeError(f"Structured batch analysis failed: {exc}") from exc
@@ -209,6 +211,6 @@ class StructuredAnalyzer:
 
     def analyze(self, file_content: str, language: str) -> StructuredAnalysisOutput:
         """Backward-compatible single-file entrypoint."""
-        return self.analyze_batch(
-            [{"file_content": file_content, "language": language}]
-        )[0].analysis
+        return self.analyze_batch([{"file_content": file_content, "language": language}])[
+            0
+        ].analysis

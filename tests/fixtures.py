@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from unittest.mock import MagicMock
-from typing import Optional
 
 import pytest
 
@@ -16,8 +15,8 @@ class BackendMockFactory:
     @staticmethod
     def create(
         content: str = "Test Summary",
-        input_tokens: Optional[int] = None,
-        output_tokens: Optional[int] = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
     ) -> MagicMock:
         """Create a mock Backend with optional usage metadata.
 
@@ -107,6 +106,7 @@ class StateManagerMockFactory:
 
 
 # Pytest fixtures using factories
+
 
 @pytest.fixture
 def mock_backend() -> MagicMock:
