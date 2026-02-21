@@ -201,9 +201,9 @@ def static_analysis_node(state: LanternWorkflowState) -> dict[str, Any]:
     config_dict = state["config"]
 
     # Load config object
-    from lantern_cli.config.loader import Config
+    from lantern_cli.config.models import LanternConfig
 
-    config = Config(**config_dict)
+    config = LanternConfig.model_validate(config_dict)
 
     # Build dependency graph
     file_filter = FileFilter(repo_path, config.filter)
@@ -234,15 +234,18 @@ def planning_node(state: LanternWorkflowState) -> dict[str, Any]:
     logger.info(f"Starting planning (mode: {state['planning_mode']})...")
 
     repo_path = Path(state["repo_path"])
-    state["planning_mode"]
+    config_dict = state["config"]
 
-    # Use static planning by default (agentic would require backend)
-    architect = Architect(repo_path, None)  # Will be reconstructed with graph
+    from lantern_cli.config.models import LanternConfig
 
-    # Reconstruct graph from state
+    config = LanternConfig.model_validate(config_dict)
 
-    # Note: In production, we'd pass the actual DependencyGraph
-    # For now, create a minimal plan
+    # Rebuild dependency graph from config (objects cannot cross LangGraph state boundaries)
+    file_filter = FileFilter(repo_path, config.filter)
+    graph = DependencyGraph(repo_path, file_filter=file_filter)
+    graph.build()
+
+    architect = Architect(repo_path, graph)
     plan = architect.generate_plan()
 
     # Get pending batches
@@ -276,12 +279,17 @@ def human_review_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     logger.info("Waiting for human review...")
 
-    # In LangGraph, interrupts are handled at invocation time
-    # This node just marks that we're waiting for user input
-    return {
-        "plan_approved": state.get("plan_approved", False),
-        "plan_rejected": state.get("plan_rejected", False),
-    }
+    # Auto-approve when assume_yes is set or when no interrupt mechanism is configured.
+    # Without a LangGraph interrupt_before/interrupt_after on this node, there is no way
+    # for external input to modify the state, so we must approve to avoid an infinite loop.
+    if state.get("assume_yes", False):
+        logger.info("Auto-approving plan (--yes flag set)")
+        return {"plan_approved": True, "plan_rejected": False}
+
+    # When running synchronously without an interrupt mechanism, auto-approve
+    # to prevent infinite recursion. Log so users know review was skipped.
+    logger.info("Auto-approving plan (no interactive review mechanism configured)")
+    return {"plan_approved": True, "plan_rejected": False}
 
 
 def batch_execution_node(

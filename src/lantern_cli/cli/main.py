@@ -231,12 +231,18 @@ def run(
 
             raise typer.Exit(code=0)
 
-        except ImportError:
-            console.print(
-                "[bold yellow]langgraph not installed. "
-                "Falling back to manual orchestration.[/bold yellow]"
-            )
-            console.print("[dim]Install with: pip install langgraph[/dim]")
+        except ImportError as e:
+            if "langgraph" in str(e).lower():
+                console.print(
+                    "[bold yellow]langgraph not installed. "
+                    "Falling back to manual orchestration.[/bold yellow]"
+                )
+                console.print("[dim]Install with: pip install langgraph[/dim]")
+            else:
+                console.print(
+                    f"[bold yellow]Workflow import error: {e}. "
+                    "Falling back to manual orchestration.[/bold yellow]"
+                )
             use_workflow = False
         except Exception as e:
             console.print(
