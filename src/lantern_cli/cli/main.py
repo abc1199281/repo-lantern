@@ -185,9 +185,7 @@ def run(
     console.print(f"Repository: {repo_path}")
     console.print(f"Backend: {config.backend.type} ({config.backend.api_provider})")
     if tracing_enabled:
-        console.print(
-            f"[cyan]LangSmith tracing: ON (project={config.langsmith.project})[/cyan]"
-        )
+        console.print(f"[cyan]LangSmith tracing: ON (project={config.langsmith.project})[/cyan]")
     if use_workflow:
         console.print("[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
 
