@@ -63,7 +63,18 @@
 **Bottom-up**（逐檔細節）+ **Top-down**（架構總覽）= 從任何角度完整理解。
 
 ### 🔌 彈性後端
-可選擇本地隱私（Ollama）或雲端效能（OpenRouter）。更換後端無需改變工作流程。
+可選擇本地隱私（Ollama）、雲端效能（OpenRouter/OpenAI），或代理型工作流程（CLI 工具）。Lantern 會自動偵測後端類型，使用對應的分析工作流程。
+
+### 🤖 代理模式 (Agentic Modes)
+可獨立升級規劃與合成階段，使用 LLM 驅動的代理：
+- **`--planning-mode agentic`**：使用 `AgenticPlanner` 在靜態依賴圖之上，以 LLM 生成強化的批次提示與學習目標。
+- **`--synthesis-mode agentic`**：使用 `AgenticSynthesizer`（LangGraph）直接透過檔案工具撰寫 Markdown 文件，取代結構化 JSON 解析流程。
+
+### 🔁 LangGraph 工作流程編排
+使用 `--workflow` 以 LangGraph `StateGraph` 執行完整管線，支援檢查點式斷點續傳：
+- 透過 `--resume <thread-id>` 實現**暫停與恢復**
+- 基於品質閘門的條件路由
+- 支援人機協作中斷點
 
 ### ✏️ 人機協作
 在執行前審查並編輯 `lantern_plan.md`。你掌控分析的內容與方式。
@@ -167,6 +178,9 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 
 # 使用特定語言
 lantern run --lang zh-TW  # 繁體中文
+
+# 略過成本確認提示
+lantern run --yes
 ```
 
 Lantern 會在開始前顯示**成本估算**。預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
@@ -185,13 +199,32 @@ openai_model = "gpt-4o-mini" # 生產環境快速且便宜
 ```bash
 # Step 1: 初始化
 lantern init --repo /path/to/repo
+# 強制重新初始化並覆寫現有設定
+lantern init --repo /path/to/repo --overwrite
 
 # Step 2: 生成計畫（審查 lantern_plan.md）
 lantern plan
 
-# Step 3: 執行分析
+# Step 3: 執行分析（可加入進階選項）
 lantern run
+lantern run --planning-mode agentic    # LLM 強化規劃
+lantern run --synthesis-mode agentic   # LangGraph 驅動合成
+lantern run --workflow                 # 完整 LangGraph 工作流程編排
+lantern run --workflow --resume <thread-id>  # 從檢查點恢復
 ```
+
+### `lantern run` 所有選項
+
+| 旗標 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `--repo` | `.` | 要分析的 Repository 路徑 |
+| `--output` | `.lantern` | 輸出目錄 |
+| `--lang` | `en` | 輸出語言（如 `zh-TW`、`ja`） |
+| `--yes` / `-y` | false | 略過成本確認提示 |
+| `--planning-mode` | `agentic` | `static`（拓撲排序）或 `agentic`（LLM 強化） |
+| `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
+| `--workflow` | false | 使用 LangGraph 工作流程編排 |
+| `--resume` | — | 以指定 thread ID 從檢查點恢復執行 |
 
 # 設定
 
@@ -203,6 +236,26 @@ lantern run
 ```bash
 lantern run --lang zh-TW
 ```
+
+## LangSmith 可觀測性（選用）
+
+Lantern 整合 [LangSmith](https://smith.langchain.com/)，可追蹤與除錯整個管線中的 LLM 呼叫。
+
+在 `.lantern/lantern.toml` 中啟用：
+```toml
+[langsmith]
+enabled = true
+project = "repo-lantern"            # LangSmith 儀表板中的專案名稱
+# endpoint = "https://api.smith.langchain.com"
+# api_key_env = "LANGCHAIN_API_KEY"
+```
+
+設定 API 金鑰：
+```bash
+export LANGCHAIN_API_KEY="ls__..."
+```
+
+啟用後，Lantern 啟動時會顯示 `LangSmith tracing: ON (project=repo-lantern)`，所有 LangChain/LangGraph 呼叫皆會被追蹤記錄。
 
 ---
 
@@ -294,6 +347,9 @@ lantern run
 
 # 發展藍圖 (Roadmap)
 
+- [x] **LangGraph 工作流程編排**：完整 StateGraph 支援檢查點斷點續傳（`--workflow`、`--resume`）。
+- [x] **代理型規劃與合成**：LLM 強化規劃（`--planning-mode agentic`）與合成（`--synthesis-mode agentic`）。
+- [x] **LangSmith 可觀測性**：整合追蹤，用於除錯 LLM 呼叫。
 - [ ] **Execution Trace Mode**：透過 unit test 收集 call graph，實現動態分析。
 - [ ] **跨批次推論**：加強跨批次邊界的邏輯關聯分析。
 - [ ] **多語言靜態分析支援**：擴展至 Go, Rust, 與 Java。

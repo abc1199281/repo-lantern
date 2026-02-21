@@ -148,17 +148,17 @@ def run(
     lang: str | None = typer.Option(None, help="Output language (en/zh-TW)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
     synthesis_mode: str = typer.Option(
-        "batch",
+        "agentic",
         "--synthesis-mode",
         help="Synthesis mode: 'batch' (rule-based) or 'agentic' (LLM-powered)",
     ),
     planning_mode: str = typer.Option(
-        "static",
+        "agentic",
         "--planning-mode",
         help="Planning mode: 'static' (topological) or 'agentic' (LLM-enhanced)",
     ),
     use_workflow: bool = typer.Option(
-        False,
+        True,
         "--workflow",
         help="Use new LangGraph workflow orchestration (Phase 3) instead of manual orchestration",
     ),

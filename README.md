@@ -65,6 +65,17 @@ Most AI tools help you *write* or *refactor* code. **Lantern's goal is different
 ### 🔌 Flexible Backends
 Choose between local privacy (Ollama), cloud power (OpenRouter/OpenAI), or agent-based workflows (CLI tools). Lantern automatically detects backend type and uses the appropriate analysis workflow.
 
+### 🤖 Agentic Modes
+Independently upgrade the planning and synthesis stages to LLM-powered agents:
+- **`--planning-mode agentic`**: Uses `AgenticPlanner` to generate LLM-enhanced batch hints and learning objectives on top of the static dependency graph.
+- **`--synthesis-mode agentic`**: Uses `AgenticSynthesizer` (LangGraph) to write Markdown documentation files directly via file tools instead of structured JSON parsing.
+
+### 🔁 LangGraph Workflow Orchestration
+Use `--workflow` to run the full pipeline as a LangGraph `StateGraph` with checkpoint-based resumption:
+- Enables **pause and resume** via `--resume <thread-id>`
+- Conditional routing based on quality gates
+- Human-in-the-loop interrupt support
+
 ### ✏️ Human-in-the-Loop
 Review and edit `lantern_plan.md` before execution. You control what gets analyzed and how.
 
@@ -168,6 +179,9 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 
 # Use specific language
 lantern run --lang zh-TW  # Traditional Chinese
+
+# Skip the cost confirmation prompt
+lantern run --yes
 ```
 
 Lantern will show you a **cost estimate** before starting. The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
@@ -186,13 +200,32 @@ For reviewing the analysis plan before execution:
 ```bash
 # Step 1: Initialize
 lantern init --repo /path/to/repo
+# Re-initialize and overwrite existing config
+lantern init --repo /path/to/repo --overwrite
 
 # Step 2: Generate plan (review lantern_plan.md)
 lantern plan
 
-# Step 3: Execute analysis
+# Step 3: Execute analysis with optional flags
 lantern run
+lantern run --planning-mode agentic    # LLM-enhanced planning
+lantern run --synthesis-mode agentic   # LangGraph-powered synthesis
+lantern run --workflow                 # Full LangGraph workflow orchestration
+lantern run --workflow --resume <thread-id>  # Resume from checkpoint
 ```
+
+### All `lantern run` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path to analyze |
+| `--output` | `.lantern` | Output directory |
+| `--lang` | `en` | Output language (e.g., `zh-TW`, `ja`) |
+| `--yes` / `-y` | false | Skip cost confirmation prompt |
+| `--planning-mode` | `agentic` | `static` (topological) or `agentic` (LLM-enhanced) |
+| `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
+| `--workflow` | false | Use LangGraph workflow orchestration |
+| `--resume` | — | Resume from checkpoint with given thread ID |
 
 # Configuration
 
@@ -204,6 +237,26 @@ You can set your preferred output language (e.g., Traditional Chinese, Japanese)
 ```bash
 lantern run --lang zh-TW
 ```
+
+## LangSmith Observability (Optional)
+
+Lantern integrates with [LangSmith](https://smith.langchain.com/) for tracing and debugging LLM calls across the entire pipeline.
+
+Enable it in `.lantern/lantern.toml`:
+```toml
+[langsmith]
+enabled = true
+project = "repo-lantern"            # Project name in LangSmith dashboard
+# endpoint = "https://api.smith.langchain.com"
+# api_key_env = "LANGCHAIN_API_KEY"
+```
+
+Set your API key:
+```bash
+export LANGCHAIN_API_KEY="ls__..."
+```
+
+When enabled, Lantern prints `LangSmith tracing: ON (project=repo-lantern)` at startup and all LangChain/LangGraph calls are traced.
 
 ---
 
@@ -295,6 +348,9 @@ Local models (Ollama) show $0.00 cost.
 
 # Roadmap
 
+- [x] **LangGraph Workflow Orchestration**: Full StateGraph with checkpoint-based resumption (`--workflow`, `--resume`).
+- [x] **Agentic Planning & Synthesis**: LLM-enhanced planning (`--planning-mode agentic`) and synthesis (`--synthesis-mode agentic`).
+- [x] **LangSmith Observability**: Tracing integration for debugging LLM calls.
 - [ ] **Execution Trace Mode**: Collect call graphs via unit tests for dynamic analysis.
 - [ ] **Memory Cross-talk**: Enhanced reasoning across batch boundaries.
 - [ ] **Multi-language Static Analysis**: Go, Rust, and Java support.
