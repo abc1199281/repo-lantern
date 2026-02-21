@@ -230,7 +230,9 @@ class Runner:
                 }
             )
 
-        non_empty_pairs = [(i, batch_data[i]) for i in range(len(batch.files)) if i not in empty_indices]
+        non_empty_pairs = [
+            (i, batch_data[i]) for i in range(len(batch.files)) if i not in empty_indices
+        ]
         interactions: list[BatchInteraction] = []
         if non_empty_pairs:
             try:
@@ -251,7 +253,11 @@ class Runner:
                     }
                 )
 
-            if any(structured_results[i] is None for i in range(len(batch.files)) if i not in empty_indices):
+            if any(
+                structured_results[i] is None
+                for i in range(len(batch.files))
+                if i not in empty_indices
+            ):
                 for orig_idx, item_data in non_empty_pairs:
                     if structured_results[orig_idx] is not None:
                         continue
@@ -272,7 +278,10 @@ class Runner:
                             }
                         )
                     except Exception as exc:
-                        logger.error(f"Structured fallback invoke failed for {batch.files[orig_idx]}: {exc}")
+                        logger.error(
+                            f"Structured fallback invoke failed for "
+                            f"{batch.files[orig_idx]}: {exc}"
+                        )
                         sense_records.append(
                             {
                                 "batch": batch.id,
