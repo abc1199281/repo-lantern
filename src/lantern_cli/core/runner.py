@@ -214,13 +214,10 @@ class Runner:
         structured_results: list[StructuredAnalysisOutput | None] = [None] * len(batch.files)
         sense_records: list[dict[str, Any]] = []
 
-        # Pre-fill stubs for empty files so they are never sent to the LLM
+        # Pre-fill stubs for empty files so they are never sent to the LLM.
+        # summary="" is falsy, so _is_empty_record() filters these out of synthesis
+        # regardless of the configured language.
         for idx in empty_indices:
-            structured_results[idx] = StructuredAnalysisOutput(
-                summary="無法分析",
-                key_insights=[],
-                language=self.language,
-            )
             sense_records.append(
                 {
                     "batch": batch.id,
@@ -228,7 +225,8 @@ class Runner:
                     "file_path": batch.files[idx],
                     "prompt": batch_data[idx],
                     "raw_response": "empty file",
-                    "analysis": {"summary": "無法分析", "key_insights": [], "language": self.language},
+                    "status": "empty",
+                    "analysis": {"summary": "", "key_insights": []},
                 }
             )
 
@@ -311,7 +309,7 @@ class Runner:
                     f"# {rel_path.name}\n\n"
                     f"> **Original File**: `{rel_path}`\n"
                     f"> **Batch**: {batch.id} ({idx + 1}/{num_files})\n\n"
-                    f"## Summary\n\n此檔案為空，無內容可分析。\n"
+                    f"## Summary\n\nEmpty file, no content to analyze.\n"
                 )
             elif parsed is None:
                 logger.warning(
@@ -425,7 +423,7 @@ class Runner:
                     out_path.write_text(
                         f"# {rel_path.name}\n\n"
                         f"> **Original File**: `{rel_path}`\n\n"
-                        f"## Summary\n\n此檔案為空，無內容可分析。\n",
+                        f"## Summary\n\nEmpty file, no content to analyze.\n",
                         encoding="utf-8",
                     )
                 except OSError as exc:
@@ -436,8 +434,8 @@ class Runner:
                         "file_path": file_path,
                         "prompt": {"file_content": "", "language": self.language},
                         "raw_response": "empty file",
-                        "status": "skipped",
-                        "analysis": {"summary": "無法分析", "key_insights": [], "language": self.language},
+                        "status": "empty",
+                        "analysis": {"summary": "", "key_insights": []},
                     }
                 )
                 continue
