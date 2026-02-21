@@ -197,7 +197,8 @@ class Runner:
 
         rel_paths: list[Path] = []
         batch_data: list[dict[str, str]] = []
-        for file_path in batch.files:
+        empty_indices: set[int] = set()
+        for idx, file_path in enumerate(batch.files):
             rel_path, src_path = self._resolve_paths(file_path)
             rel_paths.append(rel_path)
             try:
@@ -205,64 +206,88 @@ class Runner:
             except OSError as exc:
                 logger.error(f"Failed to read source file {src_path}: {exc}")
                 file_content = ""
+            if not file_content.strip():
+                logger.info(f"Skipping empty file: {rel_path}")
+                empty_indices.add(idx)
             batch_data.append({"file_content": file_content, "language": self.language})
 
         structured_results: list[StructuredAnalysisOutput | None] = [None] * len(batch.files)
         sense_records: list[dict[str, Any]] = []
-        interactions: list[BatchInteraction] = []
-        try:
-            interactions = analyzer.analyze_batch(batch_data)
-        except Exception as exc:
-            logger.error(f"Structured batch analysis failed: {exc}")
 
-        for idx, interaction in enumerate(interactions):
-            if idx >= len(structured_results):
-                break
-            structured_results[idx] = interaction.analysis
+        # Pre-fill stubs for empty files so they are never sent to the LLM
+        for idx in empty_indices:
+            structured_results[idx] = StructuredAnalysisOutput(
+                summary="無法分析",
+                key_insights=[],
+                language=self.language,
+            )
             sense_records.append(
                 {
                     "batch": batch.id,
                     "file_index": idx,
                     "file_path": batch.files[idx],
-                    **interaction.to_dict(),
+                    "prompt": batch_data[idx],
+                    "raw_response": "empty file",
+                    "analysis": {"summary": "無法分析", "key_insights": [], "language": self.language},
                 }
             )
 
-        if any(item is None for item in structured_results):
-            for idx, item in enumerate(structured_results):
-                if item is not None:
-                    continue
-                try:
-                    single = analyzer.analyze(
-                        file_content=batch_data[idx]["file_content"],
-                        language=self.language,
-                    )
-                    structured_results[idx] = single
-                    sense_records.append(
-                        {
-                            "batch": batch.id,
-                            "file_index": idx,
-                            "file_path": batch.files[idx],
-                            "prompt": batch_data[idx],
-                            "raw_response": "fallback invocation",
-                            "analysis": single.model_dump(),
-                        }
-                    )
-                except Exception as exc:
-                    logger.error(f"Structured fallback invoke failed for {batch.files[idx]}: {exc}")
-                    sense_records.append(
-                        {
-                            "batch": batch.id,
-                            "file_index": idx,
-                            "file_path": batch.files[idx],
-                            "prompt": batch_data[idx],
-                            "raw_response": f"fallback error: {exc}",
-                            "analysis": {
-                                "summary": "",
-                                "key_insights": [],
-                            },
-                        }
-                    )
+        non_empty_pairs = [(i, batch_data[i]) for i in range(len(batch.files)) if i not in empty_indices]
+        interactions: list[BatchInteraction] = []
+        if non_empty_pairs:
+            try:
+                interactions = analyzer.analyze_batch([d for _, d in non_empty_pairs])
+            except Exception as exc:
+                logger.error(f"Structured batch analysis failed: {exc}")
+
+            for result_idx, (orig_idx, _) in enumerate(non_empty_pairs):
+                if result_idx >= len(interactions):
+                    break
+                structured_results[orig_idx] = interactions[result_idx].analysis
+                sense_records.append(
+                    {
+                        "batch": batch.id,
+                        "file_index": orig_idx,
+                        "file_path": batch.files[orig_idx],
+                        **interactions[result_idx].to_dict(),
+                    }
+                )
+
+            if any(structured_results[i] is None for i in range(len(batch.files)) if i not in empty_indices):
+                for orig_idx, item_data in non_empty_pairs:
+                    if structured_results[orig_idx] is not None:
+                        continue
+                    try:
+                        single = analyzer.analyze(
+                            file_content=item_data["file_content"],
+                            language=self.language,
+                        )
+                        structured_results[orig_idx] = single
+                        sense_records.append(
+                            {
+                                "batch": batch.id,
+                                "file_index": orig_idx,
+                                "file_path": batch.files[orig_idx],
+                                "prompt": item_data,
+                                "raw_response": "fallback invocation",
+                                "analysis": single.model_dump(),
+                            }
+                        )
+                    except Exception as exc:
+                        logger.error(f"Structured fallback invoke failed for {batch.files[orig_idx]}: {exc}")
+                        sense_records.append(
+                            {
+                                "batch": batch.id,
+                                "file_index": orig_idx,
+                                "file_path": batch.files[orig_idx],
+                                "prompt": item_data,
+                                "raw_response": f"fallback error: {exc}",
+                                "analysis": {
+                                    "summary": "",
+                                    "key_insights": [],
+                                },
+                            }
+                        )
 
         num_files = len(batch.files)
         sense_path = self.sense_dir / f"batch_{batch.id:04d}.sense"
@@ -281,7 +306,14 @@ class Runner:
                 logger.warning(f"Could not create directory {out_path.parent}: {exc}")
 
             parsed = structured_results[idx]
-            if parsed is None:
+            if idx in empty_indices:
+                md_content = (
+                    f"# {rel_path.name}\n\n"
+                    f"> **Original File**: `{rel_path}`\n"
+                    f"> **Batch**: {batch.id} ({idx + 1}/{num_files})\n\n"
+                    f"## Summary\n\n此檔案為空，無內容可分析。\n"
+                )
+            elif parsed is None:
                 logger.warning(
                     f"No structured analysis for {rel_path}, skipping markdown generation"
                 )
@@ -368,19 +400,16 @@ class Runner:
         analyzer = AgentAnalyzer(self.backend)
 
         # Prepare paths and data
-        rel_paths: list[Path] = []
         output_paths: list[Path] = []
         batch_data: list[dict[str, str]] = []
         source_files: list[str] = []
+        sense_records: list[dict[str, Any]] = []
 
         for file_path in batch.files:
             rel_path, src_path = self._resolve_paths(file_path)
-            rel_paths.append(rel_path)
 
             # Output path for this file
             out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
-            output_paths.append(out_path)
-            source_files.append(file_path)
 
             # Read file content
             try:
@@ -389,16 +418,44 @@ class Runner:
                 logger.error(f"Failed to read source file {src_path}: {exc}")
                 file_content = ""
 
+            if not file_content.strip():
+                logger.info(f"Skipping empty file: {rel_path}")
+                try:
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    out_path.write_text(
+                        f"# {rel_path.name}\n\n"
+                        f"> **Original File**: `{rel_path}`\n\n"
+                        f"## Summary\n\n此檔案為空，無內容可分析。\n",
+                        encoding="utf-8",
+                    )
+                except OSError as exc:
+                    logger.warning(f"Could not write stub for empty file {out_path}: {exc}")
+                sense_records.append(
+                    {
+                        "batch": batch.id,
+                        "file_path": file_path,
+                        "prompt": {"file_content": "", "language": self.language},
+                        "raw_response": "empty file",
+                        "status": "skipped",
+                        "analysis": {"summary": "無法分析", "key_insights": [], "language": self.language},
+                    }
+                )
+                continue
+
+            output_paths.append(out_path)
+            source_files.append(file_path)
             batch_data.append({"file_content": file_content, "language": self.language})
 
-        # Let agent analyze and write files
-        sense_records = analyzer.analyze_and_write_batch(
-            items=batch_data,
-            output_paths=output_paths,
-            source_files=source_files,
-            batch_id=batch.id,
-            language=self.language,
-        )
+        # Let agent analyze and write non-empty files
+        if batch_data:
+            agent_records = analyzer.analyze_and_write_batch(
+                items=batch_data,
+                output_paths=output_paths,
+                source_files=source_files,
+                batch_id=batch.id,
+                language=self.language,
+            )
+            sense_records.extend(agent_records)
 
         # Write sense metadata
         sense_path = self.sense_dir / f"batch_{batch.id:04d}.sense"
