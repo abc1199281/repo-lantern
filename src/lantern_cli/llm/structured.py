@@ -30,19 +30,31 @@ logger = logging.getLogger(__name__)
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "template" / "bottom_up"
 
 MERMAID_REPAIR_PROMPT = """\
-You are a Mermaid diagram expert. The following Mermaid diagram has syntax errors.
+You are a Mermaid diagram syntax expert. Fix the following invalid diagram.
 
-Original (invalid) diagram:
+ORIGINAL (INVALID):
 {invalid_diagram}
 
-Fix it to produce valid Mermaid syntax. Output ONLY the raw Mermaid code with no extra prose.
-Do NOT include markdown fences (no ```) — just the raw content.
-Requirements:
-- Start with a valid keyword: graph, flowchart, sequenceDiagram, classDiagram,
-  stateDiagram, stateDiagram-v2, erDiagram, gantt, pie, mindmap, or timeline
-- For graph/flowchart: include a valid direction (TD, LR, TB, RL, or BT)
-- Keep it concise (5-8 nodes max)
-- Write node labels in: {language}
+MERMAID SYNTAX RULES (CRITICAL):
+❌ WRONG: graph TD; A[Node]; B[Node]; C[Node];
+✅ RIGHT: graph TD
+          A[Node]
+          B[Node]
+          C[Node]
+          A --> B
+          B --> C
+
+Key rules:
+1. NEVER use semicolons (;) — they break Mermaid syntax
+2. Each node or connection must be on its own line
+3. Start with: graph TD (or flowchart, sequenceDiagram, etc.) — NO SEMICOLON after it
+4. Node syntax: A[Label] — wrap labels in [square brackets]
+5. Connection syntax: A --> B — use arrows, NOT semicolons
+6. Valid directions: TD, TB, LR, RL, BT (for graph/flowchart only)
+7. Keep diagram concise (5-8 nodes max)
+8. Write node labels in {language}
+
+Output ONLY the corrected raw Mermaid code — no explanations, no fences, no semicolons.
 """
 
 
