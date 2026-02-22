@@ -250,8 +250,8 @@ class StructuredAnalyzer:
     def _parse_output(self, response: Any, language: str) -> StructuredAnalysisOutput:
         payload = self._to_payload(response)
         parsed = StructuredAnalysisOutput.model_validate(payload)
-        if not parsed.language:
-            parsed.language = language
+        # Always override with the requested language, not LLM's guess
+        parsed.language = language
         return parsed
 
     def analyze_batch(self, items: list[dict[str, str]]) -> list[BatchInteraction]:
