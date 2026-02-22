@@ -75,3 +75,115 @@ class TestDependencyGraph:
         assert layers["B"] == 1
         assert layers["C"] == 1
         assert layers["A"] == 2
+
+
+class TestTypeScriptDependencyGraph:
+    """Test DependencyGraph with TypeScript files."""
+
+    def test_typescript_files_discovered(self, tmp_path: Path) -> None:
+        """Test that .ts and .tsx files are discovered and indexed."""
+        # Create TS files
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.ts").write_text("import { helper } from './utils';\n")
+        (src / "utils.ts").write_text("export const helper = () => {};\n")
+        (src / "component.tsx").write_text("import React from 'react';\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [
+            src / "app.ts",
+            src / "utils.ts",
+            src / "component.tsx",
+        ]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        # app.ts should depend on utils.ts
+        assert "src/utils.ts" in graph.dependencies["src/app.ts"]
+
+    def test_typescript_relative_import_resolution(self, tmp_path: Path) -> None:
+        """Test that relative imports are resolved correctly."""
+        src = tmp_path / "src"
+        components = src / "components"
+        components.mkdir(parents=True)
+
+        (src / "app.ts").write_text("import { Button } from './components/Button';\n")
+        (components / "Button.tsx").write_text("export const Button = () => {};\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [
+            src / "app.ts",
+            components / "Button.tsx",
+        ]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        assert "src/components/Button.tsx" in graph.dependencies["src/app.ts"]
+
+    def test_typescript_index_import(self, tmp_path: Path) -> None:
+        """Test that directory imports resolve to index files."""
+        src = tmp_path / "src"
+        utils = src / "utils"
+        utils.mkdir(parents=True)
+
+        (src / "app.ts").write_text("import { helper } from './utils';\n")
+        (utils / "index.ts").write_text("export const helper = () => {};\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [
+            src / "app.ts",
+            utils / "index.ts",
+        ]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        assert "src/utils/index.ts" in graph.dependencies["src/app.ts"]
+
+    def test_typescript_js_files_supported(self, tmp_path: Path) -> None:
+        """Test that .js and .jsx files are also handled."""
+        (tmp_path / "app.js").write_text("const utils = require('./utils');\n")
+        (tmp_path / "utils.js").write_text("module.exports = {};\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [
+            tmp_path / "app.js",
+            tmp_path / "utils.js",
+        ]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        assert "utils.js" in graph.dependencies["app.js"]
+
+    def test_typescript_bare_imports_not_resolved(self, tmp_path: Path) -> None:
+        """Test that bare module imports (e.g. 'react') don't create false edges."""
+        (tmp_path / "app.ts").write_text("import React from 'react';\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [tmp_path / "app.ts"]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        assert graph.dependencies["app.ts"] == set()
+
+    def test_typescript_js_extension_resolves_to_ts(self, tmp_path: Path) -> None:
+        """Test that .js imports resolve to .ts files (TypeScript ESM pattern)."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.ts").write_text("import { config } from './config.js';\n")
+        (src / "config.ts").write_text("export const config = {};\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [
+            src / "app.ts",
+            src / "config.ts",
+        ]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        assert "src/config.ts" in graph.dependencies["src/app.ts"]
