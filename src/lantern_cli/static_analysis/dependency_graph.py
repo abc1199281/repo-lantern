@@ -147,13 +147,22 @@ class DependencyGraph:
                         # Normalize path (handle ../)
                         resolved = str(Path(resolved))
 
-                        # Try exact match first, then with extensions
+                        # Try exact match first (e.g. import './foo.ts')
                         target_file = module_map.get(resolved)
+
+                        # Strip extension for extensionless or .js->.ts resolution
+                        # (TypeScript ESM commonly uses .js in imports for .ts files)
                         if not target_file:
+                            resolved_p = Path(resolved)
+                            if resolved_p.suffix in (".ts", ".tsx", ".js", ".jsx"):
+                                base = str(resolved_p.with_suffix(""))
+                            else:
+                                base = resolved
                             for ext in (".ts", ".tsx", ".js", ".jsx"):
-                                target_file = module_map.get(resolved + ext)
+                                target_file = module_map.get(base + ext)
                                 if target_file:
                                     break
+
                         # Try index file for directory imports
                         if not target_file:
                             for idx in ("index.ts", "index.js", "index.tsx", "index.jsx"):

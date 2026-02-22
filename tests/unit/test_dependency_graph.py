@@ -169,3 +169,21 @@ class TestTypeScriptDependencyGraph:
         graph.build()
 
         assert graph.dependencies["app.ts"] == set()
+
+    def test_typescript_js_extension_resolves_to_ts(self, tmp_path: Path) -> None:
+        """Test that .js imports resolve to .ts files (TypeScript ESM pattern)."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.ts").write_text("import { config } from './config.js';\n")
+        (src / "config.ts").write_text("export const config = {};\n")
+
+        mock_filter = MagicMock()
+        mock_filter.walk.return_value = [
+            src / "app.ts",
+            src / "config.ts",
+        ]
+
+        graph = DependencyGraph(root_path=tmp_path, file_filter=mock_filter)
+        graph.build()
+
+        assert "src/config.ts" in graph.dependencies["src/app.ts"]
