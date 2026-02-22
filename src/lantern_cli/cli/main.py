@@ -148,17 +148,17 @@ def run(
     lang: str | None = typer.Option(None, help="Output language (en/zh-TW)"),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
     synthesis_mode: str = typer.Option(
-        "batch",
+        "agentic",
         "--synthesis-mode",
         help="Synthesis mode: 'batch' (rule-based) or 'agentic' (LLM-powered)",
     ),
     planning_mode: str = typer.Option(
-        "static",
+        "agentic",
         "--planning-mode",
         help="Planning mode: 'static' (topological) or 'agentic' (LLM-enhanced)",
     ),
     use_workflow: bool = typer.Option(
-        False,
+        True,
         "--workflow",
         help="Use new LangGraph workflow orchestration (Phase 3) instead of manual orchestration",
     ),
@@ -231,12 +231,18 @@ def run(
 
             raise typer.Exit(code=0)
 
-        except ImportError:
-            console.print(
-                "[bold yellow]langgraph not installed. "
-                "Falling back to manual orchestration.[/bold yellow]"
-            )
-            console.print("[dim]Install with: pip install langgraph[/dim]")
+        except ImportError as e:
+            if "langgraph" in str(e).lower():
+                console.print(
+                    "[bold yellow]langgraph not installed. "
+                    "Falling back to manual orchestration.[/bold yellow]"
+                )
+                console.print("[dim]Install with: pip install langgraph[/dim]")
+            else:
+                console.print(
+                    f"[bold yellow]Workflow import error: {e}. "
+                    "Falling back to manual orchestration.[/bold yellow]"
+                )
             use_workflow = False
         except Exception as e:
             console.print(
