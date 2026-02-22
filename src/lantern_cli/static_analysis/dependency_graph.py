@@ -31,10 +31,12 @@ class DependencyGraph:
         # Lazy import to avoid circular dependency
         from lantern_cli.static_analysis.cpp import CppAnalyzer
         from lantern_cli.static_analysis.python import PythonAnalyzer
+        from lantern_cli.static_analysis.typescript import TypeScriptAnalyzer
 
         self.analyzers = {
             "python": PythonAnalyzer(),
             "cpp": CppAnalyzer(),
+            "typescript": TypeScriptAnalyzer(),
         }
 
     def build(self) -> None:
@@ -54,6 +56,10 @@ class DependencyGraph:
             ".hh": "cpp",
             ".cxx": "cpp",
             ".hxx": "cpp",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+            ".js": "typescript",
+            ".jsx": "typescript",
         }
 
         # Use FileFilter to walk and filter files
@@ -84,6 +90,14 @@ class DependencyGraph:
                 # And also relative paths if possible
                 module_map[path.name] = str(rel_path)
                 # Map full relative path for precise includes
+                module_map[str(rel_path)] = str(rel_path)
+            elif file_type == "typescript":
+                # Map by relative path without extension (Node-style resolution)
+                no_ext = str(rel_path.with_suffix(""))
+                module_map[no_ext] = str(rel_path)
+                # Map by filename without extension
+                module_map[rel_path.stem] = str(rel_path)
+                # Map full relative path with extension
                 module_map[str(rel_path)] = str(rel_path)
 
         # 2. Analyze imports and build graph
@@ -121,6 +135,31 @@ class DependencyGraph:
                         # Handle "../utils.h" style includes if needed,
                         # but simple name matching covers many cases in flat/simple C++ projects
                         pass
+
+                elif file_type == "typescript":
+                    # Skip bare module imports (node_modules packages)
+                    if not imp.startswith("."):
+                        target_file = module_map.get(imp)
+                    else:
+                        # Resolve relative import from the importing file's directory
+                        source_dir = rel_path.parent
+                        resolved = (source_dir / imp).as_posix()
+                        # Normalize path (handle ../)
+                        resolved = str(Path(resolved))
+
+                        # Try exact match first, then with extensions
+                        target_file = module_map.get(resolved)
+                        if not target_file:
+                            for ext in (".ts", ".tsx", ".js", ".jsx"):
+                                target_file = module_map.get(resolved + ext)
+                                if target_file:
+                                    break
+                        # Try index file for directory imports
+                        if not target_file:
+                            for idx in ("index.ts", "index.js", "index.tsx", "index.jsx"):
+                                target_file = module_map.get(f"{resolved}/{idx}")
+                                if target_file:
+                                    break
 
                 if target_file and target_file != source_node:
                     self.add_dependency(source_node, target_file)
