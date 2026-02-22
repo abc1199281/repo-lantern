@@ -10,6 +10,7 @@ Architecture:
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -66,12 +67,19 @@ class Runner:
         self.cost_tracker = CostTracker(model_name, is_local=is_local)
         self.llm_logger = LLMLogger(root_path, output_dir=base_out)
 
-    def run_batch(self, batch: Batch, prompt: str) -> bool:
+    def run_batch(
+        self,
+        batch: Batch,
+        prompt: str,
+        on_file_progress: Callable[[str, str], None] | None = None,
+    ) -> bool:
         """Execute a single batch analysis.
 
         Args:
             batch: Batch to analyze.
             prompt: Prompt to use.
+            on_file_progress: Optional callback invoked with (file_path, status)
+                where status is "start" or "done" for per-file progress tracking.
 
         Returns:
             True if successful, False otherwise.
@@ -97,7 +105,7 @@ class Runner:
 
             # 2. Generate Bottom-up Markdown & save .sense file using StructuredAnalyzer
             # File reading is handled inside _generate_bottom_up_doc per-file
-            sense_records = self._generate_bottom_up_doc(batch)
+            sense_records = self._generate_bottom_up_doc(batch, on_file_progress)
 
             # 3. Update Global Summary from structured results
             # Collect summaries from all files in the batch
@@ -159,7 +167,11 @@ class Runner:
 
         return text
 
-    def _generate_bottom_up_doc(self, batch: Batch) -> list[dict[str, Any]]:
+    def _generate_bottom_up_doc(
+        self,
+        batch: Batch,
+        on_file_progress: Callable[[str, str], None] | None = None,
+    ) -> list[dict[str, Any]]:
         """Generate formatted bottom-up documentation for the batch.
 
         Detects backend type and uses appropriate workflow:
@@ -175,12 +187,16 @@ class Runner:
         # Detect backend type and route to appropriate workflow
         if isinstance(self.backend, CLIBackend):
             logger.info(f"Using agent-based workflow for batch {batch.id}")
-            return self._generate_bottom_up_doc_agent(batch)
+            return self._generate_bottom_up_doc_agent(batch, on_file_progress)
         else:
             logger.info(f"Using structured workflow for batch {batch.id}")
-            return self._generate_bottom_up_doc_structured(batch)
+            return self._generate_bottom_up_doc_structured(batch, on_file_progress)
 
-    def _generate_bottom_up_doc_structured(self, batch: Batch) -> list[dict[str, Any]]:
+    def _generate_bottom_up_doc_structured(
+        self,
+        batch: Batch,
+        on_file_progress: Callable[[str, str], None] | None = None,
+    ) -> list[dict[str, Any]]:
         """Generate bottom-up docs using structured JSON analysis (for LangChain backends).
 
         Primary path uses structured batch analysis (`chain.batch`) to generate
@@ -306,6 +322,9 @@ class Runner:
             logger.warning(f"Unable to write sense metadata {sense_path}: {exc}")
 
         for idx, rel_path in enumerate(rel_paths):
+            if on_file_progress:
+                on_file_progress(batch.files[idx], "start")
+
             out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
             try:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -341,6 +360,9 @@ class Runner:
 
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(md_content)
+
+            if on_file_progress:
+                on_file_progress(batch.files[idx], "done")
 
         return sense_records
 
@@ -390,7 +412,11 @@ class Runner:
             lines.extend([f"- {item}" for item in parsed.references])
         return "\n".join(lines).rstrip() + "\n"
 
-    def _generate_bottom_up_doc_agent(self, batch: Batch) -> list[dict[str, Any]]:
+    def _generate_bottom_up_doc_agent(
+        self,
+        batch: Batch,
+        on_file_progress: Callable[[str, str], None] | None = None,
+    ) -> list[dict[str, Any]]:
         """Generate bottom-up docs using agent-based file writing (for CLI backends).
 
         The agent analyzes files and writes Markdown documentation directly
@@ -413,6 +439,9 @@ class Runner:
         sense_records: list[dict[str, Any]] = []
 
         for file_path in batch.files:
+            if on_file_progress:
+                on_file_progress(file_path, "start")
+
             rel_path, src_path = self._resolve_paths(file_path)
 
             # Output path for this file
@@ -447,6 +476,8 @@ class Runner:
                         "analysis": {"summary": "", "key_insights": []},
                     }
                 )
+                if on_file_progress:
+                    on_file_progress(file_path, "done")
                 continue
 
             output_paths.append(out_path)
@@ -463,6 +494,9 @@ class Runner:
                 language=self.language,
             )
             sense_records.extend(agent_records)
+            if on_file_progress:
+                for sf in source_files:
+                    on_file_progress(sf, "done")
 
         # Write sense metadata
         sense_path = self.sense_dir / f"batch_{batch.id:04d}.sense"

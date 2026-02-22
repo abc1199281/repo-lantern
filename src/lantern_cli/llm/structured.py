@@ -14,6 +14,7 @@ Usage example:
 """
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,6 +24,8 @@ from pydantic import BaseModel, Field, root_validator
 if TYPE_CHECKING:
     from lantern_cli.llm.backend import Backend
 
+logger = logging.getLogger(__name__)
+
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "template" / "bottom_up"
 
@@ -30,6 +33,68 @@ TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "template" / "bottom_up"
 def _load_json(name: str) -> dict[str, Any]:
     with open(TEMPLATE_DIR / name, encoding="utf-8") as f:
         return json.load(f)
+
+
+def _repair_truncated_json(text: str) -> str | None:
+    """Attempt to close an incomplete JSON object by balancing braces/brackets.
+
+    Walks through the text tracking open braces and brackets while respecting
+    string literals, then appends the missing closing tokens.
+
+    Returns:
+        Repaired JSON string, or None if the text is not salvageable.
+    """
+    # Find the first opening brace
+    start = text.find("{")
+    if start < 0:
+        return None
+
+    fragment = text[start:]
+
+    stack: list[str] = []
+    in_string = False
+    escape = False
+
+    for ch in fragment:
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+            continue
+        if ch in ("{", "["):
+            stack.append(ch)
+        elif ch == "}":
+            if stack and stack[-1] == "{":
+                stack.pop()
+        elif ch == "]":
+            if stack and stack[-1] == "[":
+                stack.pop()
+
+    if not stack:
+        # Already balanced — nothing to repair
+        return None
+
+    # If we're inside a string, close it first
+    if in_string:
+        fragment += '"'
+
+    # Close remaining open brackets/braces in reverse order
+    close_map = {"{": "}", "[": "]"}
+    for opener in reversed(stack):
+        fragment += close_map[opener]
+
+    # Quick sanity check: can it parse?
+    try:
+        json.loads(fragment)
+        return fragment
+    except json.JSONDecodeError:
+        return None
 
 
 def _extract_json(raw: str) -> str:
@@ -65,6 +130,11 @@ def _extract_json(raw: str) -> str:
             depth -= 1
             if depth == 0:
                 return text[start : idx + 1]
+    # Brace walk reached end-of-string — attempt truncated JSON repair
+    repaired = _repair_truncated_json(text)
+    if repaired is not None:
+        logger.warning("Repaired truncated JSON response")
+        return repaired
     raise ValueError("Could not extract JSON object from LLM response")
 
 
@@ -193,6 +263,9 @@ class StructuredAnalyzer:
                 self.prompts,
             )
         except Exception as exc:
+            if "length limit" in str(exc).lower() or "length" in str(exc).lower():
+                logger.warning(f"Batch hit output length limit, retrying per-file: {exc}")
+                return self._analyze_batch_individually(items)
             raise RuntimeError(f"Structured batch analysis failed: {exc}") from exc
 
         outputs: list[BatchInteraction] = []
@@ -207,6 +280,50 @@ class StructuredAnalyzer:
                     analysis=parsed,
                 )
             )
+        return outputs
+
+    def _analyze_batch_individually(self, items: list[dict[str, str]]) -> list[BatchInteraction]:
+        """Fallback: analyze each item individually using raw invoke + JSON parsing.
+
+        Bypasses with_structured_output (which is strict about finish_reason)
+        and instead parses JSON from raw text, applying truncation repair if needed.
+        """
+        outputs: list[BatchInteraction] = []
+        for item in items:
+            language = item.get("language", "en")
+            user_prompt = self.prompts.get("user", "").format(**item)
+            system_prompt = self.prompts.get("system", "")
+            full_prompt = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
+            try:
+                response = self.backend.invoke(full_prompt)
+                raw_text = self._to_text(response)
+                parsed = self._parse_output(raw_text, language)
+                outputs.append(
+                    BatchInteraction(
+                        prompt_payload=item,
+                        raw_response=raw_text,
+                        analysis=parsed,
+                    )
+                )
+            except Exception as per_file_exc:
+                logger.error(f"Per-file fallback failed: {per_file_exc}")
+                fallback = StructuredAnalysisOutput(
+                    summary="Analysis failed due to output truncation.",
+                    key_insights=[],
+                    functions=[],
+                    classes=[],
+                    flow=None,
+                    flow_diagram=None,
+                    references=[],
+                    language=language,
+                )
+                outputs.append(
+                    BatchInteraction(
+                        prompt_payload=item,
+                        raw_response=f"error: {per_file_exc}",
+                        analysis=fallback,
+                    )
+                )
         return outputs
 
     def analyze(self, file_content: str, language: str) -> StructuredAnalysisOutput:

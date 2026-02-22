@@ -54,6 +54,12 @@ class BackendConfig(BaseModel):
         description="Maximum requests per minute for API",
     )
 
+    # General LLM options
+    max_output_tokens: int | None = Field(
+        default=None,
+        description="Maximum output tokens for LLM responses. None uses provider default.",
+    )
+
     # Ollama backend options
     ollama_model: str | None = Field(
         default="llama3",
