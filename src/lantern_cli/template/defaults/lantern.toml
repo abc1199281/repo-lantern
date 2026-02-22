@@ -27,6 +27,7 @@ exclude = [
 [backend]
 type = "openai"
 openai_model = "gpt-4o-mini"  # Fast and cheap ($0.15/1M input, $0.60/1M output)
+# max_output_tokens = 16384  # Increase if you see truncation errors
 # openai_model = "gpt-4o"      # Higher quality ($2.50/1M input, $10/1M output)
 # openai_api_key_env = "OPENAI_API_KEY"  # Set: export OPENAI_API_KEY=<your-key>
 

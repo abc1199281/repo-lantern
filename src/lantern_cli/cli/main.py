@@ -465,6 +465,23 @@ def run(
                     description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...",
                 )
 
+                task_files = progress.add_task(
+                    f"  Batch {batch.id}: preparing...",
+                    total=len(batch.files),
+                    visible=True,
+                )
+
+                def file_callback(
+                    file_path: str,
+                    status: str,
+                    _task_id: int = task_files,
+                ) -> None:
+                    if status == "start":
+                        short = Path(file_path).name
+                        progress.update(_task_id, description=f"  Analyzing {short}...")
+                    elif status == "done":
+                        progress.advance(_task_id)
+
                 # Construct prompt with optional batch hint
                 hint_instruction = f"\n\nAnalysis guidance: {batch.hint}" if batch.hint else ""
                 prompt = (
@@ -473,11 +490,12 @@ def run(
                     f"{hint_instruction}"
                 )
 
-                success = runner.run_batch(batch, prompt)
+                success = runner.run_batch(batch, prompt, on_file_progress=file_callback)
                 if not success:
                     console.print(f"[bold red]Batch {batch.id} failed.[/bold red]")
                     # For MVP, continue on failure; retry logic is in Runner
 
+                progress.remove_task(task_files)
                 progress.advance(task_batch)
                 progress.advance(task_runner)  # Advance phase/runner progress roughly
 

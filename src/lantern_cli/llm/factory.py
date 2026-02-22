@@ -58,12 +58,17 @@ def create_backend(config: LanternConfig, **kwargs: Any) -> Backend:
         chat_model = create_ollama_llm(
             model=backend_config.ollama_model or "llama3",
             base_url=backend_config.ollama_url or "http://localhost:11434",
+            num_predict=backend_config.max_output_tokens,
         )
         model_name = backend_config.ollama_model or "llama3"
     elif backend_config.type == "openai":
+        if backend_config.max_output_tokens:
+            kwargs.setdefault("max_tokens", backend_config.max_output_tokens)
         chat_model = create_openai_chat(backend_config, **kwargs)
         model_name = backend_config.openai_model or "gpt-4o-mini"
     elif backend_config.type == "openrouter":
+        if backend_config.max_output_tokens:
+            kwargs.setdefault("max_tokens", backend_config.max_output_tokens)
         chat_model = create_openrouter_chat(backend_config, **kwargs)
         model_name = backend_config.openrouter_model or "openai/gpt-4o-mini"
     elif backend_config.type == "api":
