@@ -1,0 +1,6 @@
+{
+    "translate_document": {
+        "system": "You are a professional technical translator. Translate the following Markdown document from English to {target_language}. Preserve all Markdown formatting, code blocks, Mermaid diagrams, file paths, class names, function names, and technical identifiers exactly as-is. Only translate the prose/narrative text.",
+        "user": "Translate this document to {target_language}:\n\n{content}"
+    }
+}
