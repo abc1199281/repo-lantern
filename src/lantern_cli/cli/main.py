@@ -96,15 +96,33 @@ def init(
 def plan(
     repo: str = typer.Option(".", help="Repository path"),
     output: str | None = typer.Option(None, help="Output directory"),
+    lang: str | None = typer.Option(None, help="Output language (en/zh-TW)"),
+    planning_mode: str = typer.Option(
+        "agentic",
+        "--planning-mode",
+        help="Planning mode: 'static' (topological) or 'agentic' (LLM-enhanced)",
+    ),
 ) -> None:
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
 
     # 0. Load Configuration (for filters)
-    config = load_config(repo_path, output=output)
+    config = load_config(repo_path, output=output, lang=lang)
 
     # Respect config.output_dir when CLI `--output` is not provided
     output_dir = config.output_dir
+
+    # Initialize backend if agentic planning is requested
+    backend = None
+    if planning_mode == "agentic":
+        try:
+            backend = create_backend(config)
+        except Exception as e:
+            console.print(
+                f"[bold yellow]Failed to initialize LLM backend: {e}. "
+                f"Falling back to static planning.[/bold yellow]"
+            )
+            planning_mode = "static"
 
     with Progress(
         SpinnerColumn(),
@@ -122,9 +140,37 @@ def plan(
         progress.update(task_static, total=1, completed=1)
 
         # 2. Architect Plan
-        task_plan = progress.add_task("Architecting analysis plan...", total=None)
-        architect = Architect(repo_path, graph)
-        plan = architect.generate_plan()
+        if planning_mode == "agentic":
+            task_plan = progress.add_task("Architecting analysis plan (agentic)...", total=None)
+            try:
+                from lantern_cli.core.agentic_planner import AgenticPlanner
+
+                agentic_planner = AgenticPlanner(repo_path, backend, language=config.language)
+                plan = agentic_planner.generate_enhanced_plan(
+                    file_list=list(graph.dependencies.keys()),
+                    dependencies=graph.dependencies,
+                    reverse_dependencies=graph.reverse_dependencies,
+                    layers=graph.calculate_layers(),
+                    mermaid_graph=Architect(repo_path, graph).generate_mermaid_graph(),
+                )
+            except ImportError:
+                console.print(
+                    "[bold yellow]langgraph not installed. "
+                    "Falling back to static planning.[/bold yellow]"
+                )
+                architect = Architect(repo_path, graph)
+                plan = architect.generate_plan()
+            except Exception as e:
+                console.print(
+                    f"[bold yellow]Agentic planning failed: {e}. "
+                    f"Falling back to static planning.[/bold yellow]"
+                )
+                architect = Architect(repo_path, graph)
+                plan = architect.generate_plan()
+        else:
+            task_plan = progress.add_task("Architecting analysis plan...", total=None)
+            architect = Architect(repo_path, graph)
+            plan = architect.generate_plan()
 
         # Save plan
         output_path = repo_path / output_dir
@@ -138,6 +184,7 @@ def plan(
 
     console.print("[bold green]Plan generated successfully![/bold green]")
     console.print(f"Plan file: {plan_path}")
+    console.print(f"Planning mode: {planning_mode}")
     console.print("Run 'lantern run' to execute this plan.")
 
 
