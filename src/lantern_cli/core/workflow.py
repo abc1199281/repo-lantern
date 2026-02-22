@@ -45,6 +45,7 @@ class LanternWorkflowState(TypedDict):
     repo_path: str
     config: dict[str, Any]  # Serializable config dict
     language: str
+    target_language: str  # User's desired output language (analysis always runs in English)
     synthesis_mode: str
     planning_mode: str
     assume_yes: bool
@@ -540,6 +541,30 @@ def quality_gate_node(state: LanternWorkflowState) -> dict[str, Any]:
     }
 
 
+def translation_node(
+    state: LanternWorkflowState, backend: Optional["Backend"] = None
+) -> dict[str, Any]:
+    """
+    Node: Translation
+    - Translate English outputs to user's target language
+    - No-op if target language is English
+    """
+    target_language = state.get("target_language", "en")
+    if target_language == "en" or not backend:
+        return {}
+
+    logger.info(f"Translating outputs to {target_language}...")
+
+    from lantern_cli.core.translator import Translator
+
+    repo_path = Path(state["repo_path"])
+    output_dir = state.get("output_dir", ".lantern/docs")
+    translator = Translator(backend, target_language, repo_path / output_dir)
+    translator.translate_all()
+
+    return {}
+
+
 def refine_node(state: LanternWorkflowState) -> dict[str, Any]:
     """
     Node 7: Refine (optional, only if quality check fails)
@@ -650,6 +675,9 @@ def build_lantern_workflow(
     def quality_gate_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return quality_gate_node(state)
 
+    def translation_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
+        return translation_node(state, backend=backend)
+
     def refine_wrapper(state: LanternWorkflowState) -> dict[str, Any]:
         return refine_node(state)
 
@@ -662,6 +690,7 @@ def build_lantern_workflow(
     workflow.add_node("human_review", human_review_wrapper)
     workflow.add_node("batch_execution", batch_execution_wrapper)
     workflow.add_node("synthesis", synthesis_wrapper)
+    workflow.add_node("translation", translation_wrapper)
     workflow.add_node("quality_gate", quality_gate_wrapper)
     workflow.add_node("refine", refine_wrapper)
 
@@ -683,7 +712,8 @@ def build_lantern_workflow(
 
     # Linear flow after approval
     workflow.add_edge("batch_execution", "synthesis")
-    workflow.add_edge("synthesis", "quality_gate")
+    workflow.add_edge("synthesis", "translation")
+    workflow.add_edge("translation", "quality_gate")
 
     # Conditional edges from quality_gate
     workflow.add_conditional_edges(
@@ -727,6 +757,7 @@ class LanternWorkflowExecutor:
         backend: "Backend",
         config: Any,  # LanternConfig but use Any to avoid import issues
         language: str = "en",
+        target_language: str = "en",
         synthesis_mode: str = "batch",
         planning_mode: str = "static",
         assume_yes: bool = False,
@@ -737,6 +768,7 @@ class LanternWorkflowExecutor:
         self.backend = backend
         self.config = config
         self.language = language
+        self.target_language = target_language
         self.synthesis_mode = synthesis_mode
         self.planning_mode = planning_mode
         self.assume_yes = assume_yes
@@ -776,6 +808,7 @@ class LanternWorkflowExecutor:
             "repo_path": str(self.repo_path),
             "config": config_dict,
             "language": self.language,
+            "target_language": self.target_language,
             "synthesis_mode": self.synthesis_mode,
             "planning_mode": self.planning_mode,
             "assume_yes": self.assume_yes,
