@@ -16,7 +16,8 @@ from rich.progress import (
 from rich.text import Text
 
 from lantern_cli.config.loader import load_config
-from lantern_cli.core.architect import Architect
+from lantern_cli.core.architect import Architect, Batch, Phase, Plan
+from lantern_cli.core.diff_tracker import DiffTracker
 from lantern_cli.core.runner import Runner
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.synthesizer import Synthesizer
@@ -559,10 +560,364 @@ def run(
     console.print("[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
 
+    # Record git commit SHA for incremental tracking
+    diff_tracker = DiffTracker(repo_path)
+    if diff_tracker.is_git_repo():
+        try:
+            sha = diff_tracker.get_current_commit()
+            state_manager.update_git_commit(sha)
+            console.print(f"[dim]Recorded git commit: {sha[:8]}[/dim]")
+        except RuntimeError:
+            pass
+
     # Show final cost report if batches were processed
     if pending_batches:
         console.print("")
         console.print(runner.get_cost_report())
+
+
+@app.command()
+def update(
+    repo: str = typer.Option(".", help="Repository path"),
+    output: str | None = typer.Option(None, help="Output directory"),
+    lang: str | None = typer.Option(None, help="Output language (en/zh-TW)"),
+    assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    synthesis_mode: str = typer.Option(
+        "agentic",
+        "--synthesis-mode",
+        help="Synthesis mode: 'batch' (rule-based) or 'agentic' (LLM-powered)",
+    ),
+    planning_mode: str = typer.Option(
+        "agentic",
+        "--planning-mode",
+        help="Planning mode: 'static' (topological) or 'agentic' (LLM-enhanced)",
+    ),
+) -> None:
+    """Incrementally update analysis for a previously analyzed repository.
+
+    Uses ``git diff`` to detect changes since the last analysis and only
+    re-analyzes affected files plus their direct dependents.
+    """
+    repo_path = Path(repo).resolve()
+
+    # 1. Load configuration
+    config = load_config(repo_path, output=output, lang=lang)
+    target_language = config.language
+
+    # 2. Validate git state
+    diff_tracker = DiffTracker(repo_path)
+    if not diff_tracker.is_git_repo():
+        console.print("[bold red]Error:[/bold red] Not a git repository.")
+        console.print("Incremental update requires git. Use `lantern run` instead.")
+        raise typer.Exit(code=1)
+
+    state_manager = StateManager(repo_path, output_dir=config.output_dir)
+    base_sha = state_manager.state.git_commit_sha
+
+    if not base_sha:
+        console.print(
+            "[bold yellow]No previous analysis found.[/bold yellow] "
+            "Run `lantern run` first to perform initial analysis."
+        )
+        raise typer.Exit(code=1)
+
+    if not diff_tracker.commit_exists(base_sha):
+        console.print(
+            f"[bold yellow]Previous commit {base_sha[:8]} no longer exists "
+            f"(force push / rebase?).[/bold yellow]"
+        )
+        console.print("Please run `lantern run --overwrite` for a full re-analysis.")
+        raise typer.Exit(code=1)
+
+    # 3. Detect changes
+    current_sha = diff_tracker.get_current_commit()
+    if current_sha == base_sha:
+        console.print("[green]No changes detected since last analysis.[/green]")
+        raise typer.Exit(code=0)
+
+    diff_result = diff_tracker.get_diff(base_sha)
+
+    total_changes = (
+        len(diff_result.added)
+        + len(diff_result.modified)
+        + len(diff_result.deleted)
+        + len(diff_result.renamed)
+    )
+    if total_changes == 0:
+        console.print("[green]No relevant file changes detected.[/green]")
+        state_manager.update_git_commit(current_sha)
+        raise typer.Exit(code=0)
+
+    console.print("[bold cyan]Incremental Update[/bold cyan]")
+    console.print(f"Repository: {repo_path}")
+    console.print(f"Base commit: {base_sha[:8]} -> HEAD: {current_sha[:8]}")
+    console.print(
+        f"Changes: +{len(diff_result.added)} modified:{len(diff_result.modified)} "
+        f"-{len(diff_result.deleted)} renamed:{len(diff_result.renamed)}"
+    )
+
+    # 4. Rebuild dependency graph & calculate impact
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        FlexibleTaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task_graph = progress.add_task("Rebuilding dependency graph...", total=None)
+        file_filter = FileFilter(repo_path, config.filter)
+        graph = DependencyGraph(repo_path, file_filter=file_filter)
+        graph.build()
+        progress.update(task_graph, total=1, completed=1)
+
+    impact = diff_tracker.calculate_impact(diff_result, graph, state_manager.state.file_manifest)
+
+    total_files = len(graph.dependencies)
+    if diff_tracker.should_full_reanalyze(impact, total_files):
+        console.print(
+            f"[bold yellow]{len(impact.reanalyze)}/{total_files} files affected "
+            f"(>{int(DiffTracker.FULL_REANALYSIS_THRESHOLD * 100)}%).[/bold yellow] "
+            f"Consider running `lantern run` for full re-analysis."
+        )
+
+    # Filter impact set to only files in the current dependency graph scope
+    scope_files = set(graph.dependencies.keys())
+    impact.reanalyze = {f for f in impact.reanalyze if f in scope_files}
+
+    if not impact.reanalyze and not impact.remove:
+        console.print("[green]No analysable files affected.[/green]")
+        state_manager.update_git_commit(current_sha)
+        raise typer.Exit(code=0)
+
+    console.print(f"\nFiles to re-analyse: {len(impact.reanalyze)}")
+    for f in sorted(impact.reanalyze):
+        console.print(f"  [cyan]+[/cyan] {f}  ({impact.reason.get(f, '')})")
+    if impact.remove:
+        console.print(f"Files to clean up: {len(impact.remove)}")
+        for f in sorted(impact.remove):
+            console.print(f"  [red]-[/red] {f}")
+
+    # 5. Clean stale artefacts
+    if impact.remove:
+        state_manager.clean_stale_artefacts(impact.remove, output_dir=config.output_dir)
+        console.print(f"[dim]Cleaned artefacts for {len(impact.remove)} removed file(s).[/dim]")
+
+    # 6. Initialize backend
+    try:
+        backend = create_backend(config)
+    except Exception as e:
+        console.print(f"[bold red]Error initializing LLM backend:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+    # 7. Create incremental plan (only for impact set files)
+    files_to_analyze = sorted(impact.reanalyze)
+    layers = graph.calculate_layers()
+
+    # Group by layer, same as Architect, but only for affected files
+    layer_groups: dict[int, list[str]] = {}
+    for f in files_to_analyze:
+        layer_idx = layers.get(f, 0)
+        if layer_idx not in layer_groups:
+            layer_groups[layer_idx] = []
+        layer_groups[layer_idx].append(f)
+
+    batch_size = Architect.BATCH_SIZE
+    next_batch_id = state_manager.state.last_batch_id + 1
+    phases: list[Phase] = []
+
+    for layer_idx in sorted(layer_groups.keys()):
+        files = sorted(layer_groups[layer_idx])
+        batches: list[Batch] = []
+        for i in range(0, len(files), batch_size):
+            batch_files = files[i : i + batch_size]
+            batches.append(Batch(id=next_batch_id, files=batch_files))
+            next_batch_id += 1
+        phases.append(Phase(id=layer_idx + 1 if layer_idx >= 0 else 0, batches=batches))
+
+    incremental_plan = Plan(phases=phases)
+    pending_batches = [b for p in incremental_plan.phases for b in p.batches]
+
+    console.print(f"\nIncremental plan: {len(pending_batches)} batch(es)")
+
+    # Cost estimation
+    model_name = backend.model_name
+    is_local = config.backend.type == "ollama"
+    cost_tracker = CostTracker(model_name, is_local=is_local)
+
+    total_est_cost = 0.0
+    for batch in pending_batches:
+        est = cost_tracker.estimate_batch_cost(
+            files=batch.files, context="", prompt="Analyze these files."
+        )
+        if est:
+            total_est_cost += est[1]
+
+    if not is_local and total_est_cost > 0:
+        console.print(f"   Estimated cost: [bold yellow]${total_est_cost:.4f}[/bold yellow]")
+
+    if not assume_yes:
+        proceed = typer.confirm("Continue with incremental analysis?")
+        if not proceed:
+            console.print("[yellow]Cancelled.[/yellow]")
+            raise typer.Exit(0)
+
+    # 8. Execute incremental batches
+    state_manager_run = StateManager(repo_path, backend=backend, output_dir=config.output_dir)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        FlexibleTaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task_batch = progress.add_task(
+            f"Analysing {len(pending_batches)} batch(es)...", total=len(pending_batches)
+        )
+
+        runner = Runner(
+            repo_path,
+            backend,
+            state_manager_run,
+            language="en",
+            model_name=model_name,
+            is_local=is_local,
+            output_dir=config.output_dir,
+        )
+
+        for batch in pending_batches:
+            progress.update(
+                task_batch,
+                description=f"Batch {batch.id} ({len(batch.files)} files)...",
+            )
+            hint = ""
+            prompt = (
+                f"Analyze these files: {batch.files}. "
+                f"Provide a summary and key insights."
+                f"{hint}"
+            )
+            success = runner.run_batch(batch, prompt)
+            if not success:
+                console.print(f"[bold red]Batch {batch.id} failed.[/bold red]")
+            progress.advance(task_batch)
+
+        # 9. Re-synthesize top-down docs
+        task_synth = progress.add_task("Re-synthesizing documentation...", total=None)
+        if synthesis_mode == "agentic":
+            try:
+                from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
+
+                agentic_synth = AgenticSynthesizer(
+                    repo_path, backend, language="en", output_dir=config.output_dir
+                )
+                agentic_synth.generate_top_down_docs()
+            except (ImportError, Exception):
+                synthesizer = Synthesizer(
+                    repo_path, language="en", output_dir=config.output_dir, backend=backend
+                )
+                synthesizer.generate_top_down_docs()
+        else:
+            synthesizer = Synthesizer(
+                repo_path, language="en", output_dir=config.output_dir, backend=backend
+            )
+            synthesizer.generate_top_down_docs()
+        progress.update(task_synth, total=1, completed=1)
+
+        # 10. Translation
+        if target_language != "en":
+            task_translate = progress.add_task(f"Translating to {target_language}...", total=None)
+            translator = Translator(backend, target_language, repo_path / config.output_dir)
+            translator.translate_all()
+            progress.update(task_translate, total=1, completed=1)
+
+    # 11. Record new git commit
+    state_manager_run.update_git_commit(current_sha)
+
+    console.print("[bold green]Incremental update complete![/bold green]")
+    console.print(f"Documentation available in: {repo_path / config.output_dir}")
+    console.print(f"[dim]Git commit: {base_sha[:8]} -> {current_sha[:8]}[/dim]")
+
+
+@app.command(name="diff")
+def show_diff(
+    repo: str = typer.Option(".", help="Repository path"),
+    output: str | None = typer.Option(None, help="Output directory"),
+) -> None:
+    """Show changes since the last analysis without running analysis.
+
+    Previews what ``lantern update`` would re-analyse.
+    """
+    repo_path = Path(repo).resolve()
+    config = load_config(repo_path, output=output)
+
+    diff_tracker = DiffTracker(repo_path)
+    if not diff_tracker.is_git_repo():
+        console.print("[bold red]Error:[/bold red] Not a git repository.")
+        raise typer.Exit(code=1)
+
+    state_manager = StateManager(repo_path, output_dir=config.output_dir)
+    base_sha = state_manager.state.git_commit_sha
+
+    if not base_sha:
+        console.print("[yellow]No previous analysis found. Run `lantern run` first.[/yellow]")
+        raise typer.Exit(code=1)
+
+    if not diff_tracker.commit_exists(base_sha):
+        console.print(
+            f"[bold yellow]Previous commit {base_sha[:8]} no longer exists.[/bold yellow]"
+        )
+        raise typer.Exit(code=1)
+
+    current_sha = diff_tracker.get_current_commit()
+    if current_sha == base_sha:
+        console.print("[green]No changes since last analysis.[/green]")
+        raise typer.Exit(code=0)
+
+    diff_result = diff_tracker.get_diff(base_sha)
+
+    # Build graph for impact analysis
+    file_filter = FileFilter(repo_path, config.filter)
+    graph = DependencyGraph(repo_path, file_filter=file_filter)
+    graph.build()
+
+    impact = diff_tracker.calculate_impact(diff_result, graph, state_manager.state.file_manifest)
+    scope_files = set(graph.dependencies.keys())
+    impact.reanalyze = {f for f in impact.reanalyze if f in scope_files}
+
+    console.print(f"[bold]Changes: {base_sha[:8]} -> {current_sha[:8]}[/bold]\n")
+
+    if diff_result.added:
+        console.print(f"[green]Added ({len(diff_result.added)}):[/green]")
+        for f in sorted(diff_result.added):
+            console.print(f"  + {f}")
+    if diff_result.modified:
+        console.print(f"[yellow]Modified ({len(diff_result.modified)}):[/yellow]")
+        for f in sorted(diff_result.modified):
+            console.print(f"  ~ {f}")
+    if diff_result.deleted:
+        console.print(f"[red]Deleted ({len(diff_result.deleted)}):[/red]")
+        for f in sorted(diff_result.deleted):
+            console.print(f"  - {f}")
+    if diff_result.renamed:
+        console.print(f"[cyan]Renamed ({len(diff_result.renamed)}):[/cyan]")
+        for old, new in sorted(diff_result.renamed):
+            console.print(f"  {old} -> {new}")
+
+    console.print("\n[bold]Impact analysis:[/bold]")
+    console.print(f"  Files to re-analyse: {len(impact.reanalyze)}")
+    for f in sorted(impact.reanalyze):
+        console.print(f"    {f}  ({impact.reason.get(f, '')})")
+    if impact.remove:
+        console.print(f"  Files to clean up: {len(impact.remove)}")
+
+    total_files = len(graph.dependencies)
+    if diff_tracker.should_full_reanalyze(impact, total_files):
+        console.print(
+            f"\n[bold yellow]>{int(DiffTracker.FULL_REANALYSIS_THRESHOLD * 100)}% of files "
+            f"affected. Consider full re-analysis.[/bold yellow]"
+        )
 
 
 @app.command()

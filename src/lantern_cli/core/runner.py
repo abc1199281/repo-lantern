@@ -123,6 +123,16 @@ class Runner:
 
             # 4. Update State
             self.state_manager.update_batch_status(batch.id, success=True)
+
+            # 5. Update file manifest for incremental tracking
+            sense_name = f"batch_{batch.id:04d}.sense"
+            for record in sense_records:
+                fp = record.get("file_path", "")
+                status = record.get("status", "success")
+                if fp:
+                    self.state_manager.update_file_manifest(fp, batch.id, sense_name, status)
+            self.state_manager.save_state()
+
             return True
 
         except Exception as e:
