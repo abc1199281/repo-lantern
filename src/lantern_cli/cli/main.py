@@ -933,7 +933,12 @@ def update(
                     repo_path, backend, language=config.language, output_dir=config.output_dir
                 )
                 agentic_synth.generate_top_down_docs()
-            except (ImportError, Exception):
+            except ImportError:
+                console.print(
+                    "[bold yellow]langgraph not installed. "
+                    "Falling back to batch synthesis.[/bold yellow]"
+                )
+                console.print("[dim]Install with: pip install langgraph[/dim]")
                 synthesizer = Synthesizer(
                     repo_path,
                     language=config.language,
