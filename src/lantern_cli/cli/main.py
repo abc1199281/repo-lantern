@@ -796,6 +796,9 @@ def update(
 
     console.print(f"\nIncremental plan: {len(pending_batches)} batch(es)")
 
+    model_name = backend.model_name
+    is_local = config.backend.type == "ollama"
+
     if not assume_yes:
         proceed = typer.confirm("Continue with incremental analysis?")
         if not proceed:
