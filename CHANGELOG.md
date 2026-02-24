@@ -21,5 +21,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration via `.lantern/lantern.toml` with priority system
 - CI pipeline with tests, linting (ruff, black), and type checking (mypy)
 
-[Unreleased]: https://github.com/abc1199281/lantern-cli/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/abc1199281/lantern-cli/releases/tag/v0.1.1
+[Unreleased]: https://github.com/abc1199281/repo-lantern/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/abc1199281/repo-lantern/releases/tag/v0.1.1
