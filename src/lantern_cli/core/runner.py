@@ -97,7 +97,15 @@ class Runner:
             new_content = "\n".join(batch_summary_lines)
             self.state_manager.update_global_summary(new_content)
 
-            # 4. Update State
+            # 4. Update file manifest for incremental tracking
+            sense_file = f"batch_{batch.id:04d}.sense"
+            for record in sense_records:
+                fp = record.get("file_path", "")
+                if fp:
+                    status = record.get("status", "success")
+                    self.state_manager.update_file_manifest(fp, batch.id, sense_file, status)
+
+            # 5. Update State
             self.state_manager.update_batch_status(batch.id, success=True)
             return True
 
