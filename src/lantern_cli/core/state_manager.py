@@ -43,7 +43,7 @@ class StateManager:
         Args:
             root_path: Project root path.
             backend: Backend instance for memory compression (optional).
-            output_dir: Custom output directory name (default: ".lantern").
+            output_dir: Output directory for state files (absolute or relative to root_path).
         """
         self.root_path = root_path
         self.memory_manager = MemoryManager(backend)
