@@ -796,22 +796,6 @@ def update(
 
     console.print(f"\nIncremental plan: {len(pending_batches)} batch(es)")
 
-    # Cost estimation
-    model_name = backend.model_name
-    is_local = config.backend.type == "ollama"
-    cost_tracker = CostTracker(model_name, is_local=is_local)
-
-    total_est_cost = 0.0
-    for batch in pending_batches:
-        est = cost_tracker.estimate_batch_cost(
-            files=batch.files, context="", prompt="Analyze these files."
-        )
-        if est:
-            total_est_cost += est[1]
-
-    if not is_local and total_est_cost > 0:
-        console.print(f"   Estimated cost: [bold yellow]${total_est_cost:.4f}[/bold yellow]")
-
     if not assume_yes:
         proceed = typer.confirm("Continue with incremental analysis?")
         if not proceed:
