@@ -102,7 +102,7 @@ class TestStateManager:
         assert batch1 not in pending
 
     def test_load_state_with_schema_mismatch(self, tmp_path: Path) -> None:
-        """Test that TypeError from schema mismatch returns fresh state."""
+        """Test that unknown fields are filtered out and valid fields are kept."""
         lantern_dir = tmp_path / ".lantern"
         lantern_dir.mkdir()
         state_path = lantern_dir / "state.json"
@@ -111,7 +111,7 @@ class TestStateManager:
             json.dumps({"last_batch_id": 1, "unknown_field": "bad"}), encoding="utf-8"
         )
         sm = StateManager(root_path=tmp_path)
-        assert sm.state.last_batch_id == 0  # Fresh state
+        assert sm.state.last_batch_id == 1  # Valid fields preserved
 
 
 class TestStateManagerIncremental:
