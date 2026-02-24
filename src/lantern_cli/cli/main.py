@@ -596,6 +596,16 @@ def _write_skills(dest: Path, skills_content: str, overwrite: bool) -> str:
         if LANTERN_SECTION_START in existing:
             if not overwrite:
                 return "skipped"
+            if LANTERN_SECTION_END not in existing:
+                # Corrupted section: start marker without end marker.
+                # Remove the orphaned start marker and append fresh content.
+                existing = existing.replace(LANTERN_SECTION_START, "")
+                separator = "\n\n" if existing.rstrip() else ""
+                dest.write_text(
+                    existing.rstrip() + separator + skills_content + "\n",
+                    encoding="utf-8",
+                )
+                return "replaced"
             # Replace existing section
             start = existing.index(LANTERN_SECTION_START)
             end = existing.index(LANTERN_SECTION_END) + len(LANTERN_SECTION_END)
@@ -808,9 +818,6 @@ def update(
 
     console.print(f"\nIncremental plan: {len(pending_batches)} batch(es)")
 
-    model_name = backend.model_name
-    is_local = config.backend.type == "ollama"
-
     if not assume_yes:
         proceed = typer.confirm("Continue with incremental analysis?")
         if not proceed:
@@ -839,8 +846,6 @@ def update(
             backend,
             state_manager_run,
             language=config.language,
-            model_name=model_name,
-            is_local=is_local,
             output_dir=config.output_dir,
         )
 
