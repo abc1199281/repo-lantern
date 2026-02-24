@@ -58,6 +58,7 @@ class FlexibleTaskProgressColumn(TaskProgressColumn):
 @app.command()
 def init(
     repo: str = typer.Option(".", help="Repository path or URL"),
+    output: str | None = typer.Option(None, help="Output directory (default: .lantern)"),
     overwrite: bool = typer.Option(
         False, "--overwrite", "-f", help="Force re-initialization and overwrite existing config"
     ),
@@ -65,6 +66,9 @@ def init(
     """Initialize Lantern for a repository."""
     repo_path = Path(repo).resolve()
     lantern_dir = repo_path / ".lantern"
+
+    # Determine the output directory (where analysis results go)
+    output_dir = output if output is not None else ".lantern"
 
     if lantern_dir.exists():
         if overwrite:
@@ -81,6 +85,18 @@ def init(
         lantern_dir.mkdir(parents=True, exist_ok=True)
         config_path = lantern_dir / "lantern.toml"
         config_content = _load_default_config()
+
+        # If a custom output directory is specified, update it in the config
+        if output is not None:
+            config_content = config_content.replace(
+                'output_dir = ".lantern"',
+                f'output_dir = "{output_dir}"',
+            )
+            # Create the custom output directory
+            custom_output = repo_path / output_dir
+            custom_output.mkdir(parents=True, exist_ok=True)
+            console.print(f"[green]Output directory created: {custom_output}[/green]")
+
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
 
