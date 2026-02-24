@@ -29,6 +29,34 @@ logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "template" / "bottom_up"
 
+MERMAID_REPAIR_PROMPT = """\
+You are a Mermaid diagram syntax expert. Fix the following invalid diagram.
+
+ORIGINAL (INVALID):
+{invalid_diagram}
+
+MERMAID SYNTAX RULES (CRITICAL):
+❌ WRONG: graph TD; A[Node]; B[Node]; C[Node];
+✅ RIGHT: graph TD
+          A[Node]
+          B[Node]
+          C[Node]
+          A --> B
+          B --> C
+
+Key rules:
+1. NEVER use semicolons (;) — they break Mermaid syntax
+2. Each node or connection must be on its own line
+3. Start with: graph TD (or flowchart, sequenceDiagram, etc.) — NO SEMICOLON after it
+4. Node syntax: A[Label] — wrap labels in [square brackets]
+5. Connection syntax: A --> B — use arrows, NOT semicolons
+6. Valid directions: TD, TB, LR, RL, BT (for graph/flowchart only)
+7. Keep diagram concise (5-8 nodes max)
+8. Write node labels in {language}
+
+Output ONLY the corrected raw Mermaid code — no explanations, no fences, no semicolons.
+"""
+
 
 def _load_json(name: str) -> dict[str, Any]:
     with open(TEMPLATE_DIR / name, encoding="utf-8") as f:
@@ -177,7 +205,10 @@ class StructuredAnalysisOutput(BaseModel):
             values["flow"] = values["flow"].strip()[:2000]
 
         if "flow_diagram" in values and isinstance(values["flow_diagram"], str):
-            values["flow_diagram"] = values["flow_diagram"].strip()[:2000]
+            from lantern_cli.llm.mermaid_validator import clean_and_validate
+
+            validated = clean_and_validate(values["flow_diagram"])
+            values["flow_diagram"] = validated[:2000] if validated is not None else None
 
         if "language" in values and isinstance(values["language"], str):
             values["language"] = values["language"].strip()
@@ -222,10 +253,11 @@ class StructuredAnalyzer:
     - Raises `ValueError` when model output cannot be parsed to JSON/object.
     """
 
-    def __init__(self, backend: "Backend") -> None:
+    def __init__(self, backend: "Backend", mermaid_repair_retries: int = 2) -> None:
         self.schema = _load_json("schema.json")
         self.prompts = _load_json("prompts.json")
         self.backend = backend
+        self.mermaid_repair_retries = mermaid_repair_retries
 
     @staticmethod
     def _to_payload(response: Any) -> dict[str, Any]:
@@ -254,6 +286,47 @@ class StructuredAnalyzer:
             parsed.language = language
         return parsed
 
+    def _repair_flow_diagram(self, invalid_diagram: str, language: str) -> str | None:
+        """Attempt to repair an invalid Mermaid diagram using the LLM.
+
+        Calls backend.invoke() up to self.mermaid_repair_retries times.
+        Returns the first valid repaired diagram, or None if all retries fail.
+        """
+        from lantern_cli.llm.mermaid_validator import clean_and_validate
+
+        for attempt in range(1, self.mermaid_repair_retries + 1):
+            prompt = MERMAID_REPAIR_PROMPT.format(
+                invalid_diagram=invalid_diagram,
+                language=language,
+            )
+            try:
+                response = self.backend.invoke(prompt)
+                candidate = clean_and_validate(response.content)
+                if candidate:
+                    logger.info(
+                        "Mermaid diagram repaired on attempt %d/%d",
+                        attempt,
+                        self.mermaid_repair_retries,
+                    )
+                    return candidate
+                logger.warning(
+                    "Mermaid repair attempt %d/%d produced invalid diagram",
+                    attempt,
+                    self.mermaid_repair_retries,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Mermaid repair attempt %d/%d failed: %s",
+                    attempt,
+                    self.mermaid_repair_retries,
+                    exc,
+                )
+        logger.error(
+            "All %d Mermaid repair attempts failed; flow_diagram set to None",
+            self.mermaid_repair_retries,
+        )
+        return None
+
     def analyze_batch(self, items: list[dict[str, str]]) -> list[BatchInteraction]:
         """Run structured analysis in batch via the backend."""
         try:
@@ -272,7 +345,18 @@ class StructuredAnalyzer:
         for item, response in zip(items, responses, strict=False):
             language = item.get("language", "en")
             raw_text = self._to_text(response)
+            # Peek at the raw flow_diagram before Pydantic normalization drops it
+            try:
+                raw_payload = self._to_payload(response)
+                original_flow_diagram = raw_payload.get("flow_diagram") or ""
+            except Exception:
+                original_flow_diagram = ""
             parsed = self._parse_output(response, language)
+            # If validation rejected the diagram, attempt LLM repair
+            if parsed.flow_diagram is None and original_flow_diagram.strip():
+                repaired = self._repair_flow_diagram(original_flow_diagram, language)
+                if repaired:
+                    parsed.flow_diagram = repaired
             outputs.append(
                 BatchInteraction(
                     prompt_payload=item,
@@ -297,7 +381,18 @@ class StructuredAnalyzer:
             try:
                 response = self.backend.invoke(full_prompt)
                 raw_text = self._to_text(response)
+                # Peek at original flow_diagram before normalization
+                try:
+                    raw_payload = json.loads(_extract_json(raw_text))
+                    original_flow_diagram = raw_payload.get("flow_diagram") or ""
+                except Exception:
+                    original_flow_diagram = ""
                 parsed = self._parse_output(raw_text, language)
+                # If validation rejected the diagram, attempt LLM repair
+                if parsed.flow_diagram is None and original_flow_diagram.strip():
+                    repaired = self._repair_flow_diagram(original_flow_diagram, language)
+                    if repaired:
+                        parsed.flow_diagram = repaired
                 outputs.append(
                     BatchInteraction(
                         prompt_payload=item,
