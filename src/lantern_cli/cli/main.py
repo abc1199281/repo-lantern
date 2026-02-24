@@ -395,7 +395,7 @@ def run(
     model_name = backend.model_name
 
     # Initialize state manager (needed for pending batches)
-    state_manager = StateManager(repo_path, backend=backend)
+    state_manager = StateManager(repo_path, backend=backend, output_dir=config.output_dir)
     pending_batches = state_manager.get_pending_batches(plan)
 
     console.print("\n[bold cyan]Analysis Plan Summary[/bold cyan]")

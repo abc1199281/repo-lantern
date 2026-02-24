@@ -30,16 +30,22 @@ class StateManager:
 
     STATE_FILE = "state.json"
 
-    def __init__(self, root_path: Path, backend: Optional["Backend"] = None) -> None:
+    def __init__(
+        self,
+        root_path: Path,
+        backend: Optional["Backend"] = None,
+        output_dir: str = ".lantern",
+    ) -> None:
         """Initialize StateManager.
 
         Args:
             root_path: Project root path.
             backend: Backend instance for memory compression (optional).
+            output_dir: Output directory for state files (absolute or relative to root_path).
         """
         self.root_path = root_path
         self.memory_manager = MemoryManager(backend)
-        self.lantern_dir = root_path / ".lantern"
+        self.lantern_dir = root_path / output_dir
         self.state_path = self.lantern_dir / self.STATE_FILE
         self.state: ExecutionState = self.load_state()
 
