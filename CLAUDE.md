@@ -79,6 +79,12 @@ Analysis results go into `.lantern/`:
 - `.lantern/output/{lang}/top_down/` — OVERVIEW, ARCHITECTURE, CONCEPTS, GETTING_STARTED
 - `.lantern/output/{lang}/bottom_up/` — Per-file analysis mirroring repo structure
 
+## Git Workflow
+
+- **Default branch for PRs**: `dev` (not `master`)
+- Always create pull requests targeting `dev`.
+- `master` is the release branch — only `dev` gets merged into `master` for releases.
+
 ## Testing
 
 Tests live in `tests/unit/` and `tests/integration/`. Fixtures are in `tests/conftest.py` and `tests/fixtures.py`. CI runs tests on Python 3.10, 3.11, 3.12.
