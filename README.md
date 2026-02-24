@@ -198,21 +198,41 @@ openai_model = "gpt-4o-mini" # fast and cheap for production
 For reviewing the analysis plan before execution:
 
 ```bash
-# Step 1: Initialize
+# Step 1: Initialize (creates .lantern/lantern.toml)
 lantern init --repo /path/to/repo
+# Initialize with custom output directory
+lantern init --repo /path/to/repo --output my-docs
 # Re-initialize and overwrite existing config
 lantern init --repo /path/to/repo --overwrite
 
 # Step 2: Generate plan (review lantern_plan.md)
 lantern plan
+lantern plan --planning-mode static   # Use topological sort instead of LLM
 
 # Step 3: Execute analysis with optional flags
 lantern run
-lantern run --planning-mode agentic    # LLM-enhanced planning
-lantern run --synthesis-mode agentic   # LangGraph-powered synthesis
-lantern run --workflow                 # Full LangGraph workflow orchestration
-lantern run --workflow --resume <thread-id>  # Resume from checkpoint
+lantern run --planning-mode static    # Topological planning (no LLM)
+lantern run --synthesis-mode batch    # Rule-based synthesis (no LLM)
+lantern run --no-workflow             # Disable LangGraph orchestration
+lantern run --resume <thread-id>     # Resume from checkpoint
 ```
+
+### All `lantern init` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path |
+| `--output` | `.lantern` | Output directory (written to config) |
+| `--overwrite` / `-f` | false | Force re-initialization |
+
+### All `lantern plan` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path |
+| `--output` | `.lantern` | Output directory |
+| `--lang` | `en` | Output language (e.g., `zh-TW`, `ja`) |
+| `--planning-mode` | `agentic` | `static` (topological) or `agentic` (LLM-enhanced) |
 
 ### All `lantern run` Options
 
@@ -224,7 +244,7 @@ lantern run --workflow --resume <thread-id>  # Resume from checkpoint
 | `--yes` / `-y` | false | Skip cost confirmation prompt |
 | `--planning-mode` | `agentic` | `static` (topological) or `agentic` (LLM-enhanced) |
 | `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
-| `--workflow` | false | Use LangGraph workflow orchestration |
+| `--workflow` | true | Use LangGraph workflow orchestration |
 | `--resume` | — | Resume from checkpoint with given thread ID |
 
 # Configuration
