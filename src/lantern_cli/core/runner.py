@@ -72,6 +72,7 @@ class Runner:
         batch: Batch,
         prompt: str,
         on_file_progress: Callable[[str, str], None] | None = None,
+        on_batch_phase: Callable[[str, int], None] | None = None,
     ) -> bool:
         """Execute a single batch analysis.
 
@@ -80,6 +81,8 @@ class Runner:
             prompt: Prompt to use.
             on_file_progress: Optional callback invoked with (file_path, status)
                 where status is "start" or "done" for per-file progress tracking.
+            on_batch_phase: Optional callback invoked with (phase, batch_id)
+                where phase is "analyzing", "writing", or "done".
 
         Returns:
             True if successful, False otherwise.
@@ -105,7 +108,7 @@ class Runner:
 
             # 2. Generate Bottom-up Markdown & save .sense file using StructuredAnalyzer
             # File reading is handled inside _generate_bottom_up_doc per-file
-            sense_records = self._generate_bottom_up_doc(batch, on_file_progress)
+            sense_records = self._generate_bottom_up_doc(batch, on_file_progress, on_batch_phase)
 
             # 3. Update Global Summary from structured results
             # Collect summaries from all files in the batch
@@ -171,6 +174,7 @@ class Runner:
         self,
         batch: Batch,
         on_file_progress: Callable[[str, str], None] | None = None,
+        on_batch_phase: Callable[[str, int], None] | None = None,
     ) -> list[dict[str, Any]]:
         """Generate formatted bottom-up documentation for the batch.
 
@@ -187,15 +191,16 @@ class Runner:
         # Detect backend type and route to appropriate workflow
         if isinstance(self.backend, CLIBackend):
             logger.info(f"Using agent-based workflow for batch {batch.id}")
-            return self._generate_bottom_up_doc_agent(batch, on_file_progress)
+            return self._generate_bottom_up_doc_agent(batch, on_file_progress, on_batch_phase)
         else:
             logger.info(f"Using structured workflow for batch {batch.id}")
-            return self._generate_bottom_up_doc_structured(batch, on_file_progress)
+            return self._generate_bottom_up_doc_structured(batch, on_file_progress, on_batch_phase)
 
     def _generate_bottom_up_doc_structured(
         self,
         batch: Batch,
         on_file_progress: Callable[[str, str], None] | None = None,
+        on_batch_phase: Callable[[str, int], None] | None = None,
     ) -> list[dict[str, Any]]:
         """Generate bottom-up docs using structured JSON analysis (for LangChain backends).
 
@@ -251,6 +256,8 @@ class Runner:
         ]
         interactions: list[BatchInteraction] = []
         if non_empty_pairs:
+            if on_batch_phase:
+                on_batch_phase("analyzing", batch.id)
             try:
                 interactions = analyzer.analyze_batch([d for _, d in non_empty_pairs])
             except Exception as exc:
@@ -321,6 +328,9 @@ class Runner:
         except OSError as exc:
             logger.warning(f"Unable to write sense metadata {sense_path}: {exc}")
 
+        if on_batch_phase:
+            on_batch_phase("writing", batch.id)
+
         for idx, rel_path in enumerate(rel_paths):
             if on_file_progress:
                 on_file_progress(batch.files[idx], "start")
@@ -363,6 +373,9 @@ class Runner:
 
             if on_file_progress:
                 on_file_progress(batch.files[idx], "done")
+
+        if on_batch_phase:
+            on_batch_phase("done", batch.id)
 
         return sense_records
 
@@ -416,6 +429,7 @@ class Runner:
         self,
         batch: Batch,
         on_file_progress: Callable[[str, str], None] | None = None,
+        on_batch_phase: Callable[[str, int], None] | None = None,
     ) -> list[dict[str, Any]]:
         """Generate bottom-up docs using agent-based file writing (for CLI backends).
 
@@ -486,6 +500,8 @@ class Runner:
 
         # Let agent analyze and write non-empty files
         if batch_data:
+            if on_batch_phase:
+                on_batch_phase("analyzing", batch.id)
             agent_records = analyzer.analyze_and_write_batch(
                 items=batch_data,
                 output_paths=output_paths,
@@ -494,9 +510,14 @@ class Runner:
                 language=self.language,
             )
             sense_records.extend(agent_records)
+            if on_batch_phase:
+                on_batch_phase("writing", batch.id)
             if on_file_progress:
                 for sf in source_files:
                     on_file_progress(sf, "done")
+
+        if on_batch_phase:
+            on_batch_phase("done", batch.id)
 
         # Write sense metadata
         sense_path = self.sense_dir / f"batch_{batch.id:04d}.sense"

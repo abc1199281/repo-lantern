@@ -11,6 +11,7 @@ from rich.progress import (
     SpinnerColumn,
     TaskProgressColumn,
     TextColumn,
+    TimeElapsedColumn,
     TimeRemainingColumn,
 )
 from rich.text import Text
@@ -439,14 +440,13 @@ def run(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             FlexibleTaskProgressColumn(),
-            TimeRemainingColumn(),
+            TimeElapsedColumn(),
             console=console,
         ) as progress:
-            task_runner = progress.add_task(
-                "Running analysis batches...", total=len(plan.phases)
-            )  # Rough progress
+            total_batches = len(pending_batches)
             task_batch = progress.add_task(
-                f"Processing {len(pending_batches)} batches...", total=len(pending_batches)
+                f"Batch 0/{total_batches} — Starting...",
+                total=total_batches,
             )
 
             runner = Runner(
@@ -459,17 +459,43 @@ def run(
                 output_dir=config.output_dir,
             )
 
-            for batch in pending_batches:
+            for batch_idx, batch in enumerate(pending_batches, 1):
+                batch_label = f"Batch {batch_idx}/{total_batches}"
+                file_names = ", ".join(Path(f).name for f in batch.files[:3])
+                if len(batch.files) > 3:
+                    file_names += f" +{len(batch.files) - 3} more"
+
                 progress.update(
                     task_batch,
-                    description=f"Analyzing Batch {batch.id} ({len(batch.files)} files)...",
+                    description=f"{batch_label} — Preparing [{file_names}]",
                 )
 
                 task_files = progress.add_task(
-                    f"  Batch {batch.id}: preparing...",
-                    total=len(batch.files),
+                    "  Waiting for LLM...",
+                    total=None,
                     visible=True,
                 )
+
+                def phase_callback(
+                    phase: str,
+                    batch_id: int,
+                    _task_id: int = task_files,
+                    _batch_label: str = batch_label,
+                    _num_files: int = len(batch.files),
+                ) -> None:
+                    if phase == "analyzing":
+                        progress.update(
+                            _task_id,
+                            description=f"  {_batch_label}: Waiting for LLM...",
+                            total=None,
+                        )
+                    elif phase == "writing":
+                        progress.update(
+                            _task_id,
+                            description=f"  {_batch_label}: Writing results...",
+                            total=_num_files,
+                            completed=0,
+                        )
 
                 def file_callback(
                     file_path: str,
@@ -478,7 +504,7 @@ def run(
                 ) -> None:
                     if status == "start":
                         short = Path(file_path).name
-                        progress.update(_task_id, description=f"  Analyzing {short}...")
+                        progress.update(_task_id, description=f"  Writing {short}...")
                     elif status == "done":
                         progress.advance(_task_id)
 
@@ -490,14 +516,21 @@ def run(
                     f"{hint_instruction}"
                 )
 
-                success = runner.run_batch(batch, prompt, on_file_progress=file_callback)
+                success = runner.run_batch(
+                    batch,
+                    prompt,
+                    on_file_progress=file_callback,
+                    on_batch_phase=phase_callback,
+                )
                 if not success:
                     console.print(f"[bold red]Batch {batch.id} failed.[/bold red]")
-                    # For MVP, continue on failure; retry logic is in Runner
 
                 progress.remove_task(task_files)
                 progress.advance(task_batch)
-                progress.advance(task_runner)  # Advance phase/runner progress roughly
+                progress.update(
+                    task_batch,
+                    description=f"Batch {batch_idx}/{total_batches} — Done",
+                )
 
             # 6. Synthesize Docs
             if synthesis_mode == "agentic":
