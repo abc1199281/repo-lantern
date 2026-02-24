@@ -1,7 +1,6 @@
 """
 Lantern Workflow - LangGraph StateGraph orchestration for the complete analysis pipeline.
 
-This module implements Phase 3 of the LangGraph Subagent evaluation:
 - Full workflow StateGraph orchestration
 - Human-in-the-loop support with interrupts
 - LangGraph checkpointer for state persistence

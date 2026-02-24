@@ -1,5 +1,5 @@
 """
-Tests for the LangGraph workflow orchestration (Phase 3).
+Tests for the LangGraph workflow orchestration.
 
 Tests cover:
 - State transitions
