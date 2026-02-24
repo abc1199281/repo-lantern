@@ -180,7 +180,7 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 # Use specific language
 lantern run --lang zh-TW  # Traditional Chinese
 
-# Skip the cost confirmation prompt
+# Skip the confirmation prompt
 lantern run --yes
 
 # Incrementally update after code changes
@@ -190,7 +190,7 @@ lantern update
 lantern update --yes
 ```
 
-Lantern will show you a **cost estimate** before starting. The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
+The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
 
 ```toml
 [backend]
@@ -247,7 +247,7 @@ lantern run --resume <thread-id>     # Resume from checkpoint
 | `--repo` | `.` | Repository path to analyze |
 | `--output` | `.lantern` | Output directory |
 | `--lang` | `en` | Output language (e.g., `zh-TW`, `ja`) |
-| `--yes` / `-y` | false | Skip cost confirmation prompt |
+| `--yes` / `-y` | false | Skip confirmation prompt |
 | `--planning-mode` | `agentic` | `static` (topological) or `agentic` (LLM-enhanced) |
 | `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
 | `--workflow` | true | Use LangGraph workflow orchestration |
@@ -314,10 +314,6 @@ Set your API key:
 export OPENAI_API_KEY="sk-..."
 ```
 
-**Pricing** (as of 2025):
-- gpt-4o-mini: $0.15/1M input, $0.60/1M output
-- gpt-4o: $2.50/1M input, $10/1M output
-
 ### Ollama (Local Models)
 ```toml
 [backend]
@@ -371,14 +367,6 @@ cli_model_name = "gpt-4o-mini"' > .lantern/lantern.toml
 # Run analysis
 lantern run
 ```
-
-### Cost Estimation
-Before execution, Lantern fetches **real-time pricing** and shows you:
-- Estimated input/output tokens
-- Projected cost (USD)
-- Confirmation prompt
-
-Local models (Ollama) show $0.00 cost.
 
 ---
 

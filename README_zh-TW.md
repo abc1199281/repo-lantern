@@ -179,7 +179,7 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 # 使用特定語言
 lantern run --lang zh-TW  # 繁體中文
 
-# 略過成本確認提示
+# 略過確認提示
 lantern run --yes
 
 # 程式碼變更後增量更新
@@ -189,7 +189,7 @@ lantern update
 lantern update --yes
 ```
 
-Lantern 會在開始前顯示**成本估算**。預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
+預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
 
 ```toml
 [backend]
@@ -246,7 +246,7 @@ lantern run --resume <thread-id>     # 從檢查點恢復
 | `--repo` | `.` | 要分析的 Repository 路徑 |
 | `--output` | `.lantern` | 輸出目錄 |
 | `--lang` | `en` | 輸出語言（如 `zh-TW`、`ja`） |
-| `--yes` / `-y` | false | 略過成本確認提示 |
+| `--yes` / `-y` | false | 略過確認提示 |
 | `--planning-mode` | `agentic` | `static`（拓撲排序）或 `agentic`（LLM 強化） |
 | `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
 | `--workflow` | true | 使用 LangGraph 工作流程編排 |
@@ -313,10 +313,6 @@ openai_model = "gpt-4o-mini"  # 快速且便宜
 export OPENAI_API_KEY="sk-..."
 ```
 
-**定價**（2025 年）：
-- gpt-4o-mini：$0.15/1M 輸入，$0.60/1M 輸出
-- gpt-4o：$2.50/1M 輸入，$10/1M 輸出
-
 ### Ollama（本地模型）
 ```toml
 [backend]
@@ -370,14 +366,6 @@ cli_model_name = "gpt-4o-mini"' > .lantern/lantern.toml
 # 執行分析
 lantern run
 ```
-
-### 成本估算
-執行前，Lantern 會取得**即時定價**並顯示：
-- 預估輸入/輸出 token
-- 預計成本（美元）
-- 確認提示
-
-本地模型（Ollama）顯示 $0.00 成本。
 
 ---
 
