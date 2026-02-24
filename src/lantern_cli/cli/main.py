@@ -208,7 +208,7 @@ def run(
     use_workflow: bool = typer.Option(
         True,
         "--workflow",
-        help="Use new LangGraph workflow orchestration (Phase 3) instead of manual orchestration",
+        help="Use LangGraph workflow orchestration instead of manual orchestration",
     ),
     resume_thread: str | None = typer.Option(
         None,
@@ -235,7 +235,7 @@ def run(
     if tracing_enabled:
         console.print(f"[cyan]LangSmith tracing: ON (project={config.langsmith.project})[/cyan]")
     if use_workflow:
-        console.print("[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
+        console.print("[cyan]Using LangGraph Workflow Orchestration[/cyan]")
 
     # 2. Initialize Backend
     try:
