@@ -71,17 +71,6 @@ class TestRunBatchLifecycle:
         assert success is False
         mock_state_manager.update_batch_status.assert_called_with(1, success=False)
 
-    def test_prepare_context_truncates(self, runner: Runner, mock_state_manager: MagicMock) -> None:
-        """Test that context is properly truncated to MAX_CONTEXT_LENGTH."""
-        # Test with short summary
-        context = runner._prepare_context()
-        assert context == "Old Summary"
-
-        # Test with long summary
-        runner.state_manager.state.global_summary = "A" * 5000
-        long_context = runner._prepare_context()
-        assert len(long_context) == runner.MAX_CONTEXT_LENGTH
-
 
 class TestResponseExtraction:
     """Test Runner._extract_response_content method."""

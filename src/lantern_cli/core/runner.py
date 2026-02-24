@@ -502,5 +502,3 @@ class Runner:
             logger.warning(f"Unable to write sense metadata {sense_path}: {exc}")
 
         return sense_records
-
-
