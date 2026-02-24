@@ -158,26 +158,6 @@ class TestAnalyzeBatch:
         assert interactions[0].analysis.language == "en"
         assert interactions[1].analysis.language == "zh-TW"
 
-    def test_overrides_llm_language_with_requested_language(self) -> None:
-        """Verify that LLM's returned language is always overridden with requested language."""
-        mock_backend = MagicMock()
-        mock_backend.batch_invoke_structured.return_value = [
-            {"summary": "s1", "key_insights": [], "language": "es"},  # LLM returned wrong language
-            {"summary": "s2", "key_insights": [], "language": "fr"},  # LLM returned wrong language
-        ]
-
-        analyzer = StructuredAnalyzer(backend=mock_backend)
-        interactions = analyzer.analyze_batch(
-            [
-                {"file_content": "a", "language": "en"},
-                {"file_content": "b", "language": "zh-TW"},
-            ]
-        )
-
-        # Should use requested language, not LLM's returned language
-        assert interactions[0].analysis.language == "en"
-        assert interactions[1].analysis.language == "zh-TW"
-
     def test_raises_runtime_error_on_backend_failure(self) -> None:
         mock_backend = MagicMock()
         mock_backend.batch_invoke_structured.side_effect = Exception("API timeout")

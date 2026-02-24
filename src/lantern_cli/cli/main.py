@@ -20,7 +20,6 @@ from lantern_cli.core.architect import Architect
 from lantern_cli.core.runner import Runner
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.synthesizer import Synthesizer
-from lantern_cli.core.translator import Translator
 from lantern_cli.llm.factory import create_backend
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.utils.cost_tracker import CostTracker
@@ -226,9 +225,6 @@ def run(
         lang=lang,
     )
 
-    # Save user's target language; all analysis runs in English first
-    target_language = config.language
-
     # 1.5. Configure LangSmith observability
     tracing_enabled = configure_langsmith(config.langsmith)
 
@@ -256,8 +252,7 @@ def run(
                 repo_path=repo_path,
                 backend=backend,
                 config=config,
-                language="en",
-                target_language=target_language,
+                language=config.language,
                 synthesis_mode=synthesis_mode,
                 planning_mode=planning_mode,
                 assume_yes=assume_yes,
@@ -325,7 +320,7 @@ def run(
             try:
                 from lantern_cli.core.agentic_planner import AgenticPlanner
 
-                agentic_planner = AgenticPlanner(repo_path, backend, language="en")
+                agentic_planner = AgenticPlanner(repo_path, backend, language=config.language)
                 plan = agentic_planner.generate_enhanced_plan(
                     file_list=list(graph.dependencies.keys()),
                     dependencies=graph.dependencies,
@@ -453,7 +448,7 @@ def run(
                 repo_path,
                 backend,
                 state_manager,
-                language="en",
+                language=config.language,
                 model_name=model_name,
                 is_local=is_local,
                 output_dir=config.output_dir,
@@ -483,11 +478,14 @@ def run(
                         progress.advance(_task_id)
 
                 # Construct prompt with optional batch hint
+                language_instruction = (
+                    f" Please respond in {config.language}." if config.language != "en" else ""
+                )
                 hint_instruction = f"\n\nAnalysis guidance: {batch.hint}" if batch.hint else ""
                 prompt = (
                     f"Analyze these files: {batch.files}. "
                     f"Provide a summary and key insights."
-                    f"{hint_instruction}"
+                    f"{language_instruction}{hint_instruction}"
                 )
 
                 success = runner.run_batch(batch, prompt, on_file_progress=file_callback)
@@ -508,7 +506,7 @@ def run(
                     from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
                     agentic_synth = AgenticSynthesizer(
-                        repo_path, backend, language="en", output_dir=config.output_dir
+                        repo_path, backend, language=config.language, output_dir=config.output_dir
                     )
                     agentic_synth.generate_top_down_docs()
                 except ImportError:
@@ -519,7 +517,7 @@ def run(
                     console.print("[dim]Install with: pip install langgraph[/dim]")
                     synthesizer = Synthesizer(
                         repo_path,
-                        language="en",
+                        language=config.language,
                         output_dir=config.output_dir,
                         backend=backend,
                     )
@@ -531,7 +529,7 @@ def run(
                     )
                     synthesizer = Synthesizer(
                         repo_path,
-                        language="en",
+                        language=config.language,
                         output_dir=config.output_dir,
                         backend=backend,
                     )
@@ -540,21 +538,12 @@ def run(
                 task_synth = progress.add_task("Synthesizing documentation...", total=None)
                 synthesizer = Synthesizer(
                     repo_path,
-                    language="en",
+                    language=config.language,
                     output_dir=config.output_dir,
                     backend=backend,
                 )
                 synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
-
-            # 7. Translation (if target language is not English)
-            if target_language != "en":
-                task_translate = progress.add_task(
-                    f"Translating to {target_language}...", total=None
-                )
-                translator = Translator(backend, target_language, repo_path / config.output_dir)
-                translator.translate_all()
-                progress.update(task_translate, total=1, completed=1)
 
     console.print("[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")

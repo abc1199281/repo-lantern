@@ -282,8 +282,8 @@ class StructuredAnalyzer:
     def _parse_output(self, response: Any, language: str) -> StructuredAnalysisOutput:
         payload = self._to_payload(response)
         parsed = StructuredAnalysisOutput.model_validate(payload)
-        # Always override with the requested language, not LLM's guess
-        parsed.language = language
+        if not parsed.language:
+            parsed.language = language
         return parsed
 
     def _repair_flow_diagram(self, invalid_diagram: str, language: str) -> str | None:
