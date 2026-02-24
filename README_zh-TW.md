@@ -187,6 +187,11 @@ lantern update
 
 # 略過確認提示
 lantern update --yes
+
+# 設定 AI 程式工具指令（Codex、Copilot、Claude）
+lantern onboard
+lantern onboard --tools codex --tools claude   # 僅指定特定工具
+lantern onboard --overwrite                     # 覆寫現有區段
 ```
 
 預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
@@ -251,6 +256,19 @@ lantern run --resume <thread-id>     # 從檢查點恢復
 | `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
 | `--workflow` | true | 使用 LangGraph 工作流程編排 |
 | `--resume` | — | 以指定 thread ID 從檢查點恢復執行 |
+
+### `lantern onboard` 所有選項
+
+| 旗標 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository 路徑 |
+| `--tools` | `codex, copilot, claude` | 要產生指令的目標工具 |
+| `--overwrite` / `-f` | false | 覆寫目標檔案中現有的 lantern 區段 |
+
+將 Lantern 技能指令寫入對應工具的檔案：
+- **Codex** → `AGENTS.md`
+- **Copilot** → `.github/copilot-instructions.md`
+- **Claude** → `CLAUDE.md`
 
 ### `lantern update` 所有選項
 

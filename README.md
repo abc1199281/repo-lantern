@@ -188,6 +188,11 @@ lantern update
 
 # Skip confirmation
 lantern update --yes
+
+# Set up AI coding tool instructions (Codex, Copilot, Claude)
+lantern onboard
+lantern onboard --tools codex --tools claude   # Specific tools only
+lantern onboard --overwrite                     # Replace existing sections
 ```
 
 The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
@@ -252,6 +257,19 @@ lantern run --resume <thread-id>     # Resume from checkpoint
 | `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
 | `--workflow` | true | Use LangGraph workflow orchestration |
 | `--resume` | — | Resume from checkpoint with given thread ID |
+
+### All `lantern onboard` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path |
+| `--tools` | `codex, copilot, claude` | Target tools to generate instructions for |
+| `--overwrite` / `-f` | false | Replace existing lantern section in target files |
+
+Writes Lantern skill instructions to tool-specific files:
+- **Codex** → `AGENTS.md`
+- **Copilot** → `.github/copilot-instructions.md`
+- **Claude** → `CLAUDE.md`
 
 ### All `lantern update` Options
 
