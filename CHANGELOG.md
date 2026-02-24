@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-02-24
+
+### Added
+- `lantern update` command for git diff-based incremental analysis — only re-analyzes changed files and their direct dependents
+- `lantern onboard` command to generate AI coding tool instructions (Codex, Copilot, Claude)
+- `DiffTracker` module for git change detection and impact set calculation
+- File manifest tracking in `state.json` for incremental updates
+- Git commit SHA recorded after analysis for diff baseline
+- Stale artifact cleanup for deleted/renamed files
+
+### Fixed
+- Resolve `--output` path relative to CWD instead of repo path
+- Pass `output_dir` to `StateManager` so `state.json` respects `--output`
+- Filter unknown fields when loading `ExecutionState` from `state.json` (forward-compat)
+- Remove invalid `model_name` / `is_local` kwargs in `update` command Runner call
+- Handle missing end marker in `_write_skills` to prevent `ValueError` on corrupted sections
+
 ## [0.1.2] - 2026-02-24
 
 ### Added
@@ -45,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration via `.lantern/lantern.toml` with priority system
 - CI pipeline with tests, linting (ruff, black), and type checking (mypy)
 
-[Unreleased]: https://github.com/abc1199281/repo-lantern/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/abc1199281/repo-lantern/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/abc1199281/repo-lantern/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/abc1199281/repo-lantern/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/abc1199281/repo-lantern/releases/tag/v0.1.1

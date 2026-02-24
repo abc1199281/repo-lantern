@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from lantern_cli.core.architect import Batch, Plan
 from lantern_cli.core.memory_manager import MemoryManager
@@ -23,6 +23,8 @@ class ExecutionState:
     completed_batches: list[int] = field(default_factory=list)
     failed_batches: list[int] = field(default_factory=list)
     global_summary: str = ""
+    git_commit_sha: str = ""
+    file_manifest: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class StateManager:
@@ -30,16 +32,23 @@ class StateManager:
 
     STATE_FILE = "state.json"
 
-    def __init__(self, root_path: Path, backend: Optional["Backend"] = None) -> None:
+    def __init__(
+        self,
+        root_path: Path,
+        backend: Optional["Backend"] = None,
+        output_dir: str | None = None,
+    ) -> None:
         """Initialize StateManager.
 
         Args:
             root_path: Project root path.
             backend: Backend instance for memory compression (optional).
+            output_dir: Output directory for state files (absolute or relative to root_path).
         """
         self.root_path = root_path
         self.memory_manager = MemoryManager(backend)
-        self.lantern_dir = root_path / ".lantern"
+        base_out = output_dir or ".lantern"
+        self.lantern_dir = root_path / base_out
         self.state_path = self.lantern_dir / self.STATE_FILE
         self.state: ExecutionState = self.load_state()
 
@@ -55,10 +64,11 @@ class StateManager:
             try:
                 with open(self.state_path, encoding="utf-8") as f:
                     data = json.load(f)
-                    return ExecutionState(**data)
-            except (json.JSONDecodeError, OSError):
-                # If corrupt, potentially return fresh state or backup
-                # For now, return fresh
+                    valid_fields = {f.name for f in ExecutionState.__dataclass_fields__.values()}
+                    filtered = {k: v for k, v in data.items() if k in valid_fields}
+                    return ExecutionState(**filtered)
+            except (json.JSONDecodeError, OSError, TypeError):
+                # If corrupt or schema mismatch, return fresh state
                 pass
 
         return ExecutionState()
@@ -133,3 +143,110 @@ class StateManager:
                 if not self.is_batch_completed(batch.id):
                     pending.append(batch)
         return pending
+
+    # ------------------------------------------------------------------
+    # Incremental tracking helpers
+    # ------------------------------------------------------------------
+
+    def update_git_commit(self, sha: str) -> None:
+        """Store the git commit SHA for the current analysis snapshot.
+
+        Args:
+            sha: Full commit hash.
+        """
+        self.state.git_commit_sha = sha
+        self.save_state()
+
+    def update_file_manifest(
+        self, file_path: str, batch_id: int, sense_file: str, status: str
+    ) -> None:
+        """Record a file's analysis metadata in the manifest.
+
+        Args:
+            file_path: Relative file path within the repository.
+            batch_id: Batch ID that processed this file.
+            sense_file: Name of the .sense file containing the analysis.
+            status: Analysis status (``success``, ``empty``, ``error``).
+        """
+        self.state.file_manifest[file_path] = {
+            "batch_id": batch_id,
+            "sense_file": sense_file,
+            "status": status,
+        }
+
+    def remove_from_manifest(self, file_path: str) -> None:
+        """Remove a file from the manifest (e.g. after deletion).
+
+        Args:
+            file_path: Relative file path to remove.
+        """
+        self.state.file_manifest.pop(file_path, None)
+
+    def clean_stale_artefacts(
+        self,
+        files_to_remove: set[str],
+        output_dir: str | None = None,
+    ) -> None:
+        """Delete .sense records and bottom-up docs for removed/stale files.
+
+        Args:
+            files_to_remove: Set of relative file paths whose artefacts should
+                be cleaned.
+            output_dir: Custom output directory name (default: ".lantern").
+        """
+        base_out = output_dir or ".lantern"
+        sense_dir = self.root_path / base_out / "sense"
+        bottom_up_dir = self.root_path / base_out / "output"
+
+        # Collect batch IDs whose .sense files need rewriting.
+        affected_batches: dict[int, str] = {}
+        for fp in files_to_remove:
+            entry = self.state.file_manifest.get(fp)
+            if entry:
+                affected_batches[entry["batch_id"]] = entry["sense_file"]
+            self.remove_from_manifest(fp)
+
+        # Rewrite each affected .sense file, filtering out removed file records.
+        for _batch_id, sense_name in affected_batches.items():
+            sense_path = sense_dir / sense_name
+            if not sense_path.exists():
+                continue
+            try:
+                with open(sense_path, encoding="utf-8") as f:
+                    records = json.load(f)
+                if isinstance(records, list):
+                    records = [r for r in records if r.get("file_path") not in files_to_remove]
+                    with open(sense_path, "w", encoding="utf-8") as f:
+                        json.dump(records, f, ensure_ascii=False, indent=2)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning(f"Failed to clean sense file {sense_path}: {exc}")
+
+        # Remove bottom-up markdown files for all languages.
+        if bottom_up_dir.exists():
+            for lang_dir in bottom_up_dir.iterdir():
+                bu_dir = lang_dir / "bottom_up" if lang_dir.is_dir() else None
+                if bu_dir and bu_dir.exists():
+                    for fp in files_to_remove:
+                        md_path = bu_dir / fp
+                        md_with_ext = bu_dir / f"{fp}.md"
+                        for p in (md_path, md_with_ext):
+                            if p.exists():
+                                try:
+                                    p.unlink()
+                                except OSError as exc:
+                                    logger.warning(f"Failed to remove {p}: {exc}")
+
+        self.save_state()
+
+    def reset_for_incremental(self, batches_to_rerun: list[int]) -> None:
+        """Remove batch IDs from completed list so they can be re-executed.
+
+        Args:
+            batches_to_rerun: List of batch IDs that need re-execution.
+        """
+        for bid in batches_to_rerun:
+            if bid in self.state.completed_batches:
+                self.state.completed_batches.remove(bid)
+            if bid in self.state.failed_batches:
+                self.state.failed_batches.remove(bid)
+        self.save_state()

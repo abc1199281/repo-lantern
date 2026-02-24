@@ -1,6 +1,6 @@
 [project]
 name = "repo-lantern"
-version = "0.1.2"
+version = "0.1.3"
 description = "Your repository mentor - AI-guided codebase analysis with psychology-driven design"
 authors = [
     {name = "Po-wei Huang", email = "abc1199281@gmail.com"}
