@@ -197,21 +197,41 @@ openai_model = "gpt-4o-mini" # 生產環境快速且便宜
 若需要審查分析計畫：
 
 ```bash
-# Step 1: 初始化
+# Step 1: 初始化（建立 .lantern/lantern.toml）
 lantern init --repo /path/to/repo
+# 初始化並指定自訂輸出目錄
+lantern init --repo /path/to/repo --output my-docs
 # 強制重新初始化並覆寫現有設定
 lantern init --repo /path/to/repo --overwrite
 
 # Step 2: 生成計畫（審查 lantern_plan.md）
 lantern plan
+lantern plan --planning-mode static   # 使用拓撲排序而非 LLM
 
 # Step 3: 執行分析（可加入進階選項）
 lantern run
-lantern run --planning-mode agentic    # LLM 強化規劃
-lantern run --synthesis-mode agentic   # LangGraph 驅動合成
-lantern run --workflow                 # 完整 LangGraph 工作流程編排
-lantern run --workflow --resume <thread-id>  # 從檢查點恢復
+lantern run --planning-mode static    # 拓撲排序規劃（不使用 LLM）
+lantern run --synthesis-mode batch    # 規則型合成（不使用 LLM）
+lantern run --no-workflow             # 停用 LangGraph 編排
+lantern run --resume <thread-id>     # 從檢查點恢復
 ```
+
+### `lantern init` 所有選項
+
+| 旗標 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository 路徑 |
+| `--output` | `.lantern` | 輸出目錄（寫入設定檔） |
+| `--overwrite` / `-f` | false | 強制重新初始化 |
+
+### `lantern plan` 所有選項
+
+| 旗標 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository 路徑 |
+| `--output` | `.lantern` | 輸出目錄 |
+| `--lang` | `en` | 輸出語言（如 `zh-TW`、`ja`） |
+| `--planning-mode` | `agentic` | `static`（拓撲排序）或 `agentic`（LLM 強化） |
 
 ### `lantern run` 所有選項
 
@@ -223,7 +243,7 @@ lantern run --workflow --resume <thread-id>  # 從檢查點恢復
 | `--yes` / `-y` | false | 略過成本確認提示 |
 | `--planning-mode` | `agentic` | `static`（拓撲排序）或 `agentic`（LLM 強化） |
 | `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
-| `--workflow` | false | 使用 LangGraph 工作流程編排 |
+| `--workflow` | true | 使用 LangGraph 工作流程編排 |
 | `--resume` | — | 以指定 thread ID 從檢查點恢復執行 |
 
 # 設定

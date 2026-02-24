@@ -1,7 +1,6 @@
 """
 Lantern Workflow - LangGraph StateGraph orchestration for the complete analysis pipeline.
 
-This module implements Phase 3 of the LangGraph Subagent evaluation:
 - Full workflow StateGraph orchestration
 - Human-in-the-loop support with interrupts
 - LangGraph checkpointer for state persistence
@@ -37,7 +36,6 @@ class LanternWorkflowState(TypedDict):
     - Input parameters
     - Analysis results
     - Quality metrics
-    - Cost tracking
     - Enhanced context management (Phase 4)
     """
 
@@ -82,10 +80,6 @@ class LanternWorkflowState(TypedDict):
     quality_score: float
     quality_ok: bool
     quality_issues: list[str]
-
-    # Cost tracking
-    total_cost: float
-    estimated_cost: float
 
     # Workflow control
     iteration_count: int  # For preventing infinite loops
@@ -319,7 +313,6 @@ def batch_execution_node(
     completed = []
     failed = []
     sense_records = []
-    total_cost = 0.0
     batch_errors = {}
     structured_analyses = {}
     context_manager_state = {}
@@ -418,9 +411,6 @@ def batch_execution_node(
                     failed.append(batch_id)
                     batch_errors[batch_id] = "Batch execution failed"
 
-                # Add batch cost (simplified)
-                total_cost += 0.10
-
             except Exception as e:
                 logger.error(f"Error processing batch {batch_dict['id']}: {e}")
                 failed.append(batch_dict["id"])
@@ -442,7 +432,6 @@ def batch_execution_node(
         "completed_batches": completed,
         "failed_batches": failed,
         "sense_records": sense_records,
-        "total_cost": total_cost,
         "batch_errors": batch_errors,
         "structured_analyses": structured_analyses,
         "context_manager_state": context_manager_state,
@@ -646,8 +635,6 @@ def build_lantern_workflow(
                 backend,
                 state_mgr,
                 language=state.get("language", "en"),
-                model_name=backend.model_name if hasattr(backend, "model_name") else "unknown",
-                is_local=getattr(backend, "type", "") == "ollama",
                 output_dir=state.get("output_dir", ".lantern/docs"),
             )
         return batch_execution_node(state, backend=backend, runner=runner)
@@ -814,9 +801,6 @@ class LanternWorkflowExecutor:
             "quality_score": 0.0,
             "quality_ok": False,
             "quality_issues": [],
-            # Cost
-            "total_cost": 0.0,
-            "estimated_cost": 0.0,
             # Workflow control
             "iteration_count": 0,
             "needs_reanalysis": False,

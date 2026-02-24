@@ -23,7 +23,6 @@ from lantern_cli.core.state_manager import StateManager
 from lantern_cli.core.synthesizer import Synthesizer
 from lantern_cli.llm.factory import create_backend
 from lantern_cli.static_analysis import DependencyGraph, FileFilter
-from lantern_cli.utils.cost_tracker import CostTracker
 from lantern_cli.utils.observability import configure_langsmith
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
@@ -58,6 +57,7 @@ class FlexibleTaskProgressColumn(TaskProgressColumn):
 @app.command()
 def init(
     repo: str = typer.Option(".", help="Repository path or URL"),
+    output: str | None = typer.Option(None, help="Output directory (default: .lantern)"),
     overwrite: bool = typer.Option(
         False, "--overwrite", "-f", help="Force re-initialization and overwrite existing config"
     ),
@@ -65,6 +65,9 @@ def init(
     """Initialize Lantern for a repository."""
     repo_path = Path(repo).resolve()
     lantern_dir = repo_path / ".lantern"
+
+    # Determine the output directory (where analysis results go)
+    output_dir = output if output is not None else ".lantern"
 
     if lantern_dir.exists():
         if overwrite:
@@ -81,6 +84,18 @@ def init(
         lantern_dir.mkdir(parents=True, exist_ok=True)
         config_path = lantern_dir / "lantern.toml"
         config_content = _load_default_config()
+
+        # If a custom output directory is specified, update it in the config
+        if output is not None:
+            config_content = config_content.replace(
+                'output_dir = ".lantern"',
+                f'output_dir = "{output_dir}"',
+            )
+            # Create the custom output directory
+            custom_output = repo_path / output_dir
+            custom_output.mkdir(parents=True, exist_ok=True)
+            console.print(f"[green]Output directory created: {custom_output}[/green]")
+
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(config_content)
 
@@ -194,7 +209,7 @@ def run(
     repo: str = typer.Option(".", help="Repository path"),
     output: str | None = typer.Option(None, help="Output directory"),
     lang: str | None = typer.Option(None, help="Output language (en/zh-TW)"),
-    assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip cost confirmation prompt"),
+    assume_yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
     synthesis_mode: str = typer.Option(
         "agentic",
         "--synthesis-mode",
@@ -208,7 +223,7 @@ def run(
     use_workflow: bool = typer.Option(
         True,
         "--workflow",
-        help="Use new LangGraph workflow orchestration (Phase 3) instead of manual orchestration",
+        help="Use LangGraph workflow orchestration instead of manual orchestration",
     ),
     resume_thread: str | None = typer.Option(
         None,
@@ -235,7 +250,7 @@ def run(
     if tracing_enabled:
         console.print(f"[cyan]LangSmith tracing: ON (project={config.langsmith.project})[/cyan]")
     if use_workflow:
-        console.print("[cyan]Using LangGraph Workflow Orchestration (Phase 3)[/cyan]")
+        console.print("[cyan]Using LangGraph Workflow Orchestration[/cyan]")
 
     # 2. Initialize Backend
     try:
@@ -273,9 +288,6 @@ def run(
                 console.print(f"\nGenerated {len(final_state['documents'])} documents:")
                 for doc_name in final_state["documents"].keys():
                     console.print(f"  - {doc_name}")
-
-            if final_state.get("total_cost", 0) > 0:
-                console.print(f"\nTotal cost: ${final_state['total_cost']:.4f}")
 
             raise typer.Exit(code=0)
 
@@ -357,37 +369,14 @@ def run(
         progress.update(task_plan, total=1, completed=1)
         console.print(f"Plan generated: {plan_path}")
 
-    # 5. Cost Estimation
+    # 5. Plan Summary
     model_name = backend.model_name
-    is_local = config.backend.type == "ollama"
 
     # Initialize state manager (needed for pending batches)
     state_manager = StateManager(repo_path, backend=backend)
-
-    cost_tracker = CostTracker(model_name, is_local=is_local)
     pending_batches = state_manager.get_pending_batches(plan)
 
-    # Estimate total cost
-    total_estimated_tokens = 0
-    total_estimated_cost = 0.0
-    pricing_available = True
-
-    for batch in pending_batches:
-        est_result = cost_tracker.estimate_batch_cost(
-            files=batch.files,
-            context="",  # Simplified for estimation
-            prompt="Analyze these files and provide insights.",
-        )
-        if est_result:
-            est_tokens, est_cost = est_result
-            total_estimated_tokens += est_tokens
-            total_estimated_cost += est_cost
-        else:
-            pricing_available = False
-            break
-
-    # Display cost estimate
-    console.print("\n[bold cyan]📊 Analysis Plan Summary[/bold cyan]")
+    console.print("\n[bold cyan]Analysis Plan Summary[/bold cyan]")
     console.print(f"   Total Phases: {len(plan.phases)}")
     console.print(f"   Total Batches: {len([b for p in plan.phases for b in p.batches])}")
     console.print(f"   Pending Batches: {len(pending_batches)}")
@@ -395,33 +384,10 @@ def run(
     console.print(f"   Planning Mode: {planning_mode}")
     console.print(f"   Synthesis Mode: {synthesis_mode}")
 
-    if pricing_available:
-        if is_local:
-            console.print("   Pricing Source: [green]Local (Free)[/green]")
-            console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
-            console.print("   Estimated Cost: [bold green]$0.0000 (Free)[/bold green]")
-        else:
-            console.print("   Pricing Source: [green]Online (Live)[/green]")
-            console.print(f"   Estimated Tokens: ~{total_estimated_tokens:,} (Input + Est. Output)")
-            console.print(
-                f"   Estimated Cost: [bold yellow]${total_estimated_cost:.4f}[/bold yellow]"
-            )
-    else:
-        if config.backend.type == "cli":
-            console.print("   Pricing Source: [yellow]CLI Tool[/yellow]")
-            console.print(
-                "   Estimated Cost: [bold yellow]CLI estimate not available[/bold yellow]"
-            )
-        else:
-            console.print("   Pricing Source: [red]Offline[/red]")
-            console.print(
-                "   Estimated Cost: [bold red]Unable to estimate (Network unavailable)[/bold red]"
-            )
-
     # Confirmation prompt (skip if --yes flag or no pending batches)
     if pending_batches and not assume_yes:
         console.print("")
-        proceed = typer.confirm("⚠️  Continue with analysis?")
+        proceed = typer.confirm("Continue with analysis?")
         if not proceed:
             console.print("[yellow]Analysis cancelled by user.[/yellow]")
             raise typer.Exit(0)
@@ -449,8 +415,6 @@ def run(
                 backend,
                 state_manager,
                 language=config.language,
-                model_name=model_name,
-                is_local=is_local,
                 output_dir=config.output_dir,
             )
 
@@ -580,11 +544,6 @@ def run(
 
     console.print("[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
-
-    # Show final cost report if batches were processed
-    if pending_batches:
-        console.print("")
-        console.print(runner.get_cost_report())
 
 
 @app.command()

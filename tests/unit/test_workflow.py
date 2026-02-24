@@ -1,5 +1,5 @@
 """
-Tests for the LangGraph workflow orchestration (Phase 3).
+Tests for the LangGraph workflow orchestration.
 
 Tests cover:
 - State transitions
@@ -63,9 +63,6 @@ class TestLanternWorkflowState:
             "quality_score",
             "quality_ok",
             "quality_issues",
-            # Cost
-            "total_cost",
-            "estimated_cost",
             # Control
             "iteration_count",
             "needs_reanalysis",
@@ -105,8 +102,6 @@ class TestLanternWorkflowState:
             "quality_score": 0.0,
             "quality_ok": False,
             "quality_issues": [],
-            "total_cost": 0.0,
-            "estimated_cost": 0.0,
             "iteration_count": 0,
             "needs_reanalysis": False,
         }
@@ -253,8 +248,6 @@ class TestRouters:
             "quality_score": 0.0,
             "quality_ok": False,
             "quality_issues": [],
-            "total_cost": 0.0,
-            "estimated_cost": 0.0,
             "iteration_count": 0,
             "needs_reanalysis": False,
         }
@@ -291,8 +284,6 @@ class TestRouters:
             "quality_score": 0.0,
             "quality_ok": False,
             "quality_issues": [],
-            "total_cost": 0.0,
-            "estimated_cost": 0.0,
             "iteration_count": 0,
             "needs_reanalysis": False,
         }
@@ -329,8 +320,6 @@ class TestRouters:
             "quality_score": 0.9,
             "quality_ok": True,  # Quality is OK
             "quality_issues": [],
-            "total_cost": 0.0,
-            "estimated_cost": 0.0,
             "iteration_count": 0,
             "needs_reanalysis": False,
         }
@@ -369,8 +358,6 @@ class TestRouters:
             "quality_score": 0.7,
             "quality_ok": False,  # Quality not OK
             "quality_issues": ["Score too low"],
-            "total_cost": 0.0,
-            "estimated_cost": 0.0,
             "iteration_count": 0,  # Haven't exceeded max iterations
             "needs_reanalysis": False,
         }
