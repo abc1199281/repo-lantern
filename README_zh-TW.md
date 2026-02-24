@@ -179,11 +179,17 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 # 使用特定語言
 lantern run --lang zh-TW  # 繁體中文
 
-# 略過成本確認提示
+# 略過確認提示
 lantern run --yes
+
+# 程式碼變更後增量更新
+lantern update
+
+# 略過確認提示
+lantern update --yes
 ```
 
-Lantern 會在開始前顯示**成本估算**。預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
+預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
 
 ```toml
 [backend]
@@ -240,11 +246,21 @@ lantern run --resume <thread-id>     # 從檢查點恢復
 | `--repo` | `.` | 要分析的 Repository 路徑 |
 | `--output` | `.lantern` | 輸出目錄 |
 | `--lang` | `en` | 輸出語言（如 `zh-TW`、`ja`） |
-| `--yes` / `-y` | false | 略過成本確認提示 |
+| `--yes` / `-y` | false | 略過確認提示 |
 | `--planning-mode` | `agentic` | `static`（拓撲排序）或 `agentic`（LLM 強化） |
 | `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
 | `--workflow` | true | 使用 LangGraph 工作流程編排 |
 | `--resume` | — | 以指定 thread ID 從檢查點恢復執行 |
+
+### `lantern update` 所有選項
+
+| 旗標 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository 路徑 |
+| `--output` | `.lantern` | 輸出目錄 |
+| `--lang` | `en` | 輸出語言（如 `zh-TW`、`ja`） |
+| `--yes` / `-y` | false | 略過確認提示 |
+| `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
 
 # 設定
 
@@ -296,10 +312,6 @@ openai_model = "gpt-4o-mini"  # 快速且便宜
 ```bash
 export OPENAI_API_KEY="sk-..."
 ```
-
-**定價**（2025 年）：
-- gpt-4o-mini：$0.15/1M 輸入，$0.60/1M 輸出
-- gpt-4o：$2.50/1M 輸入，$10/1M 輸出
 
 ### Ollama（本地模型）
 ```toml
@@ -355,14 +367,6 @@ cli_model_name = "gpt-4o-mini"' > .lantern/lantern.toml
 lantern run
 ```
 
-### 成本估算
-執行前，Lantern 會取得**即時定價**並顯示：
-- 預估輸入/輸出 token
-- 預計成本（美元）
-- 確認提示
-
-本地模型（Ollama）顯示 $0.00 成本。
-
 ---
 
 # 發展藍圖 (Roadmap)
@@ -370,6 +374,7 @@ lantern run
 - [x] **LangGraph 工作流程編排**：完整 StateGraph 支援檢查點斷點續傳（`--workflow`、`--resume`）。
 - [x] **代理型規劃與合成**：LLM 強化規劃（`--planning-mode agentic`）與合成（`--synthesis-mode agentic`）。
 - [x] **LangSmith 可觀測性**：整合追蹤，用於除錯 LLM 呼叫。
+- [x] **增量更新**：基於 git diff 的 `lantern update` 指令，僅重新分析變更的檔案。
 - [ ] **Execution Trace Mode**：透過 unit test 收集 call graph，實現動態分析。
 - [ ] **跨批次推論**：加強跨批次邊界的邏輯關聯分析。
 - [ ] **多語言靜態分析支援**：擴展至 Go, Rust, 與 Java。
