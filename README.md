@@ -182,6 +182,12 @@ lantern run --lang zh-TW  # Traditional Chinese
 
 # Skip the cost confirmation prompt
 lantern run --yes
+
+# Incrementally update after code changes
+lantern update
+
+# Skip confirmation
+lantern update --yes
 ```
 
 Lantern will show you a **cost estimate** before starting. The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
@@ -246,6 +252,16 @@ lantern run --resume <thread-id>     # Resume from checkpoint
 | `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
 | `--workflow` | true | Use LangGraph workflow orchestration |
 | `--resume` | — | Resume from checkpoint with given thread ID |
+
+### All `lantern update` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path |
+| `--output` | `.lantern` | Output directory |
+| `--lang` | `en` | Output language (e.g., `zh-TW`, `ja`) |
+| `--yes` / `-y` | false | Skip confirmation prompt |
+| `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
 
 # Configuration
 
@@ -371,6 +387,7 @@ Local models (Ollama) show $0.00 cost.
 - [x] **LangGraph Workflow Orchestration**: Full StateGraph with checkpoint-based resumption (`--workflow`, `--resume`).
 - [x] **Agentic Planning & Synthesis**: LLM-enhanced planning (`--planning-mode agentic`) and synthesis (`--synthesis-mode agentic`).
 - [x] **LangSmith Observability**: Tracing integration for debugging LLM calls.
+- [x] **Incremental Update**: Git diff-based `lantern update` command for re-analyzing only changed files.
 - [ ] **Execution Trace Mode**: Collect call graphs via unit tests for dynamic analysis.
 - [ ] **Memory Cross-talk**: Enhanced reasoning across batch boundaries.
 - [ ] **Multi-language Static Analysis**: Go, Rust, and Java support.

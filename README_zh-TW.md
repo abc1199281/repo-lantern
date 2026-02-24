@@ -181,6 +181,12 @@ lantern run --lang zh-TW  # 繁體中文
 
 # 略過成本確認提示
 lantern run --yes
+
+# 程式碼變更後增量更新
+lantern update
+
+# 略過確認提示
+lantern update --yes
 ```
 
 Lantern 會在開始前顯示**成本估算**。預設後端為 OpenAI，但你可以在 `.lantern/lantern.toml` 中設定：
@@ -245,6 +251,16 @@ lantern run --resume <thread-id>     # 從檢查點恢復
 | `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
 | `--workflow` | true | 使用 LangGraph 工作流程編排 |
 | `--resume` | — | 以指定 thread ID 從檢查點恢復執行 |
+
+### `lantern update` 所有選項
+
+| 旗標 | 預設值 | 說明 |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository 路徑 |
+| `--output` | `.lantern` | 輸出目錄 |
+| `--lang` | `en` | 輸出語言（如 `zh-TW`、`ja`） |
+| `--yes` / `-y` | false | 略過確認提示 |
+| `--synthesis-mode` | `agentic` | `batch`（規則型）或 `agentic`（LLM 驅動） |
 
 # 設定
 
@@ -370,6 +386,7 @@ lantern run
 - [x] **LangGraph 工作流程編排**：完整 StateGraph 支援檢查點斷點續傳（`--workflow`、`--resume`）。
 - [x] **代理型規劃與合成**：LLM 強化規劃（`--planning-mode agentic`）與合成（`--synthesis-mode agentic`）。
 - [x] **LangSmith 可觀測性**：整合追蹤，用於除錯 LLM 呼叫。
+- [x] **增量更新**：基於 git diff 的 `lantern update` 指令，僅重新分析變更的檔案。
 - [ ] **Execution Trace Mode**：透過 unit test 收集 call graph，實現動態分析。
 - [ ] **跨批次推論**：加強跨批次邊界的邏輯關聯分析。
 - [ ] **多語言靜態分析支援**：擴展至 Go, Rust, 與 Java。
