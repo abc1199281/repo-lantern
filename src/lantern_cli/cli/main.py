@@ -27,6 +27,16 @@ from lantern_cli.utils.observability import configure_langsmith
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
 DEFAULT_CONFIG_PATH = TEMPLATE_ROOT / "lantern.toml"
+SKILLS_TEMPLATE_PATH = TEMPLATE_ROOT / "lantern_skills.md"
+
+LANTERN_SECTION_START = "<!-- lantern-skills -->"
+LANTERN_SECTION_END = "<!-- /lantern-skills -->"
+
+TOOL_DESTINATIONS: dict[str, str] = {
+    "codex": "AGENTS.md",
+    "copilot": ".github/copilot-instructions.md",
+    "claude": "CLAUDE.md",
+}
 
 
 def _load_default_config() -> str:
@@ -544,6 +554,78 @@ def run(
 
     console.print("[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
+
+
+def _load_skills_template() -> str:
+    try:
+        return SKILLS_TEMPLATE_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Unable to read skills template at {SKILLS_TEMPLATE_PATH}") from exc
+
+
+def _write_skills(dest: Path, skills_content: str, overwrite: bool) -> str:
+    """Write lantern skills section to a destination file.
+
+    Returns a status string: 'created', 'appended', 'replaced', or 'skipped'.
+    """
+    if dest.exists():
+        existing = dest.read_text(encoding="utf-8")
+        if LANTERN_SECTION_START in existing:
+            if not overwrite:
+                return "skipped"
+            # Replace existing section
+            start = existing.index(LANTERN_SECTION_START)
+            end = existing.index(LANTERN_SECTION_END) + len(LANTERN_SECTION_END)
+            new_content = existing[:start] + skills_content + existing[end:]
+            dest.write_text(new_content, encoding="utf-8")
+            return "replaced"
+        else:
+            # Append to existing file
+            separator = "\n\n" if existing.rstrip() else ""
+            dest.write_text(existing.rstrip() + separator + skills_content + "\n", encoding="utf-8")
+            return "appended"
+    else:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(skills_content + "\n", encoding="utf-8")
+        return "created"
+
+
+@app.command()
+def onboard(
+    repo: str = typer.Option(".", help="Repository path"),
+    tools: list[str] = typer.Option(
+        ["codex", "copilot", "claude"], help="Target tools (codex, copilot, claude)"
+    ),
+    overwrite: bool = typer.Option(
+        False, "--overwrite", "-f", help="Replace existing lantern section"
+    ),
+) -> None:
+    """Set up AI coding tool instructions for Lantern."""
+    repo_path = Path(repo).resolve()
+    skills_content = _load_skills_template()
+
+    for tool in tools:
+        tool_key = tool.lower()
+        if tool_key not in TOOL_DESTINATIONS:
+            console.print(
+                f"[bold red]Unknown tool: {tool}[/bold red] "
+                f"(valid: {', '.join(TOOL_DESTINATIONS)})"
+            )
+            continue
+
+        dest = repo_path / TOOL_DESTINATIONS[tool_key]
+        status = _write_skills(dest, skills_content, overwrite)
+
+        status_colors = {
+            "created": "green",
+            "appended": "green",
+            "replaced": "yellow",
+            "skipped": "dim",
+        }
+        color = status_colors[status]
+        console.print(f"[{color}]{tool_key}: {status} → {dest}[/{color}]")
+
+    console.print("[bold green]Onboarding complete![/bold green]")
 
 
 @app.command()
