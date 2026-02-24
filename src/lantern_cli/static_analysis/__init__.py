@@ -5,6 +5,7 @@ from lantern_cli.static_analysis.dependency_graph import DependencyGraph
 from lantern_cli.static_analysis.file_filter import FileFilter
 from lantern_cli.static_analysis.generic import GenericAnalyzer
 from lantern_cli.static_analysis.python import PythonAnalyzer
+from lantern_cli.static_analysis.systemverilog import SystemVerilogAnalyzer
 from lantern_cli.static_analysis.typescript import TypeScriptAnalyzer
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "PythonAnalyzer",
     "CppAnalyzer",
     "TypeScriptAnalyzer",
+    "SystemVerilogAnalyzer",
 ]

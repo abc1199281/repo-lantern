@@ -31,12 +31,14 @@ class DependencyGraph:
         # Lazy import to avoid circular dependency
         from lantern_cli.static_analysis.cpp import CppAnalyzer
         from lantern_cli.static_analysis.python import PythonAnalyzer
+        from lantern_cli.static_analysis.systemverilog import SystemVerilogAnalyzer
         from lantern_cli.static_analysis.typescript import TypeScriptAnalyzer
 
         self.analyzers = {
             "python": PythonAnalyzer(),
             "cpp": CppAnalyzer(),
             "typescript": TypeScriptAnalyzer(),
+            "systemverilog": SystemVerilogAnalyzer(),
         }
 
     def build(self) -> None:
@@ -60,6 +62,10 @@ class DependencyGraph:
             ".tsx": "typescript",
             ".js": "typescript",
             ".jsx": "typescript",
+            ".sv": "systemverilog",
+            ".svh": "systemverilog",
+            ".v": "systemverilog",
+            ".vh": "systemverilog",
         }
 
         # Use FileFilter to walk and filter files
@@ -99,6 +105,10 @@ class DependencyGraph:
                 module_map[rel_path.stem] = str(rel_path)
                 # Map full relative path with extension
                 module_map[str(rel_path)] = str(rel_path)
+            elif file_type == "systemverilog":
+                # Map by filename (e.g. "defs.svh") and relative path
+                module_map[path.name] = str(rel_path)
+                module_map[str(rel_path)] = str(rel_path)
 
         # 2. Analyze imports and build graph
         for rel_path, file_type in all_files:
@@ -135,6 +145,10 @@ class DependencyGraph:
                         # Handle "../utils.h" style includes if needed,
                         # but simple name matching covers many cases in flat/simple C++ projects
                         pass
+
+                elif file_type == "systemverilog":
+                    # Direct lookup by filename or path (same as C++)
+                    target_file = module_map.get(imp)
 
                 elif file_type == "typescript":
                     # Skip bare module imports (node_modules packages)
