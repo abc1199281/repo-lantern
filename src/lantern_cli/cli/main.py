@@ -76,6 +76,10 @@ def init(
     repo_path = Path(repo).resolve()
     lantern_dir = repo_path / ".lantern"
 
+    # Resolve --output relative to CWD so it doesn't get joined with repo_path
+    if output is not None:
+        output = str(Path(output).resolve())
+
     # Determine the output directory (where analysis results go)
     output_dir = output if output is not None else ".lantern"
 
@@ -131,6 +135,10 @@ def plan(
 ) -> None:
     """Generate analysis plan (lantern_plan.md) without running analysis."""
     repo_path = Path(repo).resolve()
+
+    # Resolve --output relative to CWD so it doesn't get joined with repo_path
+    if output is not None:
+        output = str(Path(output).resolve())
 
     # 0. Load Configuration (for filters)
     config = load_config(repo_path, output=output, lang=lang)
@@ -243,6 +251,10 @@ def run(
 ) -> None:
     """Run analysis on repository."""
     repo_path = Path(repo).resolve()
+
+    # Resolve --output relative to CWD so it doesn't get joined with repo_path
+    if output is not None:
+        output = str(Path(output).resolve())
 
     # 1. Load Configuration
     config = load_config(
