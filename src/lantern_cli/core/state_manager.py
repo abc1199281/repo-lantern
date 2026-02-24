@@ -55,7 +55,9 @@ class StateManager:
             try:
                 with open(self.state_path, encoding="utf-8") as f:
                     data = json.load(f)
-                    return ExecutionState(**data)
+                    valid_fields = {f.name for f in ExecutionState.__dataclass_fields__.values()}
+                    filtered = {k: v for k, v in data.items() if k in valid_fields}
+                    return ExecutionState(**filtered)
             except (json.JSONDecodeError, OSError):
                 # If corrupt, potentially return fresh state or backup
                 # For now, return fresh
