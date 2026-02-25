@@ -22,6 +22,7 @@ dependencies = [
     "langgraph>=0.2.0",
     "langsmith>=0.1.0",
     "tomli>=2.0.0; python_version < '3.11'",
+    "pdfplumber>=0.10.0",
 ]
 
 [project.optional-dependencies]

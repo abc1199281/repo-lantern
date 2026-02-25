@@ -175,7 +175,13 @@ def plan(
         graph.build()
         progress.update(task_static, total=1, completed=1)
 
-        # 2. Architect Plan
+        # 2. Load spec context for planning
+        from lantern_cli.core.spec_manager import get_all_spec_summaries, load_specs
+
+        plan_spec_entries = load_specs(repo_path / output_dir)
+        plan_spec_ctx = get_all_spec_summaries(plan_spec_entries, repo_path / output_dir)
+
+        # 3. Architect Plan
         if planning_mode == "agentic":
             task_plan = progress.add_task("Architecting analysis plan (agentic)...", total=None)
             try:
@@ -188,6 +194,7 @@ def plan(
                     reverse_dependencies=graph.reverse_dependencies,
                     layers=graph.calculate_layers(),
                     mermaid_graph=Architect(repo_path, graph).generate_mermaid_graph(),
+                    spec_context=plan_spec_ctx,
                 )
             except ImportError:
                 console.print(
@@ -351,7 +358,18 @@ def run(
         graph.build()
         progress.update(task_static, total=1, completed=1)
 
-        # 4. Architect Plan
+        # 4. Load spec context for planning
+        from lantern_cli.core.spec_manager import (
+            get_all_spec_summaries as get_all_run_specs,
+        )
+        from lantern_cli.core.spec_manager import (
+            load_specs as load_run_specs,
+        )
+
+        run_spec_entries = load_run_specs(repo_path / config.output_dir)
+        run_spec_ctx = get_all_run_specs(run_spec_entries, repo_path / config.output_dir)
+
+        # 5. Architect Plan
         if planning_mode == "agentic":
             task_plan = progress.add_task("Architecting analysis plan (agentic)...", total=None)
             try:
@@ -364,6 +382,7 @@ def run(
                     reverse_dependencies=graph.reverse_dependencies,
                     layers=graph.calculate_layers(),
                     mermaid_graph=Architect(repo_path, graph).generate_mermaid_graph(),
+                    spec_context=run_spec_ctx,
                 )
             except ImportError:
                 console.print(
@@ -434,12 +453,18 @@ def run(
                 total=total_batches,
             )
 
+            # Load spec entries for context injection
+            from lantern_cli.core.spec_manager import load_specs
+
+            spec_entries = load_specs(repo_path / config.output_dir)
+
             runner = Runner(
                 repo_path,
                 backend,
                 state_manager,
                 language=config.language,
                 output_dir=config.output_dir,
+                spec_entries=spec_entries,
             )
 
             for batch_idx, batch in enumerate(pending_batches, 1):
@@ -525,9 +550,17 @@ def run(
                 )
                 try:
                     from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
+                    from lantern_cli.core.spec_manager import (
+                        get_all_spec_summaries,
+                    )
 
+                    spec_ctx = get_all_spec_summaries(spec_entries, repo_path / config.output_dir)
                     agentic_synth = AgenticSynthesizer(
-                        repo_path, backend, language=config.language, output_dir=config.output_dir
+                        repo_path,
+                        backend,
+                        language=config.language,
+                        output_dir=config.output_dir,
+                        spec_context=spec_ctx,
                     )
                     agentic_synth.generate_top_down_docs()
                 except ImportError:
@@ -841,12 +874,18 @@ def update(
             total=total_batches,
         )
 
+        # Load spec entries for context injection
+        from lantern_cli.core.spec_manager import load_specs as load_specs_update
+
+        spec_entries_update = load_specs_update(repo_path / config.output_dir)
+
         runner = Runner(
             repo_path,
             backend,
             state_manager_run,
             language=config.language,
             output_dir=config.output_dir,
+            spec_entries=spec_entries_update,
         )
 
         for batch_idx, batch in enumerate(pending_batches, 1):
@@ -928,9 +967,19 @@ def update(
             task_synth = progress.add_task("Re-synthesizing documentation (agentic)...", total=None)
             try:
                 from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
+                from lantern_cli.core.spec_manager import (
+                    get_all_spec_summaries as get_all_spec_summaries_update,
+                )
 
+                spec_ctx_update = get_all_spec_summaries_update(
+                    spec_entries_update, repo_path / config.output_dir
+                )
                 agentic_synth = AgenticSynthesizer(
-                    repo_path, backend, language=config.language, output_dir=config.output_dir
+                    repo_path,
+                    backend,
+                    language=config.language,
+                    output_dir=config.output_dir,
+                    spec_context=spec_ctx_update,
                 )
                 agentic_synth.generate_top_down_docs()
             except ImportError:
@@ -970,6 +1019,156 @@ def update(
     console.print("[bold green]Incremental update complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
     console.print(f"[dim]Git commit: {base_sha[:8]} -> {current_sha[:8]}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Spec subcommand group
+# ---------------------------------------------------------------------------
+
+spec_app = typer.Typer(help="Manage specification documents for enhanced analysis")
+app.add_typer(spec_app, name="spec")
+
+
+@spec_app.command("add")
+def spec_add(
+    file_path: str = typer.Argument(help="Path to the spec file (PDF or Markdown)"),
+    repo: str = typer.Option(".", help="Repository path"),
+    output: str | None = typer.Option(None, help="Output directory"),
+    lang: str | None = typer.Option(None, help="Output language"),
+) -> None:
+    """Add a specification document and auto-map it to source modules."""
+    from lantern_cli.core.spec_manager import add_spec, build_file_tree
+
+    repo_path = Path(repo).resolve()
+    spec_file = Path(file_path).resolve()
+
+    if not spec_file.exists():
+        console.print(f"[bold red]File not found:[/bold red] {spec_file}")
+        raise typer.Exit(code=1)
+
+    suffix = spec_file.suffix.lower()
+    if suffix not in (".pdf", ".md", ".markdown"):
+        console.print(f"[bold red]Unsupported format:[/bold red] {suffix}. Use .pdf or .md files.")
+        raise typer.Exit(code=1)
+
+    config = load_config(repo_path, output=output, lang=lang)
+    lantern_dir = repo_path / config.output_dir
+
+    if not lantern_dir.exists():
+        console.print(
+            "[bold yellow]Lantern not initialized.[/bold yellow] " "Run `lantern init` first."
+        )
+        raise typer.Exit(code=1)
+
+    # Initialize backend for LLM calls
+    try:
+        backend = create_backend(config)
+    except Exception as e:
+        console.print(f"[bold red]Error initializing LLM backend:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+    # Build file tree for auto-mapping
+    file_filter = FileFilter(repo_path, config.filter)
+    file_list = [str(p.relative_to(repo_path)) for p in file_filter.walk()]
+    file_tree = build_file_tree(repo_path, file_list)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Adding spec...", total=None)
+        entry = add_spec(lantern_dir, spec_file, backend, file_tree)
+        progress.update(task, total=1, completed=1)
+
+    console.print(f"\n[bold green]Spec added:[/bold green] {entry.path}")
+    console.print(f"  Label: {entry.label}")
+    console.print(f"  Modules: {', '.join(entry.modules) or '(none detected)'}")
+    console.print(f"  Summary: {entry.summary_path}")
+    console.print("\n[dim]Edit .lantern/specs.toml to adjust module mappings if needed.[/dim]")
+
+
+@spec_app.command("list")
+def spec_list(
+    repo: str = typer.Option(".", help="Repository path"),
+    output: str | None = typer.Option(None, help="Output directory"),
+) -> None:
+    """List all registered specification documents."""
+    from rich.table import Table
+
+    from lantern_cli.core.spec_manager import load_specs
+
+    repo_path = Path(repo).resolve()
+    config = load_config(repo_path, output=output)
+    lantern_dir = repo_path / config.output_dir
+
+    entries = load_specs(lantern_dir)
+    if not entries:
+        console.print("[yellow]No specs registered.[/yellow]")
+        console.print("[dim]Use `lantern spec add <file>` to add a spec.[/dim]")
+        return
+
+    table = Table(title="Registered Specifications")
+    table.add_column("Label", style="cyan")
+    table.add_column("Path", style="white")
+    table.add_column("Modules", style="green")
+    table.add_column("Summary", style="dim")
+
+    for entry in entries:
+        table.add_row(
+            entry.label or Path(entry.path).stem,
+            entry.path,
+            ", ".join(entry.modules) or "(none)",
+            entry.summary_path or "(none)",
+        )
+
+    console.print(table)
+
+
+@spec_app.command("remove")
+def spec_remove(
+    spec_name: str = typer.Argument(help="Spec label or filename to remove"),
+    repo: str = typer.Option(".", help="Repository path"),
+    output: str | None = typer.Option(None, help="Output directory"),
+    delete_files: bool = typer.Option(
+        False, "--delete-files", help="Also delete the spec and summary files"
+    ),
+) -> None:
+    """Remove a specification document from specs.toml."""
+    from lantern_cli.core.spec_manager import load_specs, save_specs
+
+    repo_path = Path(repo).resolve()
+    config = load_config(repo_path, output=output)
+    lantern_dir = repo_path / config.output_dir
+
+    entries = load_specs(lantern_dir)
+    remaining = []
+    removed = None
+
+    for entry in entries:
+        label = entry.label or Path(entry.path).stem
+        filename = Path(entry.path).name
+        if label == spec_name or filename == spec_name or entry.path == spec_name:
+            removed = entry
+        else:
+            remaining.append(entry)
+
+    if removed is None:
+        console.print(f"[bold red]Spec not found:[/bold red] {spec_name}")
+        console.print("[dim]Use `lantern spec list` to see registered specs.[/dim]")
+        raise typer.Exit(code=1)
+
+    save_specs(lantern_dir, remaining)
+
+    if delete_files:
+        for rel_path in [removed.path, removed.summary_path]:
+            if rel_path:
+                full_path = lantern_dir / rel_path
+                if full_path.exists():
+                    full_path.unlink()
+                    console.print(f"  [dim]Deleted {full_path}[/dim]")
+
+    console.print(f"[green]Removed spec:[/green] {removed.path}")
 
 
 @app.command()

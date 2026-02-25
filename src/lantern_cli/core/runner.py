@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from lantern_cli.core.architect import Batch
+from lantern_cli.core.spec_manager import SpecEntry, get_spec_context
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.llm.structured import (
     BatchInteraction,
@@ -38,6 +39,7 @@ class Runner:
         state_manager: StateManager,
         language: str = "en",
         output_dir: str | None = None,
+        spec_entries: list[SpecEntry] | None = None,
     ) -> None:
         """Initialize Runner.
 
@@ -47,11 +49,13 @@ class Runner:
             state_manager: State manager instance.
             language: Output language (default: en).
             output_dir: Output directory path.
+            spec_entries: Optional spec entries for injecting spec context.
         """
         self.root_path = root_path
         self.backend = backend
         self.state_manager = state_manager
         self.language = language
+        self.spec_entries = spec_entries or []
         # Base output dir from lantern.toml or CLI. Default: ".lantern"
         base_out = output_dir or ".lantern"
         self.base_output_dir = root_path / base_out
@@ -211,7 +215,14 @@ class Runner:
             if not file_content.strip():
                 logger.info(f"Skipping empty file: {rel_path}")
                 empty_indices.add(idx)
-            batch_data.append({"file_content": file_content, "language": self.language})
+            spec_ctx = get_spec_context(str(rel_path), self.spec_entries, self.base_output_dir)
+            batch_data.append(
+                {
+                    "file_content": file_content,
+                    "language": self.language,
+                    "spec_context": spec_ctx,
+                }
+            )
 
         structured_results: list[StructuredAnalysisOutput | None] = [None] * len(batch.files)
         sense_records: list[dict[str, Any]] = []
