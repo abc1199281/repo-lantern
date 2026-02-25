@@ -7,6 +7,7 @@ from lantern_cli.static_analysis.generic import GenericAnalyzer
 from lantern_cli.static_analysis.python import PythonAnalyzer
 from lantern_cli.static_analysis.systemverilog import SystemVerilogAnalyzer
 from lantern_cli.static_analysis.typescript import TypeScriptAnalyzer
+from lantern_cli.static_analysis.vhdl import VhdlAnalyzer
 
 __all__ = [
     "DependencyGraph",
@@ -16,4 +17,5 @@ __all__ = [
     "CppAnalyzer",
     "TypeScriptAnalyzer",
     "SystemVerilogAnalyzer",
+    "VhdlAnalyzer",
 ]

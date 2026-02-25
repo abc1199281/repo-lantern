@@ -33,12 +33,14 @@ class DependencyGraph:
         from lantern_cli.static_analysis.python import PythonAnalyzer
         from lantern_cli.static_analysis.systemverilog import SystemVerilogAnalyzer
         from lantern_cli.static_analysis.typescript import TypeScriptAnalyzer
+        from lantern_cli.static_analysis.vhdl import VhdlAnalyzer
 
         self.analyzers = {
             "python": PythonAnalyzer(),
             "cpp": CppAnalyzer(),
             "typescript": TypeScriptAnalyzer(),
             "systemverilog": SystemVerilogAnalyzer(),
+            "vhdl": VhdlAnalyzer(),
         }
 
     def build(self) -> None:
@@ -66,6 +68,8 @@ class DependencyGraph:
             ".svh": "systemverilog",
             ".v": "systemverilog",
             ".vh": "systemverilog",
+            ".vhd": "vhdl",
+            ".vhdl": "vhdl",
         }
 
         # Use FileFilter to walk and filter files
@@ -109,6 +113,10 @@ class DependencyGraph:
                 # Map by filename (e.g. "defs.svh") and relative path
                 module_map[path.name] = str(rel_path)
                 module_map[str(rel_path)] = str(rel_path)
+            elif file_type == "vhdl":
+                # Map by stem (entity/package name) and relative path
+                module_map[path.stem.lower()] = str(rel_path)
+                module_map[str(rel_path)] = str(rel_path)
 
         # 2. Analyze imports and build graph
         for rel_path, file_type in all_files:
@@ -148,6 +156,10 @@ class DependencyGraph:
 
                 elif file_type == "systemverilog":
                     # Direct lookup by filename or path (same as C++)
+                    target_file = module_map.get(imp)
+
+                elif file_type == "vhdl":
+                    # Lookup by entity/package name or library.package
                     target_file = module_map.get(imp)
 
                 elif file_type == "typescript":
