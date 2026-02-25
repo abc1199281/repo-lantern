@@ -158,3 +158,22 @@ def test_dependency_graph_builds_vhdl_deps(tmp_path):
 
     assert alu_node in deps
     assert pkg_node in deps[alu_node]
+
+
+def test_dependency_graph_resolves_custom_library(tmp_path):
+    """Test that library-qualified imports (e.g. mylib.comp) resolve to local files."""
+    (tmp_path / "rtl").mkdir()
+    (tmp_path / "rtl/top.vhd").write_text("use mylib.adder.all;\n")
+    (tmp_path / "rtl/adder.vhd").write_text("")
+
+    mock_filter = MagicMock()
+    mock_filter.walk.return_value = [
+        tmp_path / "rtl/top.vhd",
+        tmp_path / "rtl/adder.vhd",
+    ]
+
+    graph = DependencyGraph(tmp_path, file_filter=mock_filter)
+    graph.build()
+
+    deps = graph.dependencies
+    assert "rtl/adder.vhd" in deps["rtl/top.vhd"]

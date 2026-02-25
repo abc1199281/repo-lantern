@@ -161,6 +161,10 @@ class DependencyGraph:
                 elif file_type == "vhdl":
                     # Lookup by entity/package name or library.package
                     target_file = module_map.get(imp)
+                    # For library-qualified names (e.g. "mylib.my_component"),
+                    # fall back to the entity/package part only
+                    if not target_file and "." in imp:
+                        target_file = module_map.get(imp.split(".")[-1])
 
                 elif file_type == "typescript":
                     # Skip bare module imports (node_modules packages)
