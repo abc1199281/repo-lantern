@@ -222,10 +222,14 @@ class StateManager:
                 logger.warning(f"Failed to clean sense file {sense_path}: {exc}")
 
         # Remove bottom-up markdown files for all languages.
+        # Handles both legacy (bottom_up/ subdirectory) and flat numbered layout.
         if bottom_up_dir.exists():
             for lang_dir in bottom_up_dir.iterdir():
-                bu_dir = lang_dir / "bottom_up" if lang_dir.is_dir() else None
-                if bu_dir and bu_dir.exists():
+                if not lang_dir.is_dir():
+                    continue
+                # Legacy layout: bottom_up/ subdirectory
+                bu_dir = lang_dir / "bottom_up"
+                if bu_dir.exists():
                     for fp in files_to_remove:
                         md_path = bu_dir / fp
                         md_with_ext = bu_dir / f"{fp}.md"
@@ -235,6 +239,14 @@ class StateManager:
                                     p.unlink()
                                 except OSError as exc:
                                     logger.warning(f"Failed to remove {p}: {exc}")
+                # Flat layout: numbered files like NN-src--path.py.md
+                for fp in files_to_remove:
+                    flat_stem = fp.replace("/", "--")
+                    for candidate in lang_dir.glob(f"*-{flat_stem}.md"):
+                        try:
+                            candidate.unlink()
+                        except OSError as exc:
+                            logger.warning(f"Failed to remove {candidate}: {exc}")
 
         self.save_state()
 

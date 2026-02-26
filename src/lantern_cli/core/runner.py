@@ -13,7 +13,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from lantern_cli.core.architect import Batch
+from lantern_cli.core.architect import Batch, Plan
+from lantern_cli.core.output_layout import (
+    compute_file_number,
+    compute_flat_filename,
+    rel_path_to_flat_stem,
+)
 from lantern_cli.core.state_manager import StateManager
 from lantern_cli.llm.structured import (
     BatchInteraction,
@@ -38,6 +43,7 @@ class Runner:
         state_manager: StateManager,
         language: str = "en",
         output_dir: str | None = None,
+        plan: Plan | None = None,
     ) -> None:
         """Initialize Runner.
 
@@ -47,11 +53,13 @@ class Runner:
             state_manager: State manager instance.
             language: Output language (default: en).
             output_dir: Output directory path.
+            plan: Optional analysis plan for flat numbered output layout.
         """
         self.root_path = root_path
         self.backend = backend
         self.state_manager = state_manager
         self.language = language
+        self.plan = plan
         # Base output dir from lantern.toml or CLI. Default: ".lantern"
         base_out = output_dir or ".lantern"
         self.base_output_dir = root_path / base_out
@@ -192,8 +200,11 @@ class Runner:
         Returns:
             List of sense records (dicts with batch, file_path, and analysis data).
         """
-        # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
-        base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
+        # Flat layout writes directly to {lang}/, legacy writes to {lang}/bottom_up/
+        if self.plan:
+            base_output_dir = self.base_output_dir / "output" / self.language
+        else:
+            base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
 
         analyzer = StructuredAnalyzer(self.backend)
 
@@ -316,7 +327,12 @@ class Runner:
             if on_file_progress:
                 on_file_progress(batch.files[idx], "start")
 
-            out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
+            if self.plan:
+                file_num = compute_file_number(batch.id, idx, self.plan)
+                flat_stem = rel_path_to_flat_stem(str(rel_path))
+                out_path = base_output_dir / compute_flat_filename(file_num, flat_stem)
+            else:
+                out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
             try:
                 out_path.parent.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
@@ -422,8 +438,11 @@ class Runner:
         """
         from lantern_cli.llm.agent_analyzer import AgentAnalyzer
 
-        # Output dir: {base_output_dir}/output/{lang}/bottom_up/...
-        base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
+        # Flat layout writes directly to {lang}/, legacy writes to {lang}/bottom_up/
+        if self.plan:
+            base_output_dir = self.base_output_dir / "output" / self.language
+        else:
+            base_output_dir = self.base_output_dir / "output" / self.language / "bottom_up"
 
         analyzer = AgentAnalyzer(self.backend)
 
@@ -440,7 +459,13 @@ class Runner:
             rel_path, src_path = self._resolve_paths(file_path)
 
             # Output path for this file
-            out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
+            if self.plan:
+                file_idx = batch.files.index(file_path)
+                file_num = compute_file_number(batch.id, file_idx, self.plan)
+                flat_stem = rel_path_to_flat_stem(str(rel_path))
+                out_path = base_output_dir / compute_flat_filename(file_num, flat_stem)
+            else:
+                out_path = base_output_dir / rel_path.parent / f"{rel_path.name}.md"
 
             # Read file content
             try:
