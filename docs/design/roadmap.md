@@ -8,8 +8,11 @@ Future development plans for Lantern, organized by priority.
 
 ## P0 — Near-term
 
-### Incremental Update
+### ~~Incremental Update~~ ✅
 Support partial re-analysis after code changes. Detect modified files via `git diff` or file hashes, re-analyze affected batches and their dependents, then regenerate top-down docs.
+
+### ~~Spec-Aware Documentation~~ ✅
+Associate specification documents (PDF/Markdown) with code modules via `lantern spec add`. LLM auto-maps specs to source modules, and spec context is injected into bottom-up analysis, agentic planning, and synthesis prompts. Mappings stored in `.lantern/specs.toml`.
 
 ### Static Analysis Expansion (Go + Rust)
 Add dependency graph support for Go (`import` statements) and Rust (`use` / `mod` statements) alongside existing Python and C++ analyzers.
