@@ -47,14 +47,20 @@ Options:
 
 ## Output Structure
 
-Results are written to `.lantern/` (or custom output directory):
+Results are written to `.lantern/` (or custom output directory) as a flat numbered manual:
 
-- `.lantern/output/{lang}/top_down/` — High-level docs: OVERVIEW, ARCHITECTURE, CONCEPTS, GETTING_STARTED
-- `.lantern/output/{lang}/bottom_up/` — Per-file analysis mirroring repository structure
+- `.lantern/output/{lang}/GUIDE.md` — Reading guide and table of contents
+- `.lantern/output/{lang}/01-overview.md` — Project overview
+- `.lantern/output/{lang}/02-architecture.md` — System architecture
+- `.lantern/output/{lang}/03-concepts.md` — Core concepts
+- `.lantern/output/{lang}/04-*.md` through `NN-*.md` — Per-file analysis in dependency order
+- `.lantern/output/{lang}/NN-getting-started.md` — Getting started guide (last)
 - `.lantern/sense/` — Per-file `.sense` records from batch execution
 - `.lantern/lantern_plan.md` — The generated analysis plan
 
+Backward-compatible symlinks are provided at `top_down/` and `bottom_up/`.
+
 ## Reading Results
 
-Start with the top-down documents for a high-level understanding, then dive into bottom-up per-file analyses for detailed insights.
+Open `GUIDE.md` and read the numbered files in order. The manual starts with high-level overviews, walks through the codebase from foundational modules to entry points, and ends with a getting-started guide.
 <!-- /lantern-skills -->

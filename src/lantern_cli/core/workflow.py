@@ -458,6 +458,8 @@ def synthesis_node(
     documents = {}
     quality_score = 0.8
 
+    plan = _deserialize_plan(state.get("plan")) if state.get("plan") else None
+
     if backend:
         try:
             if synthesis_mode == "agentic":
@@ -469,6 +471,7 @@ def synthesis_node(
                         backend,
                         language=language,
                         output_dir=state.get("output_dir", ".lantern/docs"),
+                        plan=plan,
                     )
                     agentic_synth.generate_top_down_docs()
                     quality_score = 0.85  # Agentic synthesis typically scores higher
@@ -482,6 +485,7 @@ def synthesis_node(
                     language=language,
                     output_dir=state.get("output_dir", ".lantern/docs"),
                     backend=backend,
+                    plan=plan,
                 )
                 synth.generate_top_down_docs()
 
@@ -631,12 +635,14 @@ def build_lantern_workflow(
         if backend and repo_path:
             output_dir = state.get("output_dir", ".lantern")
             state_mgr = StateManager(repo_path, backend=backend, output_dir=output_dir)
+            plan = _deserialize_plan(state.get("plan")) if state.get("plan") else None
             runner = Runner(
                 repo_path,
                 backend,
                 state_mgr,
                 language=state.get("language", "en"),
                 output_dir=output_dir,
+                plan=plan,
             )
         return batch_execution_node(state, backend=backend, runner=runner)
 

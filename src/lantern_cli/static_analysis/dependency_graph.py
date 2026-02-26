@@ -31,12 +31,16 @@ class DependencyGraph:
         # Lazy import to avoid circular dependency
         from lantern_cli.static_analysis.cpp import CppAnalyzer
         from lantern_cli.static_analysis.python import PythonAnalyzer
+        from lantern_cli.static_analysis.systemverilog import SystemVerilogAnalyzer
         from lantern_cli.static_analysis.typescript import TypeScriptAnalyzer
+        from lantern_cli.static_analysis.vhdl import VhdlAnalyzer
 
         self.analyzers = {
             "python": PythonAnalyzer(),
             "cpp": CppAnalyzer(),
             "typescript": TypeScriptAnalyzer(),
+            "systemverilog": SystemVerilogAnalyzer(),
+            "vhdl": VhdlAnalyzer(),
         }
 
     def build(self) -> None:
@@ -60,6 +64,12 @@ class DependencyGraph:
             ".tsx": "typescript",
             ".js": "typescript",
             ".jsx": "typescript",
+            ".sv": "systemverilog",
+            ".svh": "systemverilog",
+            ".v": "systemverilog",
+            ".vh": "systemverilog",
+            ".vhd": "vhdl",
+            ".vhdl": "vhdl",
         }
 
         # Use FileFilter to walk and filter files
@@ -99,6 +109,14 @@ class DependencyGraph:
                 module_map[rel_path.stem] = str(rel_path)
                 # Map full relative path with extension
                 module_map[str(rel_path)] = str(rel_path)
+            elif file_type == "systemverilog":
+                # Map by filename (e.g. "defs.svh") and relative path
+                module_map[path.name] = str(rel_path)
+                module_map[str(rel_path)] = str(rel_path)
+            elif file_type == "vhdl":
+                # Map by stem (entity/package name) and relative path
+                module_map[path.stem.lower()] = str(rel_path)
+                module_map[str(rel_path)] = str(rel_path)
 
         # 2. Analyze imports and build graph
         for rel_path, file_type in all_files:
@@ -135,6 +153,18 @@ class DependencyGraph:
                         # Handle "../utils.h" style includes if needed,
                         # but simple name matching covers many cases in flat/simple C++ projects
                         pass
+
+                elif file_type == "systemverilog":
+                    # Direct lookup by filename or path (same as C++)
+                    target_file = module_map.get(imp)
+
+                elif file_type == "vhdl":
+                    # Lookup by entity/package name or library.package
+                    target_file = module_map.get(imp)
+                    # For library-qualified names (e.g. "mylib.my_component"),
+                    # fall back to the entity/package part only
+                    if not target_file and "." in imp:
+                        target_file = module_map.get(imp.split(".")[-1])
 
                 elif file_type == "typescript":
                     # Skip bare module imports (node_modules packages)

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `lantern spec add` command to associate specification documents (PDF/Markdown) with code modules
+- `lantern spec list` and `lantern spec remove` commands for managing spec mappings
+- LLM auto-mapping: automatically determines which modules a spec covers
+- Spec context injection into bottom-up analysis, agentic planning, and synthesis prompts
+- PDF text and table extraction via pdfplumber
+- `.lantern/specs.toml` as single source of truth for spec-to-module mappings
+
 ## [0.1.3] - 2026-02-24
 
 ### Added
