@@ -465,6 +465,7 @@ def run(
                 language=config.language,
                 output_dir=config.output_dir,
                 spec_entries=spec_entries,
+                plan=plan,
             )
 
             for batch_idx, batch in enumerate(pending_batches, 1):
@@ -561,6 +562,7 @@ def run(
                         language=config.language,
                         output_dir=config.output_dir,
                         spec_context=spec_ctx,
+                        plan=plan,
                     )
                     agentic_synth.generate_top_down_docs()
                 except ImportError:
@@ -574,6 +576,7 @@ def run(
                         language=config.language,
                         output_dir=config.output_dir,
                         backend=backend,
+                        plan=plan,
                     )
                     synthesizer.generate_top_down_docs()
                 except Exception as e:
@@ -586,6 +589,7 @@ def run(
                         language=config.language,
                         output_dir=config.output_dir,
                         backend=backend,
+                        plan=plan,
                     )
                     synthesizer.generate_top_down_docs()
             else:
@@ -595,6 +599,7 @@ def run(
                     language=config.language,
                     output_dir=config.output_dir,
                     backend=backend,
+                    plan=plan,
                 )
                 synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
@@ -886,6 +891,7 @@ def update(
             language=config.language,
             output_dir=config.output_dir,
             spec_entries=spec_entries_update,
+            plan=incremental_plan,
         )
 
         for batch_idx, batch in enumerate(pending_batches, 1):
@@ -980,6 +986,7 @@ def update(
                     language=config.language,
                     output_dir=config.output_dir,
                     spec_context=spec_ctx_update,
+                    plan=incremental_plan,
                 )
                 agentic_synth.generate_top_down_docs()
             except ImportError:
@@ -993,6 +1000,7 @@ def update(
                     language=config.language,
                     output_dir=config.output_dir,
                     backend=backend,
+                    plan=incremental_plan,
                 )
                 synthesizer.generate_top_down_docs()
         else:
@@ -1002,6 +1010,7 @@ def update(
                 language=config.language,
                 output_dir=config.output_dir,
                 backend=backend,
+                plan=incremental_plan,
             )
             synthesizer.generate_top_down_docs()
         progress.update(task_synth, total=1, completed=1)

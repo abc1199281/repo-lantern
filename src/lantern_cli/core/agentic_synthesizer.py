@@ -29,6 +29,12 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from lantern_cli.core.output_layout import (
+    build_manifest,
+    create_backward_compat_symlinks,
+    generate_guide_md,
+    inject_navigation_all_files,
+)
 from lantern_cli.core.synthesis_tools import (
     identify_entry_points,
     prepare_classes_summary,
@@ -38,7 +44,7 @@ from lantern_cli.core.synthesis_tools import (
 )
 
 if TYPE_CHECKING:
-    pass
+    from lantern_cli.core.architect import Plan
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +337,7 @@ class AgenticSynthesizer:
         language: str = "en",
         output_dir: str | None = None,
         spec_context: str = "",
+        plan: "Plan | None" = None,
     ) -> None:
         """Initialize AgenticSynthesizer.
 
@@ -340,15 +347,20 @@ class AgenticSynthesizer:
             language: Output language code (default: en).
             output_dir: Base output directory (default: .lantern).
             spec_context: Concatenated spec summaries for injection.
+            plan: Optional analysis plan for flat numbered output layout.
         """
         self.root_path = root_path
         self.backend = backend
         self.language = language
         self.spec_context = spec_context
+        self.plan = plan
         base_out = output_dir or ".lantern"
         self.base_output_dir = root_path / base_out
         self.sense_dir = self.base_output_dir / "sense"
-        self.output_dir = self.base_output_dir / "output" / language / "top_down"
+        if plan:
+            self.output_dir = self.base_output_dir / "output" / language
+        else:
+            self.output_dir = self.base_output_dir / "output" / language / "top_down"
         self.compiled_graph = build_synthesis_graph(backend)
 
     # -- Data loading (mirrors Synthesizer for compatibility) ----------------
@@ -449,10 +461,29 @@ class AgenticSynthesizer:
 
         # Write output files
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._write_doc("OVERVIEW.md", result["overview_doc"])
-        self._write_doc("ARCHITECTURE.md", result["architecture_doc"])
-        self._write_doc("GETTING_STARTED.md", result["getting_started_doc"])
-        self._write_doc("CONCEPTS.md", result["concepts_doc"])
+        if self.plan:
+            manifest = build_manifest(self.plan)
+            name_map = {e.original_path: e.flat_name for e in manifest if e.kind == "synthesis"}
+            self._write_doc(name_map.get("OVERVIEW", "OVERVIEW.md"), result["overview_doc"])
+            self._write_doc(
+                name_map.get("ARCHITECTURE", "ARCHITECTURE.md"), result["architecture_doc"]
+            )
+            self._write_doc(
+                name_map.get("GETTING_STARTED", "GETTING_STARTED.md"),
+                result["getting_started_doc"],
+            )
+            self._write_doc(name_map.get("CONCEPTS", "CONCEPTS.md"), result["concepts_doc"])
+
+            inject_navigation_all_files(self.output_dir, manifest)
+            guide_content = generate_guide_md(manifest, self.plan)
+            (self.output_dir / "GUIDE.md").write_text(guide_content, encoding="utf-8")
+            create_backward_compat_symlinks(self.output_dir, manifest)
+            logger.info("Flat output finalized: GUIDE.md, navigation, and symlinks created")
+        else:
+            self._write_doc("OVERVIEW.md", result["overview_doc"])
+            self._write_doc("ARCHITECTURE.md", result["architecture_doc"])
+            self._write_doc("GETTING_STARTED.md", result["getting_started_doc"])
+            self._write_doc("CONCEPTS.md", result["concepts_doc"])
 
     def _write_doc(self, filename: str, content: str) -> None:
         """Write a document to the output directory, truncating if too long."""
