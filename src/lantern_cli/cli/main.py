@@ -440,6 +440,7 @@ def run(
                 state_manager,
                 language=config.language,
                 output_dir=config.output_dir,
+                plan=plan,
             )
 
             for batch_idx, batch in enumerate(pending_batches, 1):
@@ -527,7 +528,11 @@ def run(
                     from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
                     agentic_synth = AgenticSynthesizer(
-                        repo_path, backend, language=config.language, output_dir=config.output_dir
+                        repo_path,
+                        backend,
+                        language=config.language,
+                        output_dir=config.output_dir,
+                        plan=plan,
                     )
                     agentic_synth.generate_top_down_docs()
                 except ImportError:
@@ -541,6 +546,7 @@ def run(
                         language=config.language,
                         output_dir=config.output_dir,
                         backend=backend,
+                        plan=plan,
                     )
                     synthesizer.generate_top_down_docs()
                 except Exception as e:
@@ -553,6 +559,7 @@ def run(
                         language=config.language,
                         output_dir=config.output_dir,
                         backend=backend,
+                        plan=plan,
                     )
                     synthesizer.generate_top_down_docs()
             else:
@@ -562,6 +569,7 @@ def run(
                     language=config.language,
                     output_dir=config.output_dir,
                     backend=backend,
+                    plan=plan,
                 )
                 synthesizer.generate_top_down_docs()
             progress.update(task_synth, total=1, completed=1)
@@ -847,6 +855,7 @@ def update(
             state_manager_run,
             language=config.language,
             output_dir=config.output_dir,
+            plan=incremental_plan,
         )
 
         for batch_idx, batch in enumerate(pending_batches, 1):
@@ -930,7 +939,11 @@ def update(
                 from lantern_cli.core.agentic_synthesizer import AgenticSynthesizer
 
                 agentic_synth = AgenticSynthesizer(
-                    repo_path, backend, language=config.language, output_dir=config.output_dir
+                    repo_path,
+                    backend,
+                    language=config.language,
+                    output_dir=config.output_dir,
+                    plan=incremental_plan,
                 )
                 agentic_synth.generate_top_down_docs()
             except ImportError:
@@ -944,6 +957,7 @@ def update(
                     language=config.language,
                     output_dir=config.output_dir,
                     backend=backend,
+                    plan=incremental_plan,
                 )
                 synthesizer.generate_top_down_docs()
         else:
@@ -953,6 +967,7 @@ def update(
                 language=config.language,
                 output_dir=config.output_dir,
                 backend=backend,
+                plan=incremental_plan,
             )
             synthesizer.generate_top_down_docs()
         progress.update(task_synth, total=1, completed=1)

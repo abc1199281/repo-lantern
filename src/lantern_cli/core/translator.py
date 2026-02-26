@@ -38,6 +38,7 @@ class Translator:
     def translate_all(self) -> None:
         """Translate both bottom-up and top-down English outputs.
 
+        Supports both flat numbered layout and legacy bottom_up/top_down layout.
         No-op when ``target_language`` is ``"en"``.
         """
         if self.target_language == "en":
@@ -46,15 +47,31 @@ class Translator:
         en_dir = self.base_output_dir / "output" / "en"
         dst_root = self.base_output_dir / "output" / self.target_language
 
-        # Translate bottom-up files
-        en_bottom_up = en_dir / "bottom_up"
-        if en_bottom_up.is_dir():
-            self._translate_directory(en_bottom_up, dst_root / "bottom_up")
+        # Flat layout: translate .md files directly in en/ (skip symlink dirs)
+        has_flat = any(en_dir.glob("[0-9][0-9]-*.md"))
+        if has_flat:
+            self._translate_flat_directory(en_dir, dst_root)
+        else:
+            # Legacy layout: translate bottom-up and top-down subdirs
+            en_bottom_up = en_dir / "bottom_up"
+            if en_bottom_up.is_dir():
+                self._translate_directory(en_bottom_up, dst_root / "bottom_up")
 
-        # Translate top-down files
-        en_top_down = en_dir / "top_down"
-        if en_top_down.is_dir():
-            self._translate_directory(en_top_down, dst_root / "top_down")
+            en_top_down = en_dir / "top_down"
+            if en_top_down.is_dir():
+                self._translate_directory(en_top_down, dst_root / "top_down")
+
+    def _translate_flat_directory(self, src_dir: Path, dst_dir: Path) -> None:
+        """Translate flat numbered .md files, skipping GUIDE.md and symlink dirs."""
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for src_file in sorted(src_dir.glob("*.md")):
+            if src_file.name == "GUIDE.md":
+                continue  # GUIDE.md will be regenerated, not translated
+            dst_file = dst_dir / src_file.name
+            content = src_file.read_text(encoding="utf-8")
+            translated = self._translate_file(content)
+            dst_file.write_text(translated, encoding="utf-8")
+            logger.info("Translated %s -> %s", src_file, dst_file)
 
     def _translate_directory(self, src_dir: Path, dst_dir: Path) -> None:
         """Walk *src_dir*, translate each ``.md`` file, and write to *dst_dir*."""
