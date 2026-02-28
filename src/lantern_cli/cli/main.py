@@ -26,6 +26,7 @@ from lantern_cli.static_analysis import DependencyGraph, FileFilter
 from lantern_cli.utils.observability import configure_langsmith
 
 TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "defaults"
+EXPORT_TEMPLATE_ROOT = Path(__file__).resolve().parents[1] / "template" / "export"
 DEFAULT_CONFIG_PATH = TEMPLATE_ROOT / "lantern.toml"
 
 
@@ -544,6 +545,43 @@ def run(
 
     console.print("[bold green]Analysis Complete![/bold green]")
     console.print(f"Documentation available in: {repo_path / config.output_dir}")
+
+
+@app.command()
+def export(
+    repo: str = typer.Option(".", help="Repository path"),
+    output: str = typer.Option("public", "-o", "--output", help="Export destination directory"),
+    lang: str | None = typer.Option(None, help="Language code (default: from config)"),
+    fmt: str = typer.Option(
+        "docsify", "-f", "--format", help="Export format: 'docsify' or 'mkdocs'"
+    ),
+    gitlab_ci: bool = typer.Option(False, "--gitlab-ci", help="Also generate .gitlab-ci.yml"),
+) -> None:
+    """Export Lantern output as a static site for GitLab/GitHub Pages."""
+    from lantern_cli.export.exporter import Exporter
+
+    repo_path = Path(repo).resolve()
+    config = load_config(repo_path, lang=lang)
+    language = config.language
+    output_dir = repo_path / output
+
+    try:
+        exporter = Exporter(
+            repo_path=repo_path,
+            output_dir=output_dir,
+            lang=language,
+            fmt=fmt,
+            gitlab_ci=gitlab_ci,
+        )
+        result = exporter.export()
+        console.print(f"[bold green]Exported site to {result}[/bold green]")
+        if fmt == "docsify":
+            console.print("Serve locally with: npx serve public")
+        else:
+            console.print("Build with: mkdocs build")
+    except FileNotFoundError as e:
+        console.print(f"[bold red]{e}[/bold red]")
+        raise typer.Exit(code=1)
 
 
 @app.command()
