@@ -76,6 +76,13 @@ Use `--workflow` to run the full pipeline as a LangGraph `StateGraph` with check
 - Conditional routing based on quality gates
 - Human-in-the-loop interrupt support
 
+### 📄 Spec-Aware Documentation
+Enrich generated docs with design intent from specification documents:
+- `lantern spec add spec.pdf` — LLM auto-maps specs to code modules
+- Supports PDF (with table extraction) and Markdown
+- Spec context is injected into analysis, planning, and synthesis prompts
+- Mappings stored in `.lantern/specs.toml` — fully editable
+
 ### ✏️ Human-in-the-Loop
 Review and edit `lantern_plan.md` before execution. You control what gets analyzed and how.
 
@@ -180,11 +187,27 @@ lantern run --repo ~/projects/my-app --output ~/docs/my-app-docs
 # Use specific language
 lantern run --lang zh-TW  # Traditional Chinese
 
-# Skip the cost confirmation prompt
+# Skip the confirmation prompt
 lantern run --yes
+
+# Incrementally update after code changes
+lantern update
+
+# Skip confirmation
+lantern update --yes
+
+# Set up AI coding tool instructions (Codex, Copilot, Claude)
+lantern onboard
+lantern onboard --tools codex --tools claude   # Specific tools only
+lantern onboard --overwrite                     # Replace existing sections
+
+# Associate spec documents with code for richer documentation
+lantern spec add path/to/auth-spec.pdf        # Auto-maps spec to modules via LLM
+lantern spec list                              # Show all spec mappings
+lantern spec remove auth-spec                  # Remove a spec mapping
 ```
 
-Lantern will show you a **cost estimate** before starting. The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
+The default backend is OpenAI, but you can configure it in `.lantern/lantern.toml`:
 
 ```toml
 [backend]
@@ -241,11 +264,42 @@ lantern run --resume <thread-id>     # Resume from checkpoint
 | `--repo` | `.` | Repository path to analyze |
 | `--output` | `.lantern` | Output directory |
 | `--lang` | `en` | Output language (e.g., `zh-TW`, `ja`) |
-| `--yes` / `-y` | false | Skip cost confirmation prompt |
+| `--yes` / `-y` | false | Skip confirmation prompt |
 | `--planning-mode` | `agentic` | `static` (topological) or `agentic` (LLM-enhanced) |
 | `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
 | `--workflow` | true | Use LangGraph workflow orchestration |
 | `--resume` | — | Resume from checkpoint with given thread ID |
+
+### All `lantern onboard` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path |
+| `--tools` | `codex, copilot, claude` | Target tools to generate instructions for |
+| `--overwrite` / `-f` | false | Replace existing lantern section in target files |
+
+Writes Lantern skill instructions to tool-specific files:
+- **Codex** → `AGENTS.md`
+- **Copilot** → `.github/copilot-instructions.md`
+- **Claude** → `CLAUDE.md`
+
+### All `lantern update` Options
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--repo` | `.` | Repository path |
+| `--output` | `.lantern` | Output directory |
+| `--lang` | `en` | Output language (e.g., `zh-TW`, `ja`) |
+| `--yes` / `-y` | false | Skip confirmation prompt |
+| `--synthesis-mode` | `agentic` | `batch` (rule-based) or `agentic` (LLM-powered) |
+
+### All `lantern spec` Subcommands
+
+| Command | Description |
+| :--- | :--- |
+| `lantern spec add <file>` | Add a spec file (PDF/MD), auto-map to modules via LLM, generate summary |
+| `lantern spec list` | List all spec-to-module mappings from `.lantern/specs.toml` |
+| `lantern spec remove <name>` | Remove a spec entry (and optionally its files) |
 
 # Configuration
 
@@ -297,10 +351,6 @@ Set your API key:
 ```bash
 export OPENAI_API_KEY="sk-..."
 ```
-
-**Pricing** (as of 2025):
-- gpt-4o-mini: $0.15/1M input, $0.60/1M output
-- gpt-4o: $2.50/1M input, $10/1M output
 
 ### Ollama (Local Models)
 ```toml
@@ -356,14 +406,6 @@ cli_model_name = "gpt-4o-mini"' > .lantern/lantern.toml
 lantern run
 ```
 
-### Cost Estimation
-Before execution, Lantern fetches **real-time pricing** and shows you:
-- Estimated input/output tokens
-- Projected cost (USD)
-- Confirmation prompt
-
-Local models (Ollama) show $0.00 cost.
-
 ---
 
 # Roadmap
@@ -371,6 +413,8 @@ Local models (Ollama) show $0.00 cost.
 - [x] **LangGraph Workflow Orchestration**: Full StateGraph with checkpoint-based resumption (`--workflow`, `--resume`).
 - [x] **Agentic Planning & Synthesis**: LLM-enhanced planning (`--planning-mode agentic`) and synthesis (`--synthesis-mode agentic`).
 - [x] **LangSmith Observability**: Tracing integration for debugging LLM calls.
+- [x] **Incremental Update**: Git diff-based `lantern update` command for re-analyzing only changed files.
+- [x] **Spec-Aware Documentation**: Associate specification documents (PDF/MD) with code modules for richer, design-intent-aware documentation.
 - [ ] **Execution Trace Mode**: Collect call graphs via unit tests for dynamic analysis.
 - [ ] **Memory Cross-talk**: Enhanced reasoning across batch boundaries.
 - [ ] **Multi-language Static Analysis**: Go, Rust, and Java support.

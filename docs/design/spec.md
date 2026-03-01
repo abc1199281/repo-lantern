@@ -73,6 +73,7 @@ Fields:
 | :--- | :--- | :--- |
 | **Simple** | `lantern run` | Quick analysis with defaults |
 | **Advanced** | `lantern init` → `lantern plan` → `lantern run` | Review/edit plan before execution |
+| **Spec** | `lantern spec add/list/remove` | Associate spec documents with code modules |
 
 Config priority (high to low):
 1. CLI arguments (`--backend`, `--output`, `--lang`)

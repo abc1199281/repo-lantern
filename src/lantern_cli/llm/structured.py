@@ -375,7 +375,8 @@ class StructuredAnalyzer:
         outputs: list[BatchInteraction] = []
         for item in items:
             language = item.get("language", "en")
-            user_prompt = self.prompts.get("user", "").format(**item)
+            format_item = {"spec_context": "", **item}
+            user_prompt = self.prompts.get("user", "").format(**format_item)
             system_prompt = self.prompts.get("system", "")
             full_prompt = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
             try:

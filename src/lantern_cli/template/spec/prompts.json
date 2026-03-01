@@ -1,0 +1,10 @@
+{
+    "auto_map": {
+        "system": "You are an expert at understanding software project structure and mapping specification documents to source code modules. You MUST output valid JSON.",
+        "user": "Given the following specification document excerpt and project file tree, determine which source code directories or files this specification describes.\n\n## Specification Excerpt\n\n{spec_excerpt}\n\n## Project File Tree\n\n{file_tree}\n\nAnalyze the spec content and identify which directories or files implement the functionality described in this specification. Output glob patterns that match the relevant source files.\n\nOutput ONLY a JSON object with a \"modules\" key containing a list of glob pattern strings. Example:\n{\"modules\": [\"src/auth/**\", \"src/middleware/auth_*.py\"]}\n\nRules:\n- Use directory patterns (e.g., \"src/auth/\") for entire modules\n- Use glob patterns (e.g., \"src/utils/crypto_*.py\") for specific files\n- Be specific — don't match the entire repo\n- If unsure, prefer broader directory patterns over file-level patterns\n\nJSON output:"
+    },
+    "summarize": {
+        "system": "You are an expert technical writer who creates concise summaries of specification documents. Preserve key requirements, interfaces, data formats, and constraints.",
+        "user": "Summarize the following specification document. Focus on:\n1. Purpose and scope\n2. Key requirements and constraints\n3. Data formats, protocols, or interfaces defined\n4. Important tables and their contents\n5. Acceptance criteria or test conditions\n\nKeep the summary under 2000 words. Preserve any important tables in Markdown format.\n\nSpecification document:\n\n{spec_text}"
+    }
+}

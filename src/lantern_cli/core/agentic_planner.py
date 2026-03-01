@@ -174,6 +174,7 @@ class PlanningState(TypedDict):
     file_list_formatted: str
     language: str
     batch_size: int
+    spec_context: str
 
     # LLM-generated intermediate analysis
     structure_analysis: str
@@ -222,6 +223,9 @@ def _make_analyze_structure(backend: Any, prompts: dict[str, dict[str, str]]) ->
     def analyze_structure(state: PlanningState) -> dict[str, str]:
         lang = state["language"]
         cfg = prompts["analyze_structure"]
+        spec_section = ""
+        if state.get("spec_context"):
+            spec_section = f"\n\n## Specification Documents\n\n{state['spec_context']}"
         result = _invoke_backend(
             backend,
             cfg["system"].format(language=lang),
@@ -230,7 +234,8 @@ def _make_analyze_structure(backend: Any, prompts: dict[str, dict[str, str]]) ->
                 dependency_summary=state["dependency_summary"],
                 layer_summary=state["layer_summary"],
                 sampled_contents=state["sampled_contents"],
-            ),
+            )
+            + spec_section,
         )
         return {"structure_analysis": result}
 
@@ -243,6 +248,9 @@ def _make_identify_patterns(backend: Any, prompts: dict[str, dict[str, str]]) ->
     def identify_patterns(state: PlanningState) -> dict[str, str]:
         lang = state["language"]
         cfg = prompts["identify_patterns"]
+        spec_section = ""
+        if state.get("spec_context"):
+            spec_section = f"\n\n## Specification Documents\n\n{state['spec_context']}"
         result = _invoke_backend(
             backend,
             cfg["system"].format(language=lang),
@@ -250,7 +258,8 @@ def _make_identify_patterns(backend: Any, prompts: dict[str, dict[str, str]]) ->
                 structure_analysis=state["structure_analysis"],
                 sampled_contents=state["sampled_contents"],
                 dependency_summary=state["dependency_summary"],
-            ),
+            )
+            + spec_section,
         )
         return {"patterns_analysis": result}
 
@@ -392,6 +401,7 @@ class AgenticPlanner:
         layers: dict[str, int],
         mermaid_graph: str = "",
         batch_size: int = _DEFAULT_BATCH_SIZE,
+        spec_context: str = "",
     ) -> Plan:
         """Generate an LLM-enhanced analysis plan.
 
@@ -428,6 +438,7 @@ class AgenticPlanner:
             "file_list_formatted": file_list_formatted,
             "language": self.language,
             "batch_size": batch_size,
+            "spec_context": spec_context,
             "structure_analysis": "",
             "patterns_analysis": "",
             "semantic_groups_json": "",
